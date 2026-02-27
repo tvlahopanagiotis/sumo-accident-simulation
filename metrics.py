@@ -189,9 +189,11 @@ class MetricsCollector:
                                    instead of making N individual TraCI calls.
         """
         if all_sub is not None:
-            # Fast path — use pre-fetched subscription data (zero TraCI calls)
+            # Fast path — use pre-fetched subscription data (zero TraCI calls).
+            # Filter out SUMO's INVALID_DOUBLE_VALUE sentinel (≈ −1.07e9) which
+            # is returned for teleporting / not-yet-inserted vehicles.
             speeds     = [vd[_tc.VAR_SPEED] for vd in all_sub.values()
-                          if _tc.VAR_SPEED in vd]
+                          if _tc.VAR_SPEED in vd and vd[_tc.VAR_SPEED] >= 0.0]
             n_vehicles = len(speeds)
         else:
             # Legacy fallback — individual TraCI calls

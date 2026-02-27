@@ -119,9 +119,14 @@ class RiskModel:
         Returns:
             A float in [0, 1] representing composite risk.
         """
-        speed     = vdata.get(_tc.VAR_SPEED,     0.0)
-        max_speed = vdata.get(_tc.VAR_MAX_SPEED, 1.0)
+        speed     = vdata.get(_tc.VAR_SPEED,    -1.0)
+        max_speed = vdata.get(_tc.VAR_MAXSPEED,  1.0)
         edge_id   = vdata.get(_tc.VAR_ROAD_ID,   "")
+
+        # Guard: SUMO returns INVALID_DOUBLE_VALUE (≈ −1.07e9) for vehicles
+        # that are teleporting or not yet fully inserted into the network.
+        if speed < 0.0 or not edge_id:
+            return 0.0
 
         # --- 1. Speed Risk ---
         if max_speed > 0:
@@ -338,7 +343,7 @@ class RiskModel:
         Determine road type multiplier based on edge speed limit.
         SUMO doesn't store road type directly, so we use max speed as a proxy.
         """
-        if edge_id.startswith(":"):
+        if not edge_id or edge_id.startswith(":"):
             return self.road_type_multipliers.get("intersection", 2.0)
         try:
             max_speed_mps = traci.lane.getMaxSpeed(edge_id + "_0")

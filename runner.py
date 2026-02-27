@@ -176,7 +176,7 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
     # (fetched in bulk via getAllSubscriptionResults each step)
     _VEHICLE_VARS = [
         _tc.VAR_SPEED,        # current speed  (m/s)
-        _tc.VAR_MAX_SPEED,    # vehicle max speed (m/s)
+        _tc.VAR_MAXSPEED,     # vehicle max speed (m/s)
         _tc.VAR_ROAD_ID,      # edge ID the vehicle is on
         _tc.VAR_POSITION,     # (x, y) Cartesian position
         _tc.VAR_LANE_ID,      # lane ID
