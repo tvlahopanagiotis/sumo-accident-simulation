@@ -5,7 +5,7 @@ sumo:
   seed: 42
   step_length: 5
 risk:
-  base_probability: 5.0e-05
+  base_probability: 1.5e-04
   speed_weight: 0.4
   speed_exponent: 2.0
   speed_variance_weight: 0.3
