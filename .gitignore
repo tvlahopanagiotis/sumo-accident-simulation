@@ -1,0 +1,43 @@
+# ── Simulation outputs ───────────────────────────────────────────────
+results/
+
+# ── Large generated network files ───────────────────────────────────
+# The Thessaloniki network is auto-generated; don't version binary blobs
+*.osm
+*.net.xml
+*.rou.xml
+*.sumocfg
+
+# ── Python ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+.venv/
+venv/
+env/
+
+# ── macOS ────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon
+
+# ── Editor / IDE ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

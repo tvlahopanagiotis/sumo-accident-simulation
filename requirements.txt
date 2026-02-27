@@ -1,0 +1,28 @@
+# ============================================================
+# SUMO Accident Simulation (SAS) — Python dependencies
+# ============================================================
+#
+# SUMO / TraCI
+# ------------
+# traci is bundled with SUMO and is NOT pip-installable.
+# Install SUMO 1.20.0 or later and ensure it is on your PATH:
+#   macOS:   brew install sumo
+#   Ubuntu:  sudo apt install sumo sumo-tools
+#   Windows: https://sumo.dlr.de/docs/Downloads.php
+#
+# After installing SUMO, set the environment variable:
+#   export SUMO_HOME=/path/to/sumo          # e.g. /opt/homebrew/Cellar/sumo/1.20.0
+#   export PYTHONPATH=$SUMO_HOME/tools:$PYTHONPATH
+
+# Simulation configuration
+PyYAML>=6.0,<7.0
+
+# Analysis & data handling
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Visualisation
+matplotlib>=3.7.0
+
+# Optional: used by generate_network.py to download OSM data
+requests>=2.28.0

@@ -1,0 +1,48 @@
+sumo:
+  config_file: /Users/theocharisvlachopanagiotis/Downloads/thessaloniki_network/thessaloniki.sumocfg
+  binary: sumo
+  total_steps: 7200
+  seed: 42
+  step_length: 5          # seconds per simulation step (must match --step-length in SUMO cmd)
+risk:
+  # Calibrated for Thessaloniki city centre with ~1100 simultaneous vehicles.
+  # Target: ~5–10 accidents per 2-hour simulation (elevated-risk scenario).
+  # Real-world rate for this area would be ~0–1 accidents per 2 hours.
+  base_probability: 0.00005   # 10× lower than before; 8× more vehicles ≈ same exposure
+  speed_weight: 0.4
+  speed_exponent: 2.0
+  speed_variance_weight: 0.3
+  speed_variance_threshold_ms: 5.0
+  density_weight: 0.3
+  peak_density_vehicles_per_km: 40
+  road_type_multipliers:
+    highway: 1.5
+    arterial: 1.0
+    local: 0.6
+    intersection: 2.0
+  trigger_threshold: 0.55     # raised from 0.4 — only high-risk situations trigger
+  neighbor_radius_m: 150      # radius (metres) for speed-variance neighbour lookup
+accident:
+  min_duration_seconds: 120
+  max_duration_seconds: 1800
+  lane_capacity_fraction: 0.3
+  response_time_seconds: 300
+  max_concurrent_accidents: 2  # city centre rarely has >2 simultaneous blocking accidents
+  secondary_accident_enabled: true
+  secondary_risk_radius_meters: 200
+  secondary_risk_multiplier: 3.0
+output:
+  output_folder: results/
+  metrics_interval_steps: 60   # snapshot every N simulation-seconds
+  save_vehicle_snapshots: true
+  save_accident_reports: true
+  compute_antifragility_index: true
+  save_accident_heatmap: true
+
+  # Antifragility Index windows (seconds of simulation time)
+  # pre_window:  look-back before accident trigger to establish local baseline
+  # post_window: look-forward after accident resolution to measure recovery
+  # baseline_window_steps: early accident-free period used for global free-flow baseline
+  pre_window_seconds: 300
+  post_window_seconds: 300
+  baseline_window_steps: 1800
