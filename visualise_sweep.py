@@ -7,7 +7,7 @@ Reads  :  results/sweep/sweep_results.csv
 
 Writes :  results/sweep/figures/
               fig1_speed_vs_load.png    — MFD-style speed curves per prob level
-              fig2_ai_vs_load.png       — AI vs traffic load with ±σ ribbon
+              fig2_ai_vs_load.png       — AI vs traffic load with error bars
               fig3_heatmaps.png         — 2-D speed-ratio & AI heatmaps
               fig4_phase_diagram.png    — resilience-regime phase diagram
 
@@ -27,54 +27,70 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
+import matplotlib.ticker as mticker
 from matplotlib.lines import Line2D
 
 
 # ---------------------------------------------------------------------------
-# Visual style
+# Publication style
 # ---------------------------------------------------------------------------
+# IEEE/Nature-compatible: white background, explicit markers, no glow.
+# Use the default matplotlib font stack (Helvetica / DejaVu Sans).
 
-DARK_BG  = "#0d1117"
-PANEL_BG = "#161b22"
-GRID_COL = "#21262d"
-TEXT_COL = "#e6edf3"
-
-# One colour per accident-probability level (up to 6)
-PROB_COLOURS = [
-    "#8b949e",   # grey   — baseline (no accidents)
-    "#4fc3f7",   # light blue
-    "#f0883e",   # orange
-    "#ff7b72",   # red-orange
-    "#d2a8ff",   # lavender
-    "#ffa657",   # amber
-]
-
-_RCPARAMS = {
-    "figure.facecolor":  DARK_BG,
-    "axes.facecolor":    PANEL_BG,
-    "axes.edgecolor":    GRID_COL,
-    "axes.labelcolor":   TEXT_COL,
-    "xtick.color":       TEXT_COL,
-    "ytick.color":       TEXT_COL,
-    "text.color":        TEXT_COL,
-    "grid.color":        GRID_COL,
-    "grid.linewidth":    0.6,
-    "legend.facecolor":  PANEL_BG,
-    "legend.edgecolor":  GRID_COL,
-    "font.family":       "monospace",
-    "axes.spines.top":   False,
-    "axes.spines.right": False,
-    "axes.titlepad":     10,
+RCPARAMS = {
+    "figure.facecolor":       "white",
+    "axes.facecolor":         "white",
+    "axes.edgecolor":         "#333333",
+    "axes.labelcolor":        "#111111",
+    "axes.linewidth":         0.8,
+    "axes.spines.top":        False,
+    "axes.spines.right":      False,
+    "axes.grid":              True,
+    "grid.color":             "#cccccc",
+    "grid.linewidth":         0.5,
+    "grid.linestyle":         "--",
+    "xtick.color":            "#111111",
+    "xtick.major.width":      0.8,
+    "ytick.color":            "#111111",
+    "ytick.major.width":      0.8,
+    "text.color":             "#111111",
+    "legend.facecolor":       "white",
+    "legend.edgecolor":       "#aaaaaa",
+    "legend.framealpha":      0.9,
+    "font.size":              10,
+    "axes.titlesize":         11,
+    "axes.labelsize":         10,
+    "legend.fontsize":        8.5,
+    "xtick.labelsize":        9,
+    "ytick.labelsize":        9,
+    "lines.linewidth":        1.6,
+    "lines.markersize":       5,
+    "figure.dpi":             150,
+    "savefig.dpi":            200,
+    "savefig.bbox":           "tight",
+    "savefig.facecolor":      "white",
 }
 
-# AI regime colours and boundaries
-AI_ZONES = [
-    ( 0.05,  1.00, "#238636", "Antifragile   (AI > +0.05)"),
-    (-0.05,  0.05, "#1f6feb", "Resilient     (|AI| ≤ 0.05)"),
-    (-0.20, -0.05, "#d29922", "Fragile       (−0.20 < AI ≤ −0.05)"),
-    (-1.00, -0.20, "#da3633", "Brittle       (AI ≤ −0.20)"),
+# Colourblind-safe palette (Wong 2011), one entry per prob level (up to 6)
+# Ordered: grey → blue → orange → green → red → purple
+PROB_COLOURS = [
+    "#777777",   # grey   — baseline (no accidents)
+    "#0072B2",   # blue
+    "#E69F00",   # orange
+    "#009E73",   # green
+    "#D55E00",   # red
+    "#CC79A7",   # pink/purple
+]
+
+MARKERS = ["s", "o", "^", "D", "v", "P"]   # one per prob level
+
+# AI regime colours (pastel fills for zone shading)
+AI_ZONE_FILLS = [
+    ( 0.05,  1.00, "#d4edda", "Antifragile   (AI > +0.05)"),
+    (-0.05,  0.05, "#d1ecf1", "Resilient     (|AI| ≤ 0.05)"),
+    (-0.20, -0.05, "#fff3cd", "Fragile       (AI > −0.20)"),
+    (-1.00, -0.20, "#f8d7da", "Brittle       (AI ≤ −0.20)"),
 ]
 
 
@@ -83,20 +99,17 @@ AI_ZONES = [
 # ---------------------------------------------------------------------------
 
 def load_sweep(csv_path: str) -> pd.DataFrame:
-    """Load sweep_results.csv and coerce numeric columns."""
     if not os.path.exists(csv_path):
         sys.exit(f"ERROR: sweep CSV not found — {csv_path}")
 
     df = pd.read_csv(csv_path)
-
     required = {"period", "prob", "seed", "n_accidents"}
-    missing  = required - set(df.columns)
-    if missing:
+    if missing := required - set(df.columns):
         sys.exit(f"ERROR: CSV missing columns: {missing}")
 
     numeric = [
-        "period", "prob", "seed",
-        "n_accidents", "mean_speed_ms", "mean_speed_kmh",
+        "period", "prob", "seed", "n_accidents",
+        "mean_speed_ms", "mean_speed_kmh",
         "mean_throughput", "mean_speed_ratio",
         "ai", "ci_low", "ci_high", "n_events_measured",
     ]
@@ -114,202 +127,173 @@ def load_sweep(csv_path: str) -> pd.DataFrame:
 
 
 def aggregate(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Aggregate over seeds for each (period, prob) cell.
-    Returns one row per cell with mean / std columns.
-    """
     agg = (
         df.groupby(["period", "prob"], sort=False)
         .agg(
-            mean_speed_kmh   = ("mean_speed_kmh",  "mean"),
-            std_speed_kmh    = ("mean_speed_kmh",  "std"),
-            mean_speed_ms    = ("mean_speed_ms",   "mean"),
-            mean_speed_ratio = ("mean_speed_ratio", "mean"),
-            std_speed_ratio  = ("mean_speed_ratio", "std"),
-            mean_throughput  = ("mean_throughput",  "mean"),
-            mean_accidents   = ("n_accidents",      "mean"),
-            mean_ai          = ("ai",               "mean"),
-            std_ai           = ("ai",               "std"),
-            n_rows           = ("seed",             "count"),
+            mean_speed_kmh   = ("mean_speed_kmh",   "mean"),
+            std_speed_kmh    = ("mean_speed_kmh",   "std"),
+            mean_speed_ratio = ("mean_speed_ratio",  "mean"),
+            std_speed_ratio  = ("mean_speed_ratio",  "std"),
+            mean_throughput  = ("mean_throughput",   "mean"),
+            mean_accidents   = ("n_accidents",       "mean"),
+            mean_ai          = ("ai",                "mean"),
+            std_ai           = ("ai",                "std"),
+            n_rows           = ("seed",              "count"),
         )
         .reset_index()
     )
-
-    # Traffic intensity proxy: vehicles inserted per hour
     agg["insertion_rate"] = 3600.0 / agg["period"]
-
     return agg
 
 
-# ---------------------------------------------------------------------------
-# Helper: assign a display colour and label to each prob value
-# ---------------------------------------------------------------------------
-
-def _prob_palette(probs: list[float]) -> dict[float, tuple[str, str]]:
-    """
-    Return {prob: (colour, label)} for a list of unique prob values.
-    Baseline (prob==0) always gets the grey colour.
-    """
-    palette: dict[float, tuple[str, str]] = {}
-    colour_idx = 1   # skip index 0 (grey) for non-zero probs
-
+def _palette(probs):
+    """Return {prob: (colour, marker, label)}."""
+    result = {}
+    ci = 1
     for p in sorted(probs):
         if p == 0.0:
-            palette[p] = (PROB_COLOURS[0], "Baseline  (no accidents)")
+            result[p] = (PROB_COLOURS[0], MARKERS[0], "Baseline (no accidents)")
         else:
-            palette[p] = (
-                PROB_COLOURS[colour_idx % len(PROB_COLOURS)],
-                f"P = {p:.1e}",
-            )
-            colour_idx += 1
-
-    return palette
+            result[p] = (PROB_COLOURS[ci % len(PROB_COLOURS)],
+                         MARKERS[ci % len(MARKERS)],
+                         f"$P$ = {p:.0e}")
+            ci += 1
+    return result
 
 
 # ---------------------------------------------------------------------------
-# Figure 1 — Speed–flow (MFD-style) curves
+# Figure 1 — MFD-style speed curves
 # ---------------------------------------------------------------------------
 
 def fig_speed_vs_load(agg: pd.DataFrame, out_path: str):
-    """
-    Network speed vs traffic insertion rate, one curve per accident-probability level.
-    Left panel : absolute speed (km/h)
-    Right panel: speed ratio (normalised to free-flow baseline)
-    """
+    """Mean speed and speed ratio vs insertion rate — one curve per prob level."""
     probs   = sorted(agg["prob"].unique())
-    palette = _prob_palette(probs)
+    palette = _palette(probs)
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-    fig.suptitle(
-        "Macroscopic Fundamental Diagram  ·  Sioux Falls Network",
-        fontsize=13, fontweight="bold",
-    )
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), sharey=False)
+    fig.suptitle("Macroscopic Fundamental Diagram — Sioux Falls Network",
+                 fontsize=12, fontweight="bold", y=1.01)
 
     # ── Left: absolute speed ────────────────────────────────────────────────
-    ax1.set_title("Mean Network Speed  vs  Traffic Load", fontsize=11)
-    ax1.set_xlabel("Vehicle Insertion Rate  (veh / hour)")
-    ax1.set_ylabel("Mean Network Speed  (km/h)")
-    ax1.grid(True)
+    ax1 = axes[0]
+    ax1.set_xlabel("Vehicle Insertion Rate  (veh h⁻¹)")
+    ax1.set_ylabel("Mean Network Speed  (km h⁻¹)")
 
     for prob in probs:
-        sub       = agg[agg["prob"] == prob].sort_values("insertion_rate")
-        colour, lbl = palette[prob]
-        ls        = "--" if prob == 0.0 else "-"
-        lw        = 2.4 if prob == 0.0 else 1.8
+        sub          = agg[agg["prob"] == prob].sort_values("insertion_rate")
+        col, mrk, lbl = palette[prob]
+        ls           = (0, (4, 2)) if prob == 0.0 else "solid"
 
-        ax1.plot(
-            sub["insertion_rate"], sub["mean_speed_kmh"],
-            color=colour, lw=lw, ls=ls, label=lbl, zorder=3,
-        )
+        ax1.plot(sub["insertion_rate"], sub["mean_speed_kmh"],
+                 color=col, ls=ls, marker=mrk, label=lbl, zorder=3)
+
         if "std_speed_kmh" in sub.columns:
-            lo = sub["mean_speed_kmh"] - sub["std_speed_kmh"].fillna(0)
-            hi = sub["mean_speed_kmh"] + sub["std_speed_kmh"].fillna(0)
-            ax1.fill_between(sub["insertion_rate"], lo, hi,
-                             color=colour, alpha=0.13)
+            se = sub["std_speed_kmh"].fillna(0) / np.sqrt(sub["n_rows"].clip(lower=1))
+            ax1.fill_between(sub["insertion_rate"],
+                             sub["mean_speed_kmh"] - se,
+                             sub["mean_speed_kmh"] + se,
+                             color=col, alpha=0.18, lw=0)
 
-    ax1.legend(fontsize=8, loc="lower left")
+    ax1.legend(loc="upper right")
 
-    # ── Right: speed ratio ─────────────────────────────────────────────────
-    ax2.set_title("Speed Ratio  vs  Traffic Load  (normalised)", fontsize=11)
-    ax2.set_xlabel("Vehicle Insertion Rate  (veh / hour)")
-    ax2.set_ylabel("Speed Ratio  (1.0 = free-flow)")
-    ax2.grid(True)
+    # ── Right: speed ratio ──────────────────────────────────────────────────
+    ax2 = axes[1]
+    ax2.set_xlabel("Vehicle Insertion Rate  (veh h⁻¹)")
+    ax2.set_ylabel("Speed Ratio  (relative to free-flow)")
 
-    # Reference threshold lines
+    # Reference lines
     x_max = agg["insertion_rate"].max()
-    for threshold, label_str, col in [(0.8, "−20 %", "#f0883e"),
-                                       (0.6, "−40 %", "#ff7b72")]:
-        ax2.axhline(threshold, color=col, lw=1.0, ls=":", alpha=0.7)
-        ax2.text(x_max * 0.97, threshold + 0.01, label_str,
-                 color=col, fontsize=8, ha="right", va="bottom")
+    for thr, lbl_str, col_str in [
+        (0.80, "−20 %", "#888888"),
+        (0.60, "−40 %", "#555555"),
+    ]:
+        ax2.axhline(thr, color=col_str, lw=0.8, ls=":", zorder=0)
+        ax2.text(x_max * 0.99, thr + 0.01, lbl_str,
+                 color=col_str, fontsize=8, ha="right", va="bottom")
 
-    ax2.axhline(1.0, color=GRID_COL, lw=0.8, ls=":")
+    ax2.axhline(1.0, color="#333333", lw=0.7, ls=":", zorder=0)
 
     for prob in probs:
-        sub         = agg[agg["prob"] == prob].sort_values("insertion_rate")
-        colour, lbl = palette[prob]
-        ls          = "--" if prob == 0.0 else "-"
-        lw          = 2.4 if prob == 0.0 else 1.8
+        sub          = agg[agg["prob"] == prob].sort_values("insertion_rate")
+        col, mrk, lbl = palette[prob]
+        ls           = (0, (4, 2)) if prob == 0.0 else "solid"
 
-        ax2.plot(
-            sub["insertion_rate"], sub["mean_speed_ratio"],
-            color=colour, lw=lw, ls=ls, label=lbl, zorder=3,
-        )
+        ax2.plot(sub["insertion_rate"], sub["mean_speed_ratio"],
+                 color=col, ls=ls, marker=mrk, label=lbl, zorder=3)
+
         if "std_speed_ratio" in sub.columns:
-            lo = sub["mean_speed_ratio"] - sub["std_speed_ratio"].fillna(0)
-            hi = sub["mean_speed_ratio"] + sub["std_speed_ratio"].fillna(0)
-            ax2.fill_between(sub["insertion_rate"], lo, hi,
-                             color=colour, alpha=0.13)
+            se = sub["std_speed_ratio"].fillna(0) / np.sqrt(sub["n_rows"].clip(lower=1))
+            ax2.fill_between(sub["insertion_rate"],
+                             sub["mean_speed_ratio"] - se,
+                             sub["mean_speed_ratio"] + se,
+                             color=col, alpha=0.18, lw=0)
 
-    ax2.legend(fontsize=8, loc="lower left")
+    ax2.legend(loc="upper right")
 
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=DARK_BG)
+    fig.savefig(out_path)
     plt.close(fig)
     print(f"  → {out_path}")
 
 
 # ---------------------------------------------------------------------------
-# Figure 2 — Antifragility Index vs traffic load
+# Figure 2 — AI vs traffic load
 # ---------------------------------------------------------------------------
 
 def fig_ai_vs_load(agg: pd.DataFrame, out_path: str):
-    """
-    AI vs vehicle insertion rate — one line per accident-probability level,
-    with ±σ shaded ribbon.  AI regime zones drawn as horizontal bands.
-    """
+    """AI vs insertion rate with ±1 SE error bars and regime zone shading."""
     agg_acc = agg[agg["mean_accidents"] > 0].copy()
     if agg_acc.empty:
         print("  [skip] fig2 — no accident data in sweep")
         return
 
     probs   = sorted(agg_acc["prob"].unique())
-    palette = _prob_palette(probs)
+    palette = _palette(probs)
 
-    fig, ax = plt.subplots(figsize=(11, 6))
-    ax.set_title(
-        "Antifragility Index  vs  Traffic Load  ·  Sioux Falls",
-        fontsize=12, fontweight="bold",
-    )
-    ax.set_xlabel("Vehicle Insertion Rate  (veh / hour)", fontsize=11)
-    ax.set_ylabel("Antifragility Index  (AI)", fontsize=11)
-    ax.grid(True)
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    ax.set_title("Antifragility Index vs Traffic Load — Sioux Falls",
+                 fontweight="bold")
+    ax.set_xlabel("Vehicle Insertion Rate  (veh h⁻¹)")
+    ax.set_ylabel("Antifragility Index  (AI)")
 
-    # AI zone horizontal bands
-    for lo, hi, col, _ in AI_ZONES:
-        ax.axhspan(lo, hi, color=col, alpha=0.07, zorder=0)
+    # Regime zone shading
+    for lo, hi, fill_col, _ in AI_ZONE_FILLS:
+        ax.axhspan(lo, hi, color=fill_col, alpha=0.55, lw=0, zorder=0)
 
-    ax.axhline(0.0, color=TEXT_COL, lw=0.7, ls=":", zorder=1)
+    ax.axhline(0.0, color="#333333", lw=0.8, ls="--", zorder=1)
 
     line_handles = []
     for prob in probs:
-        sub         = agg_acc[agg_acc["prob"] == prob].sort_values("insertion_rate")
+        sub          = agg_acc[agg_acc["prob"] == prob].sort_values("insertion_rate")
         if sub.empty:
             continue
-        colour, lbl = palette[prob]
-
-        (ln,) = ax.plot(
-            sub["insertion_rate"], sub["mean_ai"],
-            color=colour, lw=2.2, marker="o", ms=5,
-            label=lbl, zorder=3,
-        )
-        line_handles.append(ln)
+        col, mrk, lbl = palette[prob]
 
         if "std_ai" in sub.columns:
-            lo_r = sub["mean_ai"] - sub["std_ai"].fillna(0)
-            hi_r = sub["mean_ai"] + sub["std_ai"].fillna(0)
-            ax.fill_between(sub["insertion_rate"], lo_r, hi_r,
-                            color=colour, alpha=0.18)
+            se  = sub["std_ai"].fillna(0) / np.sqrt(sub["n_rows"].clip(lower=1))
+            ax.errorbar(
+                sub["insertion_rate"], sub["mean_ai"],
+                yerr=se,
+                color=col, marker=mrk, capsize=3, capthick=0.8,
+                lw=1.6, elinewidth=0.9, label=lbl, zorder=3,
+            )
+        else:
+            ax.plot(sub["insertion_rate"], sub["mean_ai"],
+                    color=col, marker=mrk, label=lbl, zorder=3)
 
-    # Combined legend (prob lines + regime patches)
+        (ln,) = ax.plot([], [], color=col, marker=mrk, label=lbl)
+        line_handles.append(ln)
+
     zone_patches = [
-        mpatches.Patch(color=col, alpha=0.5, label=lbl)
-        for _, _, col, lbl in AI_ZONES
+        mpatches.Patch(color=fill_col, alpha=0.7, label=lbl)
+        for _, _, fill_col, lbl in AI_ZONE_FILLS
     ]
-    ax.legend(handles=line_handles + zone_patches, fontsize=8, loc="lower left")
+    all_handles = [h for h in ax.get_legend_handles_labels()[0]
+                   if not isinstance(h, mpatches.Patch)] + zone_patches
+    ax.legend(handles=all_handles, fontsize=8, loc="lower left")
 
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=DARK_BG)
+    fig.savefig(out_path)
     plt.close(fig)
     print(f"  → {out_path}")
 
@@ -318,110 +302,73 @@ def fig_ai_vs_load(agg: pd.DataFrame, out_path: str):
 # Figure 3 — 2-D heatmaps
 # ---------------------------------------------------------------------------
 
-def _annotate_cells(
-    ax,
-    mat: np.ndarray,
-    fmt: str = ".2f",
-    na_str: str = "—",
-):
-    """Overlay numeric text on a heatmap cell matrix."""
+def _annotate_cells(ax, mat, fmt=".2f", na_str="—", text_col="#111111"):
     rows, cols = mat.shape
-    vmin = np.nanmin(mat)
-    vmax = np.nanmax(mat)
-    span = max(vmax - vmin, 1e-9)
-
     for i in range(rows):
         for j in range(cols):
             val = mat[i, j]
-            if np.isnan(val):
-                txt   = na_str
-                color = "#8b949e"
-            else:
-                norm  = (val - vmin) / span
-                txt   = format(val, fmt)
-                # dark text on bright cells, light on dark
-                color = "#000000" if norm > 0.60 else TEXT_COL
+            txt = na_str if np.isnan(val) else format(val, fmt)
             ax.text(j, i, txt, ha="center", va="center",
-                    fontsize=7.5, color=color)
+                    fontsize=8, color=text_col)
 
 
 def fig_heatmaps(agg: pd.DataFrame, out_path: str):
-    """
-    Two side-by-side heatmaps over the (insertion period × accident prob) grid:
-      Left  — mean speed ratio
-      Right — mean Antifragility Index
-    Rows   = insertion periods (high-load at bottom)
-    Columns = accident probability levels
-    """
-    periods_asc  = sorted(agg["period"].unique())          # 0.5 … 5.0
-    periods_desc = list(reversed(periods_asc))              # displayed top-to-bottom (low period = high load at bottom)
+    periods_desc = sorted(agg["period"].unique(), reverse=True)
     probs_sorted = sorted(agg["prob"].unique())
 
-    def _build_matrix(col: str) -> np.ndarray:
+    def _pivot(col):
         mat = np.full((len(periods_desc), len(probs_sorted)), np.nan)
         for i, per in enumerate(periods_desc):
             for j, prob in enumerate(probs_sorted):
                 mask = (agg["period"] == per) & (agg["prob"] == prob)
                 if mask.any():
-                    val = agg.loc[mask, col].values[0]
-                    if val is not None and not (isinstance(val, float) and np.isnan(val)):
-                        mat[i, j] = float(val)
+                    v = agg.loc[mask, col].values[0]
+                    if v is not None and not np.isnan(float(v)):
+                        mat[i, j] = float(v)
         return mat
 
-    speed_mat = _build_matrix("mean_speed_ratio")
-    ai_mat    = _build_matrix("mean_ai")
+    speed_mat = _pivot("mean_speed_ratio")
+    ai_mat    = _pivot("mean_ai")
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    prob_labels   = ["Baseline" if p == 0 else f"{p:.0e}" for p in probs_sorted]
+    period_labels = [f"{p:.2f} s" for p in periods_desc]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
     fig.suptitle(
-        "Performance Heatmaps  ·  Sioux Falls  "
-        "(insertion period  ×  accident probability)",
-        fontsize=12, fontweight="bold",
+        "Performance Heatmaps — Sioux Falls  "
+        "(insertion period × accident probability)",
+        fontweight="bold", y=1.02,
     )
 
-    prob_labels   = [
-        "Baseline" if p == 0 else f"{p:.1e}"
-        for p in probs_sorted
-    ]
-    period_labels = [f"{p:.2f}s" for p in periods_desc]
-
-    x_label = "Accident Probability"
-    y_label = "Insertion Period  [↑ lower load → ↓ higher load]"
-
-    # ── Speed ratio ──────────────────────────────────────────────────────────
-    im1 = ax1.imshow(
-        speed_mat, aspect="auto", origin="upper",
-        cmap="RdYlGn", vmin=0.50, vmax=1.05,
-    )
-    ax1.set_title("Mean Speed Ratio  (1.0 = free-flow)", fontsize=11)
+    # Speed ratio
+    im1 = ax1.imshow(speed_mat, aspect="auto", origin="upper",
+                     cmap="RdYlGn", vmin=0.50, vmax=1.05)
+    ax1.set_title("Mean Speed Ratio  (1.0 = free-flow)")
     ax1.set_xticks(range(len(probs_sorted)))
-    ax1.set_xticklabels(prob_labels, rotation=35, ha="right", fontsize=8)
+    ax1.set_xticklabels(prob_labels, rotation=30, ha="right")
     ax1.set_yticks(range(len(periods_desc)))
-    ax1.set_yticklabels(period_labels, fontsize=8)
-    ax1.set_xlabel(x_label, fontsize=9)
-    ax1.set_ylabel(y_label, fontsize=9)
+    ax1.set_yticklabels(period_labels)
+    ax1.set_xlabel("Accident Probability")
+    ax1.set_ylabel("Insertion Period  [↑ lower load]")
     _annotate_cells(ax1, speed_mat, fmt=".2f")
     plt.colorbar(im1, ax=ax1, shrink=0.82, label="Speed Ratio")
 
-    # ── Antifragility Index ──────────────────────────────────────────────────
-    ai_abs = np.nanmax(np.abs(ai_mat)) if not np.all(np.isnan(ai_mat)) else 0.1
-    ai_abs = max(ai_abs, 0.05)
-
-    im2 = ax2.imshow(
-        ai_mat, aspect="auto", origin="upper",
-        cmap="RdYlGn", vmin=-ai_abs, vmax=ai_abs,
-    )
-    ax2.set_title("Antifragility Index  (AI)", fontsize=11)
+    # AI
+    ai_abs = max(np.nanmax(np.abs(ai_mat)) if not np.all(np.isnan(ai_mat)) else 0.1, 0.05)
+    im2 = ax2.imshow(ai_mat, aspect="auto", origin="upper",
+                     cmap="RdYlGn", vmin=-ai_abs, vmax=ai_abs)
+    ax2.set_title("Antifragility Index  (AI)")
     ax2.set_xticks(range(len(probs_sorted)))
-    ax2.set_xticklabels(prob_labels, rotation=35, ha="right", fontsize=8)
+    ax2.set_xticklabels(prob_labels, rotation=30, ha="right")
     ax2.set_yticks(range(len(periods_desc)))
-    ax2.set_yticklabels(period_labels, fontsize=8)
-    ax2.set_xlabel(x_label, fontsize=9)
-    ax2.set_ylabel(y_label, fontsize=9)
+    ax2.set_yticklabels(period_labels)
+    ax2.set_xlabel("Accident Probability")
+    ax2.set_ylabel("Insertion Period  [↑ lower load]")
     _annotate_cells(ax2, ai_mat, fmt=".3f", na_str="—")
     plt.colorbar(im2, ax=ax2, shrink=0.82, label="AI")
 
     fig.tight_layout()
-    fig.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=DARK_BG)
+    fig.savefig(out_path)
     plt.close(fig)
     print(f"  → {out_path}")
 
@@ -430,116 +377,91 @@ def fig_heatmaps(agg: pd.DataFrame, out_path: str):
 # Figure 4 — Phase diagram
 # ---------------------------------------------------------------------------
 
-def _ai_regime_colour(ai) -> str:
-    """Map an AI value to its regime colour."""
+def _ai_colour(ai):
     if ai is None or (isinstance(ai, float) and np.isnan(ai)):
-        return "#8b949e"   # no accident data
-    if ai > 0.05:
-        return "#238636"   # antifragile
-    if ai > -0.05:
-        return "#1f6feb"   # resilient
-    if ai > -0.20:
-        return "#d29922"   # fragile
-    return "#da3633"       # brittle
+        return "#aaaaaa"
+    if ai > 0.05:  return "#2ca02c"
+    if ai > -0.05: return "#1f77b4"
+    if ai > -0.20: return "#ff7f0e"
+    return "#d62728"
 
 
 def fig_phase_diagram(agg: pd.DataFrame, out_path: str):
     """
-    Phase diagram:
-      x-axis — vehicle insertion rate (proxy for traffic demand)
-      y-axis — accident base-probability (log scale; baseline row treated specially)
-
-    Each bubble represents one (period, prob) cell.
-    Colour = AI resilience regime.
-    Bubble size ∝ mean accident count.
+    Phase diagram: insertion rate (x) × accident probability (y, log scale).
+    Bubble colour = AI regime; size ∝ mean accident count.
+    Lower strip shows baseline speed-ratio (no accidents).
     """
-    fig, (ax_main, ax_base) = plt.subplots(
-        2, 1, figsize=(11, 9),
-        gridspec_kw={"height_ratios": [6, 1], "hspace": 0.12},
-    )
-
-    fig.suptitle(
-        "Network Resilience Phase Diagram  ·  Sioux Falls",
-        fontsize=13, fontweight="bold",
-    )
-
-    # ── Split data into accident rows and baseline row ─────────────────────
     agg_acc  = agg[agg["prob"] > 0].copy()
     agg_base = agg[agg["prob"] == 0].copy()
 
-    # ── Main panel: accident probability levels on a log y-axis ──────────
-    ax_main.set_xlabel("Vehicle Insertion Rate  (veh / hour)", fontsize=11)
-    ax_main.set_ylabel("Accident Probability  (base_probability)", fontsize=11)
+    fig, (ax_main, ax_base) = plt.subplots(
+        2, 1, figsize=(9, 7.5),
+        gridspec_kw={"height_ratios": [6, 1.2], "hspace": 0.10},
+    )
+    fig.suptitle("Network Resilience Phase Diagram — Sioux Falls",
+                 fontsize=12, fontweight="bold")
+
+    # ── Main panel ─────────────────────────────────────────────────────────
+    ax_main.set_ylabel(r"Accident Probability  (base\_probability)")
     ax_main.set_yscale("log")
     ax_main.yaxis.set_major_formatter(
-        plt.FuncFormatter(lambda x, _: f"{x:.0e}")
+        mticker.FuncFormatter(lambda x, _: f"{x:.0e}")
     )
-    ax_main.grid(True, which="both", alpha=0.25)
 
     for _, row in agg_acc.iterrows():
-        ai_val  = row["mean_ai"] if row["mean_accidents"] > 0 else None
-        colour  = _ai_regime_colour(ai_val)
-        size    = max(60, row["mean_accidents"] * 28)
+        ai_val = row["mean_ai"] if row["mean_accidents"] > 0 else None
+        col    = _ai_colour(ai_val)
+        size   = max(50, row["mean_accidents"] * 22)
 
         ax_main.scatter(
             row["insertion_rate"], row["prob"],
-            c=colour, s=size,
-            edgecolors=DARK_BG, linewidths=0.8,
-            alpha=0.92, zorder=3,
+            c=col, s=size, edgecolors="#333333",
+            linewidths=0.6, alpha=0.88, zorder=3,
         )
         if ai_val is not None and not np.isnan(ai_val):
             ax_main.annotate(
                 f"{ai_val:+.3f}",
                 (row["insertion_rate"], row["prob"]),
-                textcoords="offset points", xytext=(0, 9),
-                fontsize=7, ha="center", color=TEXT_COL,
+                textcoords="offset points", xytext=(0, 8),
+                fontsize=7.5, ha="center",
             )
 
-    # ── Baseline strip (prob == 0) ──────────────────────────────────────
-    ax_base.set_xlabel("")
-    ax_base.set_ylabel("Baseline\n(no acc.)", fontsize=9, color=TEXT_COL)
+    # ── Baseline strip ─────────────────────────────────────────────────────
+    ax_base.set_xlabel("Vehicle Insertion Rate  (veh h⁻¹)")
+    ax_base.set_ylabel("Baseline\n(no acc.)", fontsize=8)
     ax_base.set_yticks([])
-    ax_base.grid(True, axis="x", alpha=0.25)
-    ax_base.set_xlim(ax_main.get_xlim())
 
     for _, row in agg_base.iterrows():
-        # Baseline: colour by speed ratio (green if fast, red if slow)
-        ratio  = row["mean_speed_ratio"] or 1.0
-        colour = "#238636" if ratio > 0.9 else "#d29922" if ratio > 0.7 else "#da3633"
-        ax_base.scatter(
-            row["insertion_rate"], 0.5,
-            c=colour, s=100,
-            edgecolors=DARK_BG, linewidths=0.8,
-            alpha=0.9, zorder=3,
-        )
+        ratio = row["mean_speed_ratio"] if not np.isnan(row["mean_speed_ratio"]) else 1.0
+        col   = "#2ca02c" if ratio > 0.90 else "#ff7f0e" if ratio > 0.70 else "#d62728"
+        ax_base.scatter(row["insertion_rate"], 0.5,
+                        c=col, s=80, edgecolors="#333333",
+                        linewidths=0.6, alpha=0.88, zorder=3)
         ax_base.annotate(
             f"SR={ratio:.2f}",
             (row["insertion_rate"], 0.5),
-            textcoords="offset points", xytext=(0, 8),
-            fontsize=7, ha="center", color=TEXT_COL,
+            textcoords="offset points", xytext=(0, 7),
+            fontsize=7.5, ha="center",
         )
-
     ax_base.set_ylim(0, 1)
-
-    # Share x-axis between panels
     ax_main.sharex(ax_base)
 
-    # ── Legend ──────────────────────────────────────────────────────────
+    # ── Legend ─────────────────────────────────────────────────────────────
     legend_items = [
-        mpatches.Patch(color="#238636", label="Antifragile   (AI > +0.05)"),
-        mpatches.Patch(color="#1f6feb", label="Resilient     (|AI| ≤ 0.05)"),
-        mpatches.Patch(color="#d29922", label="Fragile       (−0.20 < AI ≤ −0.05)"),
-        mpatches.Patch(color="#da3633", label="Brittle       (AI ≤ −0.20)"),
-        mpatches.Patch(color="#8b949e", label="No AI data"),
-        Line2D(
-            [0], [0], marker="o", color="w",
-            markerfacecolor=TEXT_COL, markersize=9,
-            label="Bubble size ∝ mean accidents",
-        ),
+        mpatches.Patch(color="#2ca02c", label="Antifragile   (AI > +0.05)"),
+        mpatches.Patch(color="#1f77b4", label="Resilient     (|AI| ≤ 0.05)"),
+        mpatches.Patch(color="#ff7f0e", label="Fragile       (−0.20 < AI ≤ −0.05)"),
+        mpatches.Patch(color="#d62728", label="Brittle       (AI ≤ −0.20)"),
+        mpatches.Patch(color="#aaaaaa", label="No AI data"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor="#555555",
+               markersize=8, markeredgecolor="#333333",
+               label="Bubble size ∝ mean accidents"),
     ]
-    ax_main.legend(handles=legend_items, fontsize=8, loc="upper left")
+    ax_main.legend(handles=legend_items, fontsize=8, loc="upper left",
+                   framealpha=0.9)
 
-    fig.savefig(out_path, dpi=150, bbox_inches="tight", facecolor=DARK_BG)
+    fig.savefig(out_path)
     plt.close(fig)
     print(f"  → {out_path}")
 
@@ -552,19 +474,14 @@ def main():
     here = os.path.dirname(os.path.abspath(__file__))
 
     ap = argparse.ArgumentParser(
-        description="Visualise SAS failure-point sweep results",
+        description="Visualise SAS failure-point sweep results (publication style)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     ap.add_argument(
         "--csv",
         default=os.path.join(here, "results", "sweep", "sweep_results.csv"),
-        help="Path to sweep_results.csv produced by experiment_sweep.py",
     )
-    ap.add_argument(
-        "--out-dir",
-        default=None,
-        help="Output directory for figures (default: <csv-dir>/figures/)",
-    )
+    ap.add_argument("--out-dir", default=None)
     args = ap.parse_args()
 
     out_dir = args.out_dir or os.path.join(
@@ -572,11 +489,10 @@ def main():
     )
     os.makedirs(out_dir, exist_ok=True)
 
-    # Apply dark theme globally
-    plt.rcParams.update(_RCPARAMS)
+    plt.rcParams.update(RCPARAMS)
 
-    print(f"\n  SAS — Sweep Visualiser")
-    print(f"  {'─'*38}")
+    print(f"\n  SAS — Sweep Visualiser  (academic style)")
+    print(f"  {'─'*40}")
     print(f"  CSV     : {args.csv}")
     print(f"  Figures : {out_dir}\n")
 
