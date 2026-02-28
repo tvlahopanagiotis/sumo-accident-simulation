@@ -3,225 +3,365 @@ sas/accident_manager.py
 ========================
 Accident Lifecycle Manager
 
-This module handles everything that happens AFTER an accident is triggered:
+Handles everything that happens AFTER an accident is triggered:
 
-  Phase 1 — ACTIVE:      Vehicles stopped/slowed. Lane capacity reduced.
-                          Emergency services dispatched (timer starts).
-  Phase 2 — CLEARING:    After response_time, capacity gradually restored.
-                          Stopped vehicles released one by one.
-  Phase 3 — RECOVERED:   Full capacity restored. Accident archived.
+  Phase 1 — ACTIVE:    The accident vehicle is stopped; lane capacity is
+                       reduced according to the accident's severity tier.
+                       Emergency services are dispatched (timer starts).
 
-Each accident is represented as an Accident dataclass, giving us a clean
-record that feeds directly into the metrics and reporting modules.
+  Phase 2 — CLEARING:  After response_time_s seconds, the scene is attended
+                       and capacity begins ramping back up linearly.
+
+  Phase 3 — RESOLVED:  Full capacity restored; accident archived for reporting.
+
+Severity model
+--------------
+Each accident is randomly assigned a severity tier at trigger time.  Tiers are
+defined in the 'accident.severity' section of config.yaml and are drawn from a
+weighted distribution calibrated to NHTSA KABCO injury classification data:
+
+    MINOR     ≈ 62 %  — property damage only; short blockage, quick clearance
+    MODERATE  ≈ 28 %  — non-incapacitating injury; lane partially closed
+    MAJOR     ≈  8 %  — incapacitating injury; near-total closure, long scene
+    CRITICAL  ≈  2 %  — fatal; full closure, forensic investigation required
+
+Every tier has its own duration range, capacity fraction, emergency response
+time, and secondary-risk zone.  All parameters are user-configurable via
+config.yaml.
 """
 
-import random
+import logging
 import math
-import traci
+import random
 from dataclasses import dataclass, field
 from typing import Optional
 
-# SUMO speedMode bit-flags (see SUMO docs: TraCI/Change Vehicle State)
-# Bit 0: right-of-way check, 1: safe speed, 2: safe lane-change,
-# 3: brake-light, 4: emergency braking — 11111₂ = 31 restores all defaults.
-_SPEED_MODE_DEFAULT = 31   # all safety checks active (SUMO built-in default)
-_SPEED_MODE_FROZEN  = 0    # no safety checks — forces vehicle to hold speed
+import traci
 
+logger = logging.getLogger("sas.accident")
+
+# SUMO speedMode bit-flags (see SUMO docs: TraCI / Change Vehicle State)
+# Bit pattern 31 = 11111₂ restores all SUMO safety checks.
+# Bit pattern  0 = 00000₂ disables all checks, allowing forced speed override.
+_SPEED_MODE_DEFAULT = 31
+_SPEED_MODE_FROZEN  = 0
+
+
+# ---------------------------------------------------------------------------
+# Severity tier
+# ---------------------------------------------------------------------------
+
+class Severity:
+    """String constants for the four severity tiers."""
+    MINOR    = "MINOR"
+    MODERATE = "MODERATE"
+    MAJOR    = "MAJOR"
+    CRITICAL = "CRITICAL"
+
+
+# ---------------------------------------------------------------------------
+# Accident dataclass
+# ---------------------------------------------------------------------------
 
 @dataclass
 class Accident:
     """
-    A single accident event and its full lifecycle state.
+    A single accident event and its complete lifecycle state.
+
+    Severity-specific parameters (capacity_fraction, response_time_steps,
+    secondary_risk_radius_m, secondary_risk_multiplier) are sampled at
+    trigger time and stored on the instance so each accident is self-contained.
     """
-    accident_id: str              # Unique identifier e.g. "ACC_0042"
-    trigger_step: int             # Simulation step when accident occurred
-    vehicle_id: str               # Primary vehicle involved
-    edge_id: str                  # Road segment where it happened
-    lane_id: str                  # Specific lane
-    position: float               # Position along the edge (metres from start)
-    x: float                      # Geographic x coordinate
-    y: float                      # Geographic y coordinate
 
-    # Timing
-    duration_steps: int           # How long the accident lasts (in steps)
-    response_time_steps: int      # Steps until clearance begins
-    clearance_start_step: int = 0 # Filled in when clearance begins
-    resolved_step: int = 0        # Filled in when fully resolved
+    # Identity
+    accident_id: str          # Unique identifier, e.g. "ACC_0042"
+    trigger_step: int         # Simulation step when the accident occurred
+    vehicle_id: str           # Primary vehicle involved
+    edge_id: str              # Road segment (SUMO edge ID)
+    lane_id: str              # Lane ID
+    position: float           # Distance from edge start (metres)
+    x: float                  # Cartesian x position
+    y: float                  # Cartesian y position
 
-    # State
-    phase: str = "ACTIVE"         # ACTIVE → CLEARING → RESOLVED
-    affected_vehicles: list = field(default_factory=list)  # Blocked vehicles
+    # Severity
+    severity: str = Severity.MINOR  # MINOR / MODERATE / MAJOR / CRITICAL
 
-    # Impact metrics (filled during simulation)
+    # Timing (set at trigger time from severity tier)
+    duration_steps: int = 0         # How long the accident lasts (simulated seconds)
+    response_time_steps: int = 0    # Seconds until clearance begins
+    clearance_start_step: int = 0   # Filled when clearance begins
+    resolved_step: int = 0          # Filled when fully resolved
+
+    # Traffic impact (set at trigger time from severity tier)
+    capacity_fraction: float = 0.70          # Lane capacity remaining during active phase
+    secondary_risk_radius_m: float = 75.0    # Radius of elevated-risk zone
+    secondary_risk_multiplier: float = 1.5   # Risk multiplier within that zone
+
+    # Lifecycle state
+    phase: str = "ACTIVE"                          # ACTIVE → CLEARING → RESOLVED
+    affected_vehicles: list = field(default_factory=list)
+
+    # Impact metrics (updated during simulation)
     peak_queue_length: int = 0
-    total_delay_seconds: float = 0.0
     vehicles_affected_count: int = 0
 
+
+# ---------------------------------------------------------------------------
+# AccidentManager
+# ---------------------------------------------------------------------------
 
 class AccidentManager:
     """
     Manages the full lifecycle of all active accidents in the simulation.
+
+    Exposes three methods to runner.py:
+        can_trigger_accident()     — True if another accident is allowed
+        trigger_accident()         — Initiate a new accident
+        update()                   — Advance all active accidents one step
+        get_secondary_multiplier() — Risk elevation near active scenes
     """
 
     def __init__(self, config: dict):
         """
         Args:
-            config: The 'accident' section of config.yaml
+            config: The 'accident' section of config.yaml.
         """
-        self.min_duration = config["min_duration_seconds"]
-        self.max_duration = config["max_duration_seconds"]
-        self.capacity_fraction = config["lane_capacity_fraction"]
-        self.response_time = config["response_time_seconds"]
-        self.max_concurrent = config["max_concurrent_accidents"]
-        self.secondary_enabled = config.get("secondary_accident_enabled", True)
-        self.secondary_radius = config.get("secondary_risk_radius_meters", 200)
-        self.secondary_multiplier = config.get("secondary_risk_multiplier", 3.0)
+        self.max_concurrent      = config["max_concurrent_accidents"]
+        self.secondary_enabled   = config.get("secondary_accident_enabled", True)
 
-        self.active_accidents: dict[str, Accident] = {}  # accident_id → Accident
-        self.resolved_accidents: list[Accident] = []
-        self._accident_counter = 0
+        # Parse severity tiers from config
+        self._severity_tiers     = self._load_severity_tiers(config["severity"])
+        self._severity_names     = [t["name"]   for t in self._severity_tiers]
+        self._severity_weights   = [t["weight"] for t in self._severity_tiers]
+
+        self.active_accidents:   dict[str, Accident] = {}
+        self.resolved_accidents: list[Accident]      = []
+        self._accident_counter:  int                 = 0
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     def can_trigger_accident(self) -> bool:
-        """Returns True if we're allowed to add another accident."""
+        """Return True if another concurrent accident is allowed."""
         return len(self.active_accidents) < self.max_concurrent
 
-    def trigger_accident(self, vehicle_id: str, current_step: int) -> Optional[Accident]:
+    def trigger_accident(
+        self,
+        vehicle_id: str,
+        current_step: int,
+    ) -> Optional[Accident]:
         """
         Initiate a new accident at the vehicle's current position.
 
+        Samples a severity tier from the configured distribution, draws a
+        log-normally distributed duration within that tier's bounds, applies
+        immediate traffic effects (stopped vehicle, reduced lane speed), and
+        registers the accident for lifecycle tracking.
+
         Args:
-            vehicle_id:    The vehicle that triggers the accident.
-            current_step:  Current simulation timestep.
+            vehicle_id:   The SUMO vehicle ID that triggers the accident.
+            current_step: Current simulation timestep (simulated seconds).
 
         Returns:
-            The created Accident object, or None if it failed.
+            The created Accident object, or None if the vehicle could not
+            be located (e.g. already left the network).
         """
+        # Fetch vehicle state via TraCI
         try:
-            edge_id = traci.vehicle.getRoadID(vehicle_id)
-            lane_id = traci.vehicle.getLaneID(vehicle_id)
+            edge_id  = traci.vehicle.getRoadID(vehicle_id)
+            lane_id  = traci.vehicle.getLaneID(vehicle_id)
             position = traci.vehicle.getLanePosition(vehicle_id)
-            x, y = traci.vehicle.getPosition(vehicle_id)
+            x, y     = traci.vehicle.getPosition(vehicle_id)
         except traci.exceptions.TraCIException:
             return None  # Vehicle left the network before we could act
 
-        # Don't trigger on internal junction edges
-        if edge_id.startswith(":"):
+        # Do not trigger on internal junction edges
+        if not edge_id or edge_id.startswith(":"):
             return None
 
-        # Draw accident duration from a log-normal distribution
-        # (reflects real-world data: most accidents clear quickly, some last long)
-        mu = math.log((self.min_duration + self.max_duration) / 2)
-        sigma = 0.6
-        duration = int(min(max(
-            random.lognormvariate(mu, sigma),
-            self.min_duration
-        ), self.max_duration))
+        # Sample severity tier
+        tier = random.choices(self._severity_tiers, weights=self._severity_weights, k=1)[0]
+
+        # Draw duration from a log-normal distribution.
+        # Log-normal is appropriate here: most incidents clear quickly, but
+        # the tail is heavy (some accidents take much longer than average).
+        duration = self._sample_duration(tier["duration_min_s"], tier["duration_max_s"])
 
         self._accident_counter += 1
         accident_id = f"ACC_{self._accident_counter:04d}"
 
         accident = Accident(
-            accident_id=accident_id,
-            trigger_step=current_step,
-            vehicle_id=vehicle_id,
-            edge_id=edge_id,
-            lane_id=lane_id,
-            position=position,
-            x=x,
-            y=y,
-            duration_steps=duration,
-            response_time_steps=self.response_time,
+            accident_id               = accident_id,
+            trigger_step              = current_step,
+            vehicle_id                = vehicle_id,
+            edge_id                   = edge_id,
+            lane_id                   = lane_id,
+            position                  = position,
+            x                         = x,
+            y                         = y,
+            severity                  = tier["name"],
+            duration_steps            = duration,
+            response_time_steps       = tier["response_time_s"],
+            capacity_fraction         = tier["lane_capacity_fraction"],
+            secondary_risk_radius_m   = tier["secondary_risk_radius_m"],
+            secondary_risk_multiplier = tier["secondary_risk_multiplier"],
         )
 
-        # Apply immediate traffic effects
         self._apply_accident_effects(accident)
-
         self.active_accidents[accident_id] = accident
-        print(f"[Step {current_step}] ⚠️  ACCIDENT {accident_id}: "
-              f"Vehicle {vehicle_id} on {edge_id} | Duration: {duration}s")
+
+        logger.info(
+            "ACCIDENT %s — severity: %s | vehicle: %s | edge: %s | "
+            "duration: %ds | capacity: %.0f%%",
+            accident_id, tier["name"], vehicle_id, edge_id,
+            duration, tier["lane_capacity_fraction"] * 100,
+        )
         return accident
 
     def update(self, current_step: int):
         """
-        Called every simulation step. Advances accident lifecycle phases.
+        Advance all active accident lifecycles by one step.
+
+        Call this every simulation step.  Transitions accidents through
+        ACTIVE → CLEARING → RESOLVED and removes resolved accidents from
+        the active dict.
 
         Args:
-            current_step: Current simulation timestep.
+            current_step: Current simulation timestep (simulated seconds).
         """
-        resolved = []
+        resolved_ids = []
 
         for acc_id, accident in self.active_accidents.items():
             elapsed = current_step - accident.trigger_step
 
             if accident.phase == "ACTIVE":
                 self._update_active(accident, current_step, elapsed)
-
             elif accident.phase == "CLEARING":
-                self._update_clearing(accident, current_step, elapsed)
+                self._update_clearing(accident, current_step)
 
-            # Check if fully resolved
             if elapsed >= accident.duration_steps:
                 self._resolve_accident(accident, current_step)
-                resolved.append(acc_id)
+                resolved_ids.append(acc_id)
 
-        for acc_id in resolved:
+        for acc_id in resolved_ids:
             self.resolved_accidents.append(self.active_accidents.pop(acc_id))
 
     def get_secondary_multiplier(self, x: float, y: float) -> float:
         """
-        Returns an elevated risk multiplier if (x, y) is near an active accident.
-        Used by the risk model to create secondary accident zones.
+        Return the risk multiplier for a vehicle at position (x, y).
+
+        Returns the highest multiplier from any active accident whose
+        secondary-risk zone contains the point.  Returns 1.0 (no elevation)
+        if no active accident is nearby or secondary risk is disabled.
 
         Args:
-            x, y: Geographic coordinates to check.
+            x, y: Cartesian coordinates of the vehicle.
 
         Returns:
-            A float multiplier (1.0 = no elevation, >1.0 = elevated risk).
+            Float ≥ 1.0.
         """
         if not self.secondary_enabled:
             return 1.0
 
+        best = 1.0
         for accident in self.active_accidents.values():
             dist = math.sqrt((x - accident.x) ** 2 + (y - accident.y) ** 2)
-            if dist <= self.secondary_radius:
-                return self.secondary_multiplier
+            if dist <= accident.secondary_risk_radius_m:
+                best = max(best, accident.secondary_risk_multiplier)
 
-        return 1.0
+        return best
 
     # ------------------------------------------------------------------
-    # Private lifecycle helpers
+    # Private — severity config parsing
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _load_severity_tiers(severity_cfg: dict) -> list[dict]:
+        """
+        Parse the 'severity' block from config.yaml into a list of tier dicts.
+
+        Each tier dict has keys:
+            name, weight, duration_min_s, duration_max_s,
+            lane_capacity_fraction, response_time_s,
+            secondary_risk_radius_m, secondary_risk_multiplier
+
+        Raises ValueError if a required key is missing or if no tiers are defined.
+        """
+        required = {
+            "weight", "duration_min_s", "duration_max_s",
+            "lane_capacity_fraction", "response_time_s",
+            "secondary_risk_radius_m", "secondary_risk_multiplier",
+        }
+        tiers = []
+        for tier_name, params in severity_cfg.items():
+            missing = required - set(params.keys())
+            if missing:
+                raise ValueError(
+                    f"Severity tier '{tier_name}' is missing keys: {missing}"
+                )
+            tiers.append({"name": tier_name.upper(), **params})
+
+        if not tiers:
+            raise ValueError("No severity tiers defined in accident.severity config.")
+
+        return tiers
+
+    # ------------------------------------------------------------------
+    # Private — duration sampling
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _sample_duration(min_s: int, max_s: int) -> int:
+        """
+        Draw a duration from a log-normal distribution clipped to [min_s, max_s].
+
+        The log-normal mean is set to the geometric mean of the bounds;
+        sigma = 0.5 gives a realistic right-skewed distribution (most
+        incidents resolve quickly, rare ones take much longer).
+        """
+        mu    = math.log(math.sqrt(min_s * max_s))   # geometric mean
+        sigma = 0.5
+        raw   = random.lognormvariate(mu, sigma)
+        return int(max(min_s, min(max_s, raw)))
+
+    # ------------------------------------------------------------------
+    # Private — lifecycle phases
     # ------------------------------------------------------------------
 
     def _apply_accident_effects(self, accident: Accident):
-        # Stop the accident vehicle; disable safety checks so SUMO doesn't
-        # override the forced zero speed (avoids brake-distance errors).
+        """Stop the accident vehicle and reduce lane capacity immediately."""
+        # Freeze the accident vehicle at zero speed.
+        # Disabling safety checks prevents SUMO from overriding the forced speed.
         try:
             traci.vehicle.setSpeed(accident.vehicle_id, 0.0)
             traci.vehicle.setSpeedMode(accident.vehicle_id, _SPEED_MODE_FROZEN)
         except traci.exceptions.TraCIException:
             pass
 
-        # Reduce max speed on the accident lane
+        # Reduce lane max speed proportional to remaining capacity.
         try:
-            original_speed = traci.lane.getMaxSpeed(accident.lane_id)
-            reduced_speed = original_speed * self.capacity_fraction
-            traci.lane.setMaxSpeed(accident.lane_id, reduced_speed)
-            accident.__dict__["_original_lane_speed"] = original_speed
+            original = traci.lane.getMaxSpeed(accident.lane_id)
+            reduced  = original * accident.capacity_fraction
+            traci.lane.setMaxSpeed(accident.lane_id, reduced)
+            accident.__dict__["_original_lane_speed"] = original
         except traci.exceptions.TraCIException:
             accident.__dict__["_original_lane_speed"] = None
 
-    def _update_active(self, accident: Accident, current_step: int, elapsed: int):
-        """Track blocked vehicles and transition to CLEARING after response time."""
-        # Count vehicles stuck behind the accident
+    def _update_active(
+        self,
+        accident: Accident,
+        current_step: int,
+        elapsed: int,
+    ):
+        """Track impact metrics and transition to CLEARING after response time."""
         try:
             vehicles_on_edge = traci.edge.getLastStepVehicleIDs(accident.edge_id)
-            blocked = [v for v in vehicles_on_edge
-                       if traci.vehicle.getLanePosition(v) < accident.position
-                       and v != accident.vehicle_id]
+            blocked = [
+                v for v in vehicles_on_edge
+                if traci.vehicle.getLanePosition(v) < accident.position
+                and v != accident.vehicle_id
+            ]
             accident.vehicles_affected_count = max(
                 accident.vehicles_affected_count, len(blocked)
             )
@@ -229,32 +369,34 @@ class AccidentManager:
         except traci.exceptions.TraCIException:
             pass
 
-        # Transition to CLEARING after response time
         if elapsed >= accident.response_time_steps:
-            accident.phase = "CLEARING"
+            accident.phase              = "CLEARING"
             accident.clearance_start_step = current_step
-            print(f"[Step {current_step}] 🚨 {accident.accident_id}: "
-                  f"Emergency services arrived — clearance begins.")
+            logger.info(
+                "ACCIDENT %s (%s) — emergency services on scene, clearance begins.",
+                accident.accident_id, accident.severity,
+            )
 
-    def _update_clearing(self, accident: Accident, current_step: int, elapsed: int):
+    def _update_clearing(self, accident: Accident, current_step: int):
         """
-        Gradually restore lane capacity during the clearing phase.
-        Speed limit ramps back up linearly over the remaining accident duration.
+        Ramp lane capacity back up linearly during the clearance phase.
+
+        Speed limit is interpolated from the reduced value back to the original
+        over the remaining accident duration.
         """
-        if accident.__dict__.get("_original_lane_speed") is None:
+        original = accident.__dict__.get("_original_lane_speed")
+        if original is None:
             return
 
-        original_speed = accident.__dict__["_original_lane_speed"]
-        reduced_speed = original_speed * self.capacity_fraction
-
-        # How far through the clearing phase are we?
-        clearing_duration = accident.duration_steps - accident.response_time_steps
+        reduced          = original * accident.capacity_fraction
+        clearing_total   = accident.duration_steps - accident.response_time_steps
         clearing_elapsed = current_step - accident.clearance_start_step
-        if clearing_duration <= 0:
+
+        if clearing_total <= 0:
             return
 
-        fraction = min(clearing_elapsed / clearing_duration, 1.0)
-        current_speed = reduced_speed + (original_speed - reduced_speed) * fraction
+        fraction      = min(clearing_elapsed / clearing_total, 1.0)
+        current_speed = reduced + (original - reduced) * fraction
 
         try:
             traci.lane.setMaxSpeed(accident.lane_id, current_speed)
@@ -262,27 +404,32 @@ class AccidentManager:
             pass
 
     def _resolve_accident(self, accident: Accident, current_step: int):
-        accident.phase = "RESOLVED"
+        """Restore full lane capacity and release the accident vehicle."""
+        accident.phase         = "RESOLVED"
         accident.resolved_step = current_step
 
-        # Restore original lane speed
-        original_speed = accident.__dict__.get("_original_lane_speed")
-        if original_speed is not None:
+        original = accident.__dict__.get("_original_lane_speed")
+        if original is not None:
             try:
-                traci.lane.setMaxSpeed(accident.lane_id, original_speed)
+                traci.lane.setMaxSpeed(accident.lane_id, original)
             except traci.exceptions.TraCIException:
                 pass
 
-        # Release or remove the accident vehicle
         try:
             traci.vehicle.setSpeedMode(accident.vehicle_id, _SPEED_MODE_DEFAULT)
-            traci.vehicle.setSpeed(accident.vehicle_id, -1)   # hand control back to SUMO
+            traci.vehicle.setSpeed(accident.vehicle_id, -1)   # return control to SUMO
         except traci.exceptions.TraCIException:
             try:
                 traci.vehicle.remove(accident.vehicle_id)
             except traci.exceptions.TraCIException:
-                pass  # already left the network, that's fine
+                pass   # Already left the network — that is fine
 
-        print(f"[Step {current_step}] ✅ {accident.accident_id}: RESOLVED | "
-            f"Peak queue: {accident.peak_queue_length} vehicles | "
-            f"Duration: {current_step - accident.trigger_step}s")
+        logger.info(
+            "ACCIDENT %s (%s) — RESOLVED | "
+            "duration: %ds | peak queue: %d vehicles | affected: %d vehicles",
+            accident.accident_id,
+            accident.severity,
+            current_step - accident.trigger_step,
+            accident.peak_queue_length,
+            accident.vehicles_affected_count,
+        )

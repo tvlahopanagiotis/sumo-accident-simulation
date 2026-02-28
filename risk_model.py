@@ -7,9 +7,16 @@ This module answers the question: "At any given moment, how likely is
 a specific vehicle on a specific road segment to be involved in an accident?"
 
 The risk score is a weighted combination of:
-  1. Speed risk       — faster vehicles have exponentially higher risk
+
+  1. Speed risk       — Nilsson (1981) Power Model:
+                          risk  ∝  (v / v_limit) ^ speed_exponent
+                        where v_limit is the road's *posted speed limit*
+                        (not the vehicle's mechanical maximum).  Exponents:
+                          2.0  — property-damage-only (default)
+                          3.0  — injury crashes
+                          4.0  — fatal crashes
   2. Speed variance   — dangerous speed differentials between nearby vehicles
-  3. Density risk     — peaks at medium-high traffic density
+  3. Density risk     — peaks at medium-high traffic density (bell-curve model)
   4. Road type        — intersections and highways are inherently more risky
 
 The final probability is: base_probability * composite_risk_score
@@ -62,7 +69,8 @@ class RiskModel:
         # ── Performance caches ────────────────────────────────────────────
         # Static properties (never change once SUMO has loaded the network):
         self._lane_multiplier_cache: dict[str, float] = {}   # edge_id → road multiplier
-        self._edge_length_cache: dict[str, float] = {}       # edge_id → length in km
+        self._road_speed_cache:      dict[str, float] = {}   # edge_id → speed limit (m/s)
+        self._edge_length_cache:     dict[str, float] = {}   # edge_id → length in km
 
         # Per-step density cache — refreshed each step by prepare_step().
         self._edge_density_cache: dict[str, float] = {}      # edge_id → vehicles/km
@@ -111,28 +119,29 @@ class RiskModel:
         Args:
             vehicle_id:     The SUMO vehicle ID (used for error context only).
             vdata:          Subscription result for this vehicle:
-                            {VAR_SPEED: float, VAR_MAX_SPEED: float,
-                             VAR_ROAD_ID: str, ...}
+                            {VAR_SPEED: float, VAR_ROAD_ID: str,
+                             VAR_POSITION: (x, y), ...}
             neighbor_speeds: Mapping {neighbor_id: speed_float} built from the
                              context subscription results for this vehicle.
 
         Returns:
             A float in [0, 1] representing composite risk.
         """
-        speed     = vdata.get(_tc.VAR_SPEED,    -1.0)
-        max_speed = vdata.get(_tc.VAR_MAXSPEED,  1.0)
-        edge_id   = vdata.get(_tc.VAR_ROAD_ID,   "")
+        speed   = vdata.get(_tc.VAR_SPEED,  -1.0)
+        edge_id = vdata.get(_tc.VAR_ROAD_ID, "")
 
         # Guard: SUMO returns INVALID_DOUBLE_VALUE (≈ −1.07e9) for vehicles
         # that are teleporting or not yet fully inserted into the network.
         if speed < 0.0 or not edge_id:
             return 0.0
 
-        # --- 1. Speed Risk ---
-        if max_speed > 0:
-            normalised_speed = min(speed / max_speed, 1.0)
-        else:
-            normalised_speed = 0.0
+        # --- 1. Speed Risk (Nilsson Power Model) ---
+        # Normalise against the road's *posted speed limit*, not the vehicle's
+        # mechanical maximum.  A vehicle driving at the limit scores 1.0;
+        # a vehicle exceeding it is clamped to 1.0 (risk fully saturated).
+        road_limit       = self._get_road_speed_limit_cached(edge_id)
+        normalised_speed = (min(speed / road_limit, 1.0)
+                            if road_limit > 0 else 0.0)
         speed_risk = normalised_speed ** self.speed_exponent
 
         # --- 2. Speed Variance Risk ---
@@ -211,17 +220,16 @@ class RiskModel:
             A float between 0.0 and 1.0 representing composite risk.
         """
         try:
-            speed     = traci.vehicle.getSpeed(vehicle_id)      # m/s
-            max_speed = traci.vehicle.getMaxSpeed(vehicle_id)   # m/s
-            edge_id   = traci.vehicle.getRoadID(vehicle_id)
+            speed   = traci.vehicle.getSpeed(vehicle_id)    # m/s
+            edge_id = traci.vehicle.getRoadID(vehicle_id)
         except traci.exceptions.TraCIException:
             return 0.0  # Vehicle may have left the network
 
-        # --- 1. Speed Risk ---
-        if max_speed > 0:
-            normalised_speed = min(speed / max_speed, 1.0)
-        else:
-            normalised_speed = 0.0
+        # --- 1. Speed Risk (Nilsson Power Model) ---
+        # Use the road's posted speed limit, not the vehicle's mechanical max.
+        road_limit       = self._get_road_speed_limit_cached(edge_id)
+        normalised_speed = (min(speed / road_limit, 1.0)
+                            if road_limit > 0 else 0.0)
         speed_risk = normalised_speed ** self.speed_exponent
 
         # --- 2. Speed Variance Risk ---
@@ -338,20 +346,45 @@ class RiskModel:
         exponent = -((density - self.peak_density) ** 2) / (2 * sigma ** 2)
         return math.exp(exponent)
 
+    def _get_road_speed_limit_cached(self, edge_id: str) -> float:
+        """
+        Return the posted speed limit for the primary lane of an edge (m/s).
+
+        Cached after the first TraCI call — lane speed limits are a static
+        network property and never change during simulation.  Returns 1.0 as
+        a safe fallback on error (prevents division-by-zero).
+        """
+        if edge_id not in self._road_speed_cache:
+            try:
+                self._road_speed_cache[edge_id] = traci.lane.getMaxSpeed(
+                    edge_id + "_0"
+                )
+            except traci.exceptions.TraCIException:
+                self._road_speed_cache[edge_id] = 1.0   # safe fallback
+        return self._road_speed_cache[edge_id]
+
     def _get_road_multiplier(self, edge_id: str) -> float:
         """
-        Determine road type multiplier based on edge speed limit.
-        SUMO doesn't store road type directly, so we use max speed as a proxy.
+        Determine road type multiplier based on the edge's posted speed limit.
+
+        SUMO does not expose road functional class directly, so the speed
+        limit is used as a proxy (standard practice in macroscopic models):
+            ≥ 25 m/s (90 km/h) → highway
+            ≥ 13.9 m/s (50 km/h) → arterial
+            <  13.9 m/s           → local street
+        Internal junction edges receive the intersection premium.
+
+        Delegates to _get_road_speed_limit_cached() so both the road-type
+        lookup and the Nilsson normalisation share a single TraCI call per
+        unique edge.
         """
         if not edge_id or edge_id.startswith(":"):
             return self.road_type_multipliers.get("intersection", 2.0)
-        try:
-            max_speed_mps = traci.lane.getMaxSpeed(edge_id + "_0")
-            if max_speed_mps >= 25.0:    # ≥ 90 km/h → highway
-                return self.road_type_multipliers.get("highway", 1.5)
-            elif max_speed_mps >= 13.9:  # ≥ 50 km/h → arterial
-                return self.road_type_multipliers.get("arterial", 1.0)
-            else:                         # < 50 km/h → local
-                return self.road_type_multipliers.get("local", 0.6)
-        except traci.exceptions.TraCIException:
-            return 1.0
+
+        speed_mps = self._get_road_speed_limit_cached(edge_id)
+        if speed_mps >= 25.0:    # ≥ 90 km/h → highway
+            return self.road_type_multipliers.get("highway", 1.5)
+        elif speed_mps >= 13.9:  # ≥ 50 km/h → arterial
+            return self.road_type_multipliers.get("arterial", 1.0)
+        else:                    # < 50 km/h  → local
+            return self.road_type_multipliers.get("local", 0.6)

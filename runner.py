@@ -116,18 +116,48 @@ def validate_config(config: dict):
     if not (0 < th < 1):
         errors.append(f"risk.trigger_threshold must be in (0, 1), got {th}")
 
-    acc = config.get("accident", {})
-    mn  = acc.get("min_duration_seconds", 0)
-    mx  = acc.get("max_duration_seconds", 0)
-    if mn >= mx:
+    acc      = config.get("accident", {})
+    severity = acc.get("severity", {})
+    if not severity:
         errors.append(
-            f"accident.min_duration_seconds ({mn}) must be < max_duration_seconds ({mx})"
+            "accident.severity must define at least one tier "
+            "(e.g. minor, moderate, major, critical)"
         )
-    rt = acc.get("response_time_seconds", 0)
-    if rt >= mx:
-        errors.append(
-            f"accident.response_time_seconds ({rt}) must be < max_duration_seconds ({mx})"
-        )
+    else:
+        _required_tier_keys = {
+            "weight", "duration_min_s", "duration_max_s",
+            "lane_capacity_fraction", "response_time_s",
+            "secondary_risk_radius_m", "secondary_risk_multiplier",
+        }
+        for tier_name, params in severity.items():
+            if not isinstance(params, dict):
+                errors.append(
+                    f"accident.severity.{tier_name} must be a key-value mapping"
+                )
+                continue
+            missing = _required_tier_keys - set(params.keys())
+            if missing:
+                errors.append(
+                    f"accident.severity.{tier_name} is missing required keys: {missing}"
+                )
+                continue   # skip further checks if keys are absent
+            if params.get("weight", 0) <= 0:
+                errors.append(
+                    f"accident.severity.{tier_name}.weight must be > 0"
+                )
+            cf = params.get("lane_capacity_fraction", -1)
+            if not (0.0 <= cf <= 1.0):
+                errors.append(
+                    f"accident.severity.{tier_name}.lane_capacity_fraction "
+                    f"must be in [0.0, 1.0], got {cf}"
+                )
+            d_min = params.get("duration_min_s", 0)
+            d_max = params.get("duration_max_s", 0)
+            if d_min >= d_max:
+                errors.append(
+                    f"accident.severity.{tier_name}: duration_min_s ({d_min}) "
+                    f"must be < duration_max_s ({d_max})"
+                )
 
     sumo     = config.get("sumo", {})
     cfg_file = sumo.get("config_file", "")
@@ -174,9 +204,11 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
 
     # Variables to subscribe on every departing vehicle
     # (fetched in bulk via getAllSubscriptionResults each step)
+    # Note: VAR_MAXSPEED (vehicle mechanical max) is intentionally omitted —
+    # speed risk is now normalised against the road's posted limit, which is
+    # fetched once per unique edge via _get_road_speed_limit_cached().
     _VEHICLE_VARS = [
         _tc.VAR_SPEED,        # current speed  (m/s)
-        _tc.VAR_MAXSPEED,     # vehicle max speed (m/s)
         _tc.VAR_ROAD_ID,      # edge ID the vehicle is on
         _tc.VAR_POSITION,     # (x, y) Cartesian position
         _tc.VAR_LANE_ID,      # lane ID

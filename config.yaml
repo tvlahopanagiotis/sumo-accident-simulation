@@ -1,40 +1,213 @@
+# =============================================================================
+# SAS — SUMO Accident Simulation  |  config.yaml
+# =============================================================================
+# All times are in seconds.  All distances are in metres.
+# Speed thresholds inside this file are in m/s unless stated otherwise.
+#
+# Quick-start calibration guide
+# -----------------------------
+#   1. Point sumo.config_file at your .sumocfg
+#   2. Adjust risk.base_probability until you get the accident rate you want
+#      (a value of 1.5e-4 gives ~3–6 accidents per 2-hour run on a network
+#       with ~600 simultaneous vehicles; scale linearly with vehicle count)
+#   3. Set risk.peak_density_vehicles_per_km ≈ jam_density / 3 for your roads
+#      (typical arterial jam density ≈ 45 veh/km → peak_density ≈ 15)
+#   4. Leave severity weights at their defaults unless you have domain data
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# SUMO execution settings
+# ---------------------------------------------------------------------------
 sumo:
+  # Path to your .sumocfg file.  This is the only mandatory field to change.
   config_file: /Users/theocharisvlachopanagiotis/Downloads/files/sioux_falls_network/sioux_falls.sumocfg
+
+  # 'sumo' for headless runs; 'sumo-gui' to open the graphical interface.
   binary: sumo
+
+  # Total simulated time to run (seconds).  7200 = 2 hours.
   total_steps: 7200
+
+  # Random seed.  Change this (or use --runs N) for independent replicates.
   seed: 42
+
+  # Simulation step length (seconds).  Smaller = more accurate but slower.
+  # Must match the value in your .sumocfg if it is set there.
   step_length: 5
+
+
+# ---------------------------------------------------------------------------
+# Accident risk model
+# ---------------------------------------------------------------------------
 risk:
+  # Baseline probability that any vehicle is evaluated for accident triggering
+  # on any given step.  Acts as a global rate scaler.
+  #
+  # Rough calibration targets for a 2-hour run:
+  #   ~2  accidents →  5.0e-05
+  #   ~5  accidents →  1.5e-04   ← default
+  #   ~15 accidents →  5.0e-04
+  #   ~30 accidents →  1.0e-03
   base_probability: 1.5e-04
-  speed_weight: 0.4
+
+  # --- Speed risk ---------------------------------------------------------
+  # Contribution of absolute vehicle speed to accident probability.
+  # Speed is normalised to the road speed limit (not the vehicle's own max
+  # speed), then raised to speed_exponent.
+  #
+  # Theoretical basis: Nilsson (1981) Power Model, confirmed by Elvik (2009):
+  #   accident rate  ∝  (v / v_limit) ^ speed_exponent
+  #
+  # Recommended exponents:
+  #   2.0  — property-damage-only crashes        ← default
+  #   3.0  — injury crashes
+  #   4.0  — fatal crashes
+  # Use 2.0 for a general mixed-severity model.
+  speed_weight: 0.40
   speed_exponent: 2.0
-  speed_variance_weight: 0.3
+
+  # --- Speed-variance risk ------------------------------------------------
+  # Contribution of the speed differential between a vehicle and its
+  # neighbours within neighbor_radius_m.  High variance means some vehicles
+  # are braking hard while others are still at speed — a leading cause of
+  # rear-end collisions.
+  speed_variance_weight: 0.30
+  # Speed difference (m/s) at which variance risk saturates to 1.0.
+  # 5 m/s ≈ 18 km/h differential — a realistic braking event.
   speed_variance_threshold_ms: 5.0
-  density_weight: 0.3
+
+  # --- Density risk -------------------------------------------------------
+  # Contribution of local vehicle density to accident probability.
+  # Risk follows a bell curve peaking at peak_density_vehicles_per_km.
+  # Set this to roughly jam_density / 3 for your network type:
+  #   Urban arterial (50 km/h):   peak ≈ 15 veh/km
+  #   Suburban (70 km/h):         peak ≈ 20 veh/km
+  #   Highway (110 km/h):         peak ≈ 30 veh/km
+  density_weight: 0.30
   peak_density_vehicles_per_km: 15
+
+  # --- Road-type multipliers ----------------------------------------------
+  # Applied to the composite risk score after the weighted sum.
+  # Roads are classified by their SUMO speed limit:
+  #   ≥ 25 m/s (90 km/h) → highway
+  #   ≥ 13.9 m/s (50 km/h) → arterial
+  #   < 13.9 m/s           → local
   road_type_multipliers:
-    highway: 1.5
-    arterial: 1.0
-    local: 0.6
-    intersection: 2.0
+    highway: 1.5        # High-speed roads: serious accidents more likely
+    arterial: 1.0       # Reference multiplier
+    local: 0.6          # Low speed: accidents less frequent and less severe
+    intersection: 2.0   # Conflict-point premium (applied to junction edges)
+
+  # --- Triggering threshold -----------------------------------------------
+  # Minimum composite risk score (0–1) required before the accident
+  # probability is evaluated.  Acts as a noise gate: vehicles far below
+  # this threshold are skipped entirely.
+  #
+  # Lower  → more accidents overall (including spurious ones at low risk)
+  # Higher → accidents only in genuinely high-risk situations
   trigger_threshold: 0.35
+
+  # Radius (metres) within which neighbouring vehicle speeds are sampled
+  # to compute speed-variance risk.
   neighbor_radius_m: 150
+
+
+# ---------------------------------------------------------------------------
+# Accident lifecycle and severity model
+# ---------------------------------------------------------------------------
 accident:
-  min_duration_seconds: 120
-  max_duration_seconds: 1800
-  lane_capacity_fraction: 0.3
-  response_time_seconds: 300
+  # Maximum number of accidents that can be active simultaneously.
   max_concurrent_accidents: 2
+
+  # Secondary accident risk: vehicles near an active accident scene face
+  # elevated risk (rubbernecking, emergency vehicle conflicts, debris).
   secondary_accident_enabled: true
-  secondary_risk_radius_meters: 200
-  secondary_risk_multiplier: 3.0
+
+  # ---------------------------------------------------------------------------
+  # Severity tiers
+  # ---------------------------------------------------------------------------
+  # Each triggered accident is randomly assigned a severity class, drawn from
+  # the weighted distribution below.  Weights are relative (not probabilities);
+  # they are normalised automatically so they do not need to sum to any value.
+  #
+  # Default weights are derived from:
+  #   NHTSA Traffic Safety Facts 2022 (KABCO injury classification)
+  #   USDOT Incident Management Guidelines (2021)
+  #
+  # Tier parameters:
+  #   weight                   — relative frequency (higher = more common)
+  #   duration_min_s           — minimum clearance time (seconds)
+  #   duration_max_s           — maximum clearance time (seconds)
+  #                              (actual duration is log-normally distributed)
+  #   lane_capacity_fraction   — fraction of lane capacity that remains usable
+  #                              during the active phase (0.0 = full closure)
+  #   response_time_s          — delay before clearance begins (emergency
+  #                              services travel + initial assessment)
+  #   secondary_risk_radius_m  — radius around the scene with elevated risk
+  #   secondary_risk_multiplier— risk multiplier within that radius
+  # ---------------------------------------------------------------------------
+
+  severity:
+
+    minor:                             # PDO — Property Damage Only
+      weight: 62                       # ≈62% of all crashes
+      duration_min_s: 120              # 2 min  (exchange details, move vehicles)
+      duration_max_s: 900              # 15 min
+      lane_capacity_fraction: 0.70     # partial blockage — one lane partially obstructed
+      response_time_s: 300             # 5 min to police/tow arrival
+      secondary_risk_radius_m: 75      # small rubbernecking zone
+      secondary_risk_multiplier: 1.5
+
+    moderate:                          # Class C/B — Possible or Non-incapacitating Injury
+      weight: 28                       # ≈28% of all crashes
+      duration_min_s: 900              # 15 min
+      duration_max_s: 2700             # 45 min
+      lane_capacity_fraction: 0.40     # substantial blockage — lane partially closed
+      response_time_s: 600             # 10 min (ambulance + police)
+      secondary_risk_radius_m: 150
+      secondary_risk_multiplier: 2.5
+
+    major:                             # Class A — Incapacitating Injury
+      weight: 8                        # ≈8% of all crashes
+      duration_min_s: 2700             # 45 min
+      duration_max_s: 7200             # 2 hours (extrication, treatment on scene)
+      lane_capacity_fraction: 0.10     # near-total closure; emergency vehicles in lane
+      response_time_s: 1200            # 20 min (specialist response)
+      secondary_risk_radius_m: 300
+      secondary_risk_multiplier: 4.0
+
+    critical:                          # Fatal — scene investigation required
+      weight: 2                        # ≈2% of all crashes
+      duration_min_s: 3600             # 1 hour minimum
+      duration_max_s: 18000            # up to 5 hours (forensic/CSI)
+      lane_capacity_fraction: 0.00     # full lane closure — no passage
+      response_time_s: 1800            # 30 min (major incident response)
+      secondary_risk_radius_m: 500     # large diversion/rubberneck zone
+      secondary_risk_multiplier: 6.0
+
+
+# ---------------------------------------------------------------------------
+# Output settings
+# ---------------------------------------------------------------------------
 output:
+  # Directory where all results are written.  Created automatically if absent.
   output_folder: results/
+
+  # How often (in simulated seconds) to record a network-wide snapshot.
   metrics_interval_steps: 60
+
   save_vehicle_snapshots: true
   save_accident_reports: true
+
+  # Antifragility Index (AI) — measures whether the network performs better
+  # after disruptions than before.  AI > 0 = antifragile, AI ≈ 0 = resilient,
+  # AI < 0 = fragile/brittle.
   compute_antifragility_index: true
   save_accident_heatmap: true
+
+  # Pre- and post-accident windows (seconds) used to compute per-event AI.
   pre_window_seconds: 300
   post_window_seconds: 300
+
+  # Seconds of simulation used to establish the free-flow speed baseline.
   baseline_window_steps: 1800
