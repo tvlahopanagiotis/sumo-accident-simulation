@@ -2,11 +2,14 @@
 
 > **Branch:** `antifragility` — antifragility analysis layer built on the core simulator
 > **Core simulator:** see [`main` branch](../../tree/main) and its README
+>
+> **Author:** Theocharis Vlachopanagiotis — [Rhoé](https://www.rhoe.fr) / AntifragiCity Project
 
 This branch extends the core SAS simulator with tools to study **network
 antifragility**: the capacity of a traffic network to not merely recover from
 disruptions (resilience) but to actually *improve* its performance because of them.
-The concept was formalised by Taleb (2012); this project operationalises it for
+The concept was formalised by Taleb (2012); this research, conducted at
+**Rhoé** as part of the **AntifragiCity Project**, operationalises it for
 urban traffic networks using SUMO.
 
 ---
@@ -293,13 +296,14 @@ If you use this work in academic or professional publications, please cite:
 
 ```bibtex
 @software{vlachopanagiotis2026sas,
-  author    = {Vlachopanagiotis, Theocharis and Rho\'{e}},
-  title     = {{SUMO Accident Simulation (SAS)}: A Probabilistic Traffic
-               Accident Extension for {SUMO} with Antifragility Analysis},
-  year      = {2026},
-  url       = {https://github.com/tvlahopanagiotis/sumo-accident-simulation},
-  note      = {Branch: antifragility. Implements Nilsson (1981) Power Model,
-               NHTSA KABCO severity tiers, and a network antifragility index}
+  author      = {Vlachopanagiotis, Theocharis},
+  title       = {{SUMO Accident Simulation (SAS)}: A Probabilistic Traffic
+                 Accident Extension for {SUMO} with Antifragility Analysis},
+  year        = {2026},
+  institution = {Rho\'{e} / AntifragiCity Project},
+  url         = {https://github.com/tvlahopanagiotis/sumo-accident-simulation},
+  note        = {Branch: antifragility. Implements Nilsson (1981) Power Model,
+                 NHTSA KABCO severity tiers, and a network antifragility index}
 }
 ```
 
