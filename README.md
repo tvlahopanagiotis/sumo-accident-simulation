@@ -364,13 +364,14 @@ If you use SAS in academic or professional work, please cite:
 
 ```bibtex
 @software{vlachopanagiotis2026sas,
-  author    = {Vlachopanagiotis, Theocharis and Rho\'{e}},
-  title     = {{SUMO Accident Simulation (SAS)}: A Probabilistic Traffic
-               Accident Extension for {SUMO}},
-  year      = {2026},
-  url       = {https://github.com/tvlahopanagiotis/sumo-accident-simulation},
-  note      = {Implements the Nilsson (1981) Power Model with four-tier
-               NHTSA-calibrated severity classification}
+  author      = {Vlachopanagiotis, Theocharis},
+  title       = {{SUMO Accident Simulation (SAS)}: A Probabilistic Traffic
+                 Accident Extension for {SUMO}},
+  year        = {2026},
+  institution = {Rho\'{e} / AntifragiCity Project},
+  url         = {https://github.com/tvlahopanagiotis/sumo-accident-simulation},
+  note        = {Implements the Nilsson (1981) Power Model with four-tier
+                 NHTSA-calibrated severity classification}
 }
 ```
 
