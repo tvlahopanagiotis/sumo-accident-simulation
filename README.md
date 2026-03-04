@@ -1,16 +1,23 @@
 # SUMO Accident Simulation — Antifragility Research Branch
 
-> **Branch:** `antifragility` — antifragility analysis layer built on the core simulator
-> **Core simulator:** see [`main` branch](../../tree/main) and its README
+> **Branch:** `antifragility` — research study built on top of the core simulator
+> **Core simulator (`main`):** accident simulator + Antifragility Index output;
+> see its [README](../../tree/main) for the standalone tool documentation
 >
 > **Author:** Theocharis Vlachopanagiotis — [Rhoé](https://www.rhoe.fr) / AntifragiCity Project
 
-This branch extends the core SAS simulator with tools to study **network
-antifragility**: the capacity of a traffic network to not merely recover from
-disruptions (resilience) but to actually *improve* its performance because of them.
-The concept was formalised by Taleb (2012); this research, conducted at
-**Rhoé** as part of the **AntifragiCity Project**, operationalises it for
-urban traffic networks using SUMO.
+**What this branch adds over `main`:**
+`experiment_sweep.py` + `visualise_sweep.py` + `visualise_batch.py` — tools to
+run hundreds of simulations across a traffic-load × accident-probability parameter
+grid and produce publication-ready figures from the results.
+
+The `main` branch computes an Antifragility Index for any single run as a standard
+output metric. This branch answers the deeper question: *how does that index change
+as load and accident frequency vary, and where is the network failure boundary?*
+
+This research is conducted at **Rhoé** as part of the **AntifragiCity Project**,
+which is building a full urban-mobility resilience framework: disruption ontology →
+mobility triage → long-term resilience recommendations → one-click SUMO assessment API.
 
 ---
 
