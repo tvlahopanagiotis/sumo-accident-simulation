@@ -11,9 +11,33 @@ how the network responds, including computing an **Antifragility Index** that
 quantifies whether the network adapts and improves after repeated disruptions.
 
 > **Two branches, one codebase**
-> - `main` — the core simulator (this README)
-> - `antifragility` — adds the parameter-sweep experiment and antifragility analysis
->   built on top of the core; see its own README for details
+> - `main` — standalone accident simulator; production code only (this README)
+> - `antifragility` — adds `experiment_sweep.py` + three visualisation scripts for
+>   systematically studying how the AI changes across hundreds of parameter
+>   combinations; see its own README for details
+
+---
+
+## Context: AntifragiCity Project
+
+SAS is the **scenario-testing and measurement engine** for the
+[AntifragiCity](https://github.com/tvlahopanagiotis/sumo-accident-simulation)
+project, which aims to:
+
+1. Build an **ontology** of endemic and black-swan disruptions and their effects on
+   urban mobility (accidents, weather events, demand surges, infrastructure failures, …)
+2. Define **mobility triage** — a suite of short-term interventions that minimise
+   the immediate impact of each disruption type
+3. Propose **long-term solutions** that increase network resilience and, where
+   possible, introduce antifragility
+4. Deliver all of the above as a **SUMO API / Python package** with one-click
+   resilience assessment, weak-point identification, and scenario testing
+
+SAS currently covers goal 4 for one disruption type (traffic accidents). The
+**Antifragility Index** computed at the end of each run is a standard output
+metric — it answers *"how did this network respond to the disruptions in this
+run?"* The `antifragility` branch adds the research tooling to study that
+question systematically across a load × accident-probability parameter grid.
 
 ---
 
