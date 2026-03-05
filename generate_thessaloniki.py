@@ -37,7 +37,6 @@ import time
 import xml.etree.ElementTree as ET
 
 import requests
-import yaml
 
 # ---------------------------------------------------------------------------
 # Network bounding box — Thessaloniki city centre

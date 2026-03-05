@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any
 
@@ -57,10 +56,12 @@ def _run_scenario_worker(
     worker_logger = logging.getLogger()
     worker_logger.handlers.clear()
     fh = logging.FileHandler(log_path)
-    fh.setFormatter(logging.Formatter(
-        "%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
-        datefmt="%H:%M:%S",
-    ))
+    fh.setFormatter(
+        logging.Formatter(
+            "%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
+            datefmt="%H:%M:%S",
+        )
+    )
     worker_logger.addHandler(fh)
     worker_logger.setLevel(logging.INFO)
 
@@ -84,7 +85,10 @@ def _run_scenario_worker(
         }
     except Exception as exc:
         logging.getLogger(__name__).error(
-            "Worker %d failed: %s", worker_id, exc, exc_info=True,
+            "Worker %d failed: %s",
+            worker_id,
+            exc,
+            exc_info=True,
         )
         return {
             "status": "error",

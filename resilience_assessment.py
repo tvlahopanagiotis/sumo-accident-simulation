@@ -117,8 +117,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def run_assessment(args: argparse.Namespace) -> None:
     """Main orchestration: generate -> execute -> analyze -> report."""
-    from runner import load_config, validate_config
-
     from mfd_analysis import (
         compute_network_lane_km,
         compute_resilience_score,
@@ -136,6 +134,7 @@ def run_assessment(args: argparse.Namespace) -> None:
     )
     from parallel_runner import ParallelExecutor
     from resilience_report import generate_resilience_report
+    from runner import load_config, validate_config
     from scenario_generator import (
         assign_route_files,
         build_scenario_config,
@@ -221,7 +220,8 @@ def run_assessment(args: argparse.Namespace) -> None:
             else:
                 logger.error(
                     "Route file missing for period=%s: %s (run without --skip-routes)",
-                    period, cfg_path,
+                    period,
+                    cfg_path,
                 )
                 sys.exit(1)
 
@@ -242,8 +242,7 @@ def run_assessment(args: argparse.Namespace) -> None:
     logger.info("Workers: %d  |  Base port: %d", executor.max_workers, executor.base_port)
 
     scenario_tuples = [
-        (build_scenario_config(config, s), s.seed, s.output_folder)
-        for s in matrix.scenarios
+        (build_scenario_config(config, s), s.seed, s.output_folder) for s in matrix.scenarios
     ]
     all_results = executor.execute_scenarios(scenario_tuples)
 
@@ -308,13 +307,14 @@ def run_assessment(args: argparse.Namespace) -> None:
 
     # Resilience score.
     weights_cfg = ra_cfg.get("resilience_weights")
-    weights = (
-        {k: float(v) for k, v in weights_cfg.items()}
-        if weights_cfg
-        else None
-    )
+    weights = {k: float(v) for k, v in weights_cfg.items()} if weights_cfg else None
     resilience = compute_resilience_score(
-        mfd_data, all_results, matrix.scenarios, weak_points, mfd_params, weights,
+        mfd_data,
+        all_results,
+        matrix.scenarios,
+        weak_points,
+        mfd_params,
+        weights,
     )
 
     # Save resilience score.
@@ -348,7 +348,12 @@ def run_assessment(args: argparse.Namespace) -> None:
     # ── Phase 4/4: Generate report ──
     print("\nPhase 4/4: Generating resilience report...")
     report_path = generate_resilience_report(
-        output_dir, resilience, matrix.scenarios, all_results, config, figures,
+        output_dir,
+        resilience,
+        matrix.scenarios,
+        all_results,
+        config,
+        figures,
     )
 
     # ── Save aggregate summary ──
@@ -380,13 +385,15 @@ def run_assessment(args: argparse.Namespace) -> None:
 
     # ── Final summary ──
     print(f"\n{'=' * 60}")
-    print(f"  RESILIENCE ASSESSMENT COMPLETE")
+    print("  RESILIENCE ASSESSMENT COMPLETE")
     print(f"  Grade:  {resilience.grade}  (Score: {resilience.overall_score:.2f})")
     print(f"  Report: {report_path}")
     print(f"  Output: {output_dir}")
     print(f"{'=' * 60}")
 
-    logger.info("Assessment complete — Grade: %s (%.2f)", resilience.grade, resilience.overall_score)
+    logger.info(
+        "Assessment complete — Grade: %s (%.2f)", resilience.grade, resilience.overall_score
+    )
 
 
 # ---------------------------------------------------------------------------

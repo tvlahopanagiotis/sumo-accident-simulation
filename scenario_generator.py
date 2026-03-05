@@ -173,7 +173,11 @@ def generate_scenario_matrix(
             incident_configs = QUICK_INCIDENT_CONFIGS
         else:
             cfg_incidents = ra_cfg.get("incident_configs")
-            if cfg_incidents and isinstance(cfg_incidents, list) and isinstance(cfg_incidents[0], dict):
+            if (
+                cfg_incidents
+                and isinstance(cfg_incidents, list)
+                and isinstance(cfg_incidents[0], dict)
+            ):
                 incident_configs = cfg_incidents
             else:
                 incident_configs = DEFAULT_INCIDENT_CONFIGS

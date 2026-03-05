@@ -24,7 +24,6 @@ import gzip
 import io
 import json
 import logging
-import os
 import shutil
 import subprocess
 import time

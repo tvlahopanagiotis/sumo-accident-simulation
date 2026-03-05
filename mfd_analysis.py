@@ -157,16 +157,25 @@ def extract_mfd_data(
         df["seed"] = scenario.seed
         df["density_veh_per_km"] = df["vehicle_count"] / network_lane_km
 
-        frames.append(df[[
-            "period", "scenario_type", "seed", "timestamp_seconds",
-            "density_veh_per_km",
-            "throughput_per_hour",
-            "mean_speed_kmh",
-            "active_accidents",
-        ]].rename(columns={
-            "throughput_per_hour": "flow_veh_per_hour",
-            "mean_speed_kmh": "speed_kmh",
-        }))
+        frames.append(
+            df[
+                [
+                    "period",
+                    "scenario_type",
+                    "seed",
+                    "timestamp_seconds",
+                    "density_veh_per_km",
+                    "throughput_per_hour",
+                    "mean_speed_kmh",
+                    "active_accidents",
+                ]
+            ].rename(
+                columns={
+                    "throughput_per_hour": "flow_veh_per_hour",
+                    "mean_speed_kmh": "speed_kmh",
+                }
+            )
+        )
 
     if not frames:
         logger.warning("No MFD data extracted — all CSVs missing or empty")
@@ -255,7 +264,10 @@ def fit_greenshields_model(mfd_data: pd.DataFrame) -> dict:
     }
     logger.info(
         "Greenshields fit: vf=%.1f km/h, kj=%.1f veh/km, capacity=%.0f veh/h, R²=%.3f",
-        vf, kj, capacity, r_squared,
+        vf,
+        kj,
+        capacity,
+        r_squared,
     )
     return result
 
@@ -276,7 +288,10 @@ def plot_mfd_density_flow(mfd_data: pd.DataFrame, output_dir: str) -> str:
         ax.scatter(
             subset["density_veh_per_km"],
             subset["flow_veh_per_hour"],
-            alpha=0.4, s=10, color=color, label=stype.replace("_", " ").title(),
+            alpha=0.4,
+            s=10,
+            color=color,
+            label=stype.replace("_", " ").title(),
         )
 
     ax.set_xlabel("Network Density (veh/km)", fontsize=12)
@@ -304,7 +319,10 @@ def plot_mfd_density_speed(mfd_data: pd.DataFrame, output_dir: str) -> str:
         ax.scatter(
             subset["density_veh_per_km"],
             subset["speed_kmh"],
-            alpha=0.4, s=10, color=color, label=stype.replace("_", " ").title(),
+            alpha=0.4,
+            s=10,
+            color=color,
+            label=stype.replace("_", " ").title(),
         )
 
     ax.set_xlabel("Network Density (veh/km)", fontsize=12)
@@ -325,11 +343,7 @@ def plot_speed_comparison(mfd_data: pd.DataFrame, output_dir: str) -> str:
     """Bar chart comparing mean speed across demand levels for baseline vs incident."""
     fig, ax = plt.subplots(figsize=FIGSIZE_WIDE)
 
-    summary = (
-        mfd_data.groupby(["period", "scenario_type"])["speed_kmh"]
-        .mean()
-        .reset_index()
-    )
+    summary = mfd_data.groupby(["period", "scenario_type"])["speed_kmh"].mean().reset_index()
 
     stypes = summary["scenario_type"].unique()
     periods = sorted(summary["period"].unique())
@@ -366,9 +380,7 @@ def plot_throughput_comparison(mfd_data: pd.DataFrame, output_dir: str) -> str:
     fig, ax = plt.subplots(figsize=FIGSIZE_WIDE)
 
     summary = (
-        mfd_data.groupby(["period", "scenario_type"])["flow_veh_per_hour"]
-        .mean()
-        .reset_index()
+        mfd_data.groupby(["period", "scenario_type"])["flow_veh_per_hour"].mean().reset_index()
     )
 
     stypes = summary["scenario_type"].unique()
@@ -417,8 +429,15 @@ def plot_ai_distribution(all_results: list[dict], output_dir: str) -> str:
     if not ai_values:
         logger.warning("No AI values to plot")
         fig, ax = plt.subplots(figsize=FIGSIZE_WIDE)
-        ax.text(0.5, 0.5, "No measurable events", ha="center", va="center",
-                fontsize=14, transform=ax.transAxes)
+        ax.text(
+            0.5,
+            0.5,
+            "No measurable events",
+            ha="center",
+            va="center",
+            fontsize=14,
+            transform=ax.transAxes,
+        )
         path = os.path.join(output_dir, "ai_distribution.png")
         fig.savefig(path, dpi=FIGURE_DPI, bbox_inches="tight")
         plt.close(fig)
@@ -428,9 +447,30 @@ def plot_ai_distribution(all_results: list[dict], output_dir: str) -> str:
     colors = ["#2ecc71" if v > 0 else "#e74c3c" for v in ai_values]
     ax.bar(range(len(ai_values)), ai_values, color=colors)
     ax.axhline(y=0, color="black", linewidth=0.5)
-    ax.axhline(y=0.05, color="#2ecc71", linewidth=0.8, linestyle="--", alpha=0.6, label="Antifragile threshold")
-    ax.axhline(y=-0.05, color="#f39c12", linewidth=0.8, linestyle="--", alpha=0.6, label="Fragile threshold")
-    ax.axhline(y=-0.20, color="#e74c3c", linewidth=0.8, linestyle="--", alpha=0.6, label="Brittle threshold")
+    ax.axhline(
+        y=0.05,
+        color="#2ecc71",
+        linewidth=0.8,
+        linestyle="--",
+        alpha=0.6,
+        label="Antifragile threshold",
+    )
+    ax.axhline(
+        y=-0.05,
+        color="#f39c12",
+        linewidth=0.8,
+        linestyle="--",
+        alpha=0.6,
+        label="Fragile threshold",
+    )
+    ax.axhline(
+        y=-0.20,
+        color="#e74c3c",
+        linewidth=0.8,
+        linestyle="--",
+        alpha=0.6,
+        label="Brittle threshold",
+    )
     ax.set_xlabel("Scenario Run", fontsize=12)
     ax.set_ylabel("Antifragility Index", fontsize=12)
     ax.set_title("Antifragility Index Distribution Across Incident Scenarios", fontsize=14)
@@ -468,14 +508,23 @@ def plot_resilience_components(score: ResilienceScore, output_dir: str) -> str:
         fontsize=14,
     )
 
-    for bar, val in zip(bars, values):
+    for bar, val in zip(bars, values, strict=False):
         ax.text(
-            bar.get_width() + 0.01, bar.get_y() + bar.get_height() / 2,
-            f"{val:.2f}", va="center", fontsize=10,
+            bar.get_width() + 0.01,
+            bar.get_y() + bar.get_height() / 2,
+            f"{val:.2f}",
+            va="center",
+            fontsize=10,
         )
 
-    ax.axvline(x=score.overall_score, color="black", linewidth=1.5, linestyle="--",
-               alpha=0.7, label=f"Overall: {score.overall_score:.2f}")
+    ax.axvline(
+        x=score.overall_score,
+        color="black",
+        linewidth=1.5,
+        linestyle="--",
+        alpha=0.7,
+        label=f"Overall: {score.overall_score:.2f}",
+    )
     ax.legend(fontsize=9)
 
     path = os.path.join(output_dir, "resilience_components.png")
@@ -604,17 +653,19 @@ def compute_weak_points(
         x = loc.get("x", 0.0)
         y = loc.get("y", 0.0)
 
-        vulnerabilities.append(EdgeVulnerability(
-            edge_id=eid,
-            x=x,
-            y=y,
-            accident_count=count,
-            mean_duration_seconds=round(mean_dur, 1),
-            mean_vehicles_affected=round(mean_aff, 1),
-            mean_speed_drop_ratio=round(speed_drop_ratio, 3),
-            edge_importance=round(importance, 3),
-            vulnerability_index=round(vuln_idx, 4),
-        ))
+        vulnerabilities.append(
+            EdgeVulnerability(
+                edge_id=eid,
+                x=x,
+                y=y,
+                accident_count=count,
+                mean_duration_seconds=round(mean_dur, 1),
+                mean_vehicles_affected=round(mean_aff, 1),
+                mean_speed_drop_ratio=round(speed_drop_ratio, 3),
+                edge_importance=round(importance, 3),
+                vulnerability_index=round(vuln_idx, 4),
+            )
+        )
 
     # Sort by vulnerability index descending.
     vulnerabilities.sort(key=lambda v: v.vulnerability_index, reverse=True)
@@ -622,7 +673,9 @@ def compute_weak_points(
     top = vulnerabilities[:top_n]
     logger.info(
         "Identified %d vulnerable edges (top %d returned from %d total)",
-        len(vulnerabilities), len(top), len(edge_data),
+        len(vulnerabilities),
+        len(top),
+        len(edge_data),
     )
     return top
 
@@ -649,8 +702,14 @@ def plot_weak_point_map(
         wp_colors = [wp.vulnerability_index for wp in weak_points]
 
         scatter = ax.scatter(
-            wp_x, wp_y, s=wp_sizes, c=wp_colors, cmap="YlOrRd",
-            alpha=0.8, edgecolors="black", linewidths=0.5,
+            wp_x,
+            wp_y,
+            s=wp_sizes,
+            c=wp_colors,
+            cmap="YlOrRd",
+            alpha=0.8,
+            edgecolors="black",
+            linewidths=0.5,
             label="Weak points",
         )
         plt.colorbar(scatter, ax=ax, label="Vulnerability Index", shrink=0.8)
@@ -660,8 +719,10 @@ def plot_weak_point_map(
             ax.annotate(
                 f"#{i + 1}",
                 (wp.x, wp.y),
-                fontsize=8, fontweight="bold",
-                xytext=(5, 5), textcoords="offset points",
+                fontsize=8,
+                fontweight="bold",
+                xytext=(5, 5),
+                textcoords="offset points",
             )
 
     ax.set_xlabel("X (m)", fontsize=12)
@@ -744,22 +805,34 @@ def compute_resilience_score(
 
     # Identify the default demand level (period=1.0, or the middle one).
     available_periods = sorted(mfd_data["period"].unique()) if not mfd_data.empty else [1.0]
-    default_period = 1.0 if 1.0 in available_periods else available_periods[len(available_periods) // 2]
+    default_period = (
+        1.0 if 1.0 in available_periods else available_periods[len(available_periods) // 2]
+    )
 
-    default_data = mfd_data[mfd_data["period"] == default_period] if not mfd_data.empty else pd.DataFrame()
+    default_data = (
+        mfd_data[mfd_data["period"] == default_period] if not mfd_data.empty else pd.DataFrame()
+    )
 
     # ── R_speed ──
     if not default_data.empty:
-        baseline_speed = default_data[default_data["scenario_type"] == "baseline"]["speed_kmh"].mean()
-        incident_speed = default_data[default_data["scenario_type"] != "baseline"]["speed_kmh"].mean()
+        baseline_speed = default_data[default_data["scenario_type"] == "baseline"][
+            "speed_kmh"
+        ].mean()
+        incident_speed = default_data[default_data["scenario_type"] != "baseline"][
+            "speed_kmh"
+        ].mean()
         r_speed = _clamp01(incident_speed / baseline_speed) if baseline_speed > 0 else 0.5
     else:
         r_speed = 0.5
 
     # ── R_throughput ──
     if not default_data.empty:
-        baseline_tp = default_data[default_data["scenario_type"] == "baseline"]["flow_veh_per_hour"].mean()
-        incident_tp = default_data[default_data["scenario_type"] != "baseline"]["flow_veh_per_hour"].mean()
+        baseline_tp = default_data[default_data["scenario_type"] == "baseline"][
+            "flow_veh_per_hour"
+        ].mean()
+        incident_tp = default_data[default_data["scenario_type"] != "baseline"][
+            "flow_veh_per_hour"
+        ].mean()
         r_throughput = _clamp01(incident_tp / baseline_tp) if baseline_tp > 0 else 0.5
     else:
         r_throughput = 0.5
@@ -853,7 +926,12 @@ def compute_resilience_score(
 
     logger.info(
         "Resilience score: %.2f (%s) — speed=%.2f, throughput=%.2f, recovery=%.2f, robustness=%.2f",
-        overall, grade, r_speed, r_throughput, r_recovery, r_robustness,
+        overall,
+        grade,
+        r_speed,
+        r_throughput,
+        r_recovery,
+        r_robustness,
     )
     return score
 

@@ -22,52 +22,10 @@ quantifies whether the network adapts and improves after repeated disruptions.
 
 ---
 
-## Start Here (Transport Engineer Workflow)
-
-If you just want to run Thessaloniki scenarios and calibration targets, use the `main-clean` worktree:
-
-```bash
-cd <repo-root>/.worktrees/main-clean
-```
-
-Set up environment and run one simulation:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-python runner.py --config config_thessaloniki_postmetro_50kph.yaml
-```
-
-For a 10-run batch:
-
-```bash
-python runner.py --config config_thessaloniki_postmetro_50kph.yaml --runs 10
-```
-
-To build post-metro calibration/validation targets from govgr historical downloads:
-
-```bash
-python govgr_targets.py \
-  --downloads-root thessaloniki_govgr/downloads \
-  --calibration-year 2025 \
-  --validation-year 2026 \
-  --output-dir thessaloniki_govgr/targets/post_metro_2025_2026
-```
-
-If you prefer shorter commands, `make` wrappers are available (`make help`).
-
-Supporting docs:
-
-- `docs/WORKTREES.md` (why there are multiple folders/branches)
-- `docs/THESSALONIKI_OPERATOR_GUIDE.md` (day-to-day command flow)
-
----
-
 ## Context: AntifragiCity Project
 
 SAS is the **scenario-testing and measurement engine** for the
-[AntifragiCity](https://github.com/tvlahopanagiotis/sumo-accident-simulation)
+[AntifragiCity](https://antifragicity.eu)
 project, which aims to:
 
 1. Build an **ontology** of endemic and black-swan disruptions and their effects on

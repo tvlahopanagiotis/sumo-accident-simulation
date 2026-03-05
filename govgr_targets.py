@@ -13,13 +13,11 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 
 SPEED_COLS = ["Link_id", "Link_Direction", "Timestamp", "Speed", "UniqueEntries"]
 TRAVEL_COLS = ["Path_id", "Timestamp", "Duration"]
@@ -141,7 +139,9 @@ def _list_files(base: Path, dataset: str, year: int) -> list[Path]:
     return sorted(root.glob(pattern))
 
 
-def _process_speed_year(files: list[Path], chunksize: int) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
+def _process_speed_year(
+    files: list[Path], chunksize: int
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
     stats = HistStats(max_bin=200)
     grouped_parts: list[pd.DataFrame] = []
     row_total = 0
@@ -157,7 +157,9 @@ def _process_speed_year(files: list[Path], chunksize: int) -> tuple[pd.DataFrame
             low_memory=False,
         ):
             row_total += len(chunk)
-            chunk["Timestamp"] = pd.to_datetime(chunk["Timestamp"], format=TS_FORMAT, errors="coerce")
+            chunk["Timestamp"] = pd.to_datetime(
+                chunk["Timestamp"], format=TS_FORMAT, errors="coerce"
+            )
             chunk["hour"] = chunk["Timestamp"].dt.hour
             chunk["weekday"] = chunk["Timestamp"].dt.weekday < 5
             chunk["Speed"] = pd.to_numeric(chunk["Speed"], errors="coerce")
@@ -182,13 +184,10 @@ def _process_speed_year(files: list[Path], chunksize: int) -> tuple[pd.DataFrame
 
     if grouped_parts:
         link_hour = pd.concat(grouped_parts, ignore_index=True)
-        link_hour = (
-            link_hour.groupby(["Link_id", "Link_Direction", "hour"], as_index=False)
-            .agg(
-                rows=("rows", "sum"),
-                sum_speed=("sum_speed", "sum"),
-                sum_unique_entries=("sum_unique_entries", "sum"),
-            )
+        link_hour = link_hour.groupby(["Link_id", "Link_Direction", "hour"], as_index=False).agg(
+            rows=("rows", "sum"),
+            sum_speed=("sum_speed", "sum"),
+            sum_unique_entries=("sum_unique_entries", "sum"),
         )
         link_hour["mean_speed"] = link_hour["sum_speed"] / link_hour["rows"]
         link_hour["mean_unique_entries"] = link_hour["sum_unique_entries"] / link_hour["rows"]
@@ -197,7 +196,14 @@ def _process_speed_year(files: list[Path], chunksize: int) -> tuple[pd.DataFrame
         ]
     else:
         link_hour = pd.DataFrame(
-            columns=["Link_id", "Link_Direction", "hour", "rows", "mean_speed", "mean_unique_entries"]
+            columns=[
+                "Link_id",
+                "Link_Direction",
+                "hour",
+                "rows",
+                "mean_speed",
+                "mean_unique_entries",
+            ]
         )
 
     hourly = stats.to_hourly_df("speed")
@@ -224,7 +230,9 @@ def _process_travel_year(
             low_memory=False,
         ):
             row_total += len(chunk)
-            chunk["Timestamp"] = pd.to_datetime(chunk["Timestamp"], format=TS_FORMAT, errors="coerce")
+            chunk["Timestamp"] = pd.to_datetime(
+                chunk["Timestamp"], format=TS_FORMAT, errors="coerce"
+            )
             chunk["hour"] = chunk["Timestamp"].dt.hour
             chunk["weekday"] = chunk["Timestamp"].dt.weekday < 5
             chunk["Duration"] = pd.to_numeric(chunk["Duration"], errors="coerce")
@@ -244,9 +252,8 @@ def _process_travel_year(
 
     if grouped_parts:
         path_hour = pd.concat(grouped_parts, ignore_index=True)
-        path_hour = (
-            path_hour.groupby(["Path_id", "hour"], as_index=False)
-            .agg(rows=("rows", "sum"), sum_duration=("sum_duration", "sum"))
+        path_hour = path_hour.groupby(["Path_id", "hour"], as_index=False).agg(
+            rows=("rows", "sum"), sum_duration=("sum_duration", "sum")
         )
         path_hour["mean_duration_s"] = path_hour["sum_duration"] / path_hour["rows"]
         path_hour = path_hour[["Path_id", "hour", "rows", "mean_duration_s"]]
@@ -274,7 +281,11 @@ def build_targets(
     chunksize: int,
 ) -> dict:
     _ = out_dir.mkdir(parents=True, exist_ok=True)
-    summary: dict = {"calibration_year": calibration_year, "validation_year": validation_year, "outputs": {}}
+    summary: dict = {
+        "calibration_year": calibration_year,
+        "validation_year": validation_year,
+        "outputs": {},
+    }
 
     for set_name, year in [("calibration", calibration_year), ("validation", validation_year)]:
         hist_root = base_downloads / f"historical_{year}" / "historical"
@@ -318,7 +329,9 @@ def build_targets(
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Build post-metro calibration/validation target tables.")
+    p = argparse.ArgumentParser(
+        description="Build post-metro calibration/validation target tables."
+    )
     p.add_argument(
         "--downloads-root",
         default="thessaloniki_govgr/downloads",

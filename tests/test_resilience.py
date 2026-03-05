@@ -18,7 +18,6 @@ import os
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from mfd_analysis import (
     EdgeVulnerability,
@@ -39,13 +38,11 @@ from scenario_generator import (
     QUICK_DEMAND_LEVELS,
     QUICK_INCIDENT_CONFIGS,
     Scenario,
-    ScenarioMatrix,
     assign_route_files,
     build_scenario_config,
     generate_scenario_matrix,
     matrix_to_dict,
 )
-
 
 # ---------------------------------------------------------------------------
 # TestScenarioGenerator
@@ -108,7 +105,10 @@ class TestScenarioGenerator:
     def test_assign_route_files(self, sample_config):
         """Route files are assigned to all matching scenarios."""
         matrix = generate_scenario_matrix(
-            sample_config, "/tmp/test_out", demand_levels=[1.0, 2.0], seeds=[42],
+            sample_config,
+            "/tmp/test_out",
+            demand_levels=[1.0, 2.0],
+            seeds=[42],
         )
         route_map = {
             1.0: ("/tmp/routes/1p00.sumocfg", "/tmp/routes/1p00.rou.xml"),
@@ -122,7 +122,10 @@ class TestScenarioGenerator:
     def test_matrix_to_dict(self, sample_config):
         """Serialization produces expected keys."""
         matrix = generate_scenario_matrix(
-            sample_config, "/tmp/test_out", demand_levels=[1.0], seeds=[42],
+            sample_config,
+            "/tmp/test_out",
+            demand_levels=[1.0],
+            seeds=[42],
         )
         d = matrix_to_dict(matrix)
         assert "demand_levels" in d
@@ -173,11 +176,13 @@ class TestMFDAnalysis:
         v = vf_true * (1 - k / kj_true) + np.random.normal(0, 1.5, len(k))
         v = np.clip(v, 0, None)
 
-        df = pd.DataFrame({
-            "density_veh_per_km": k,
-            "speed_kmh": v,
-            "scenario_type": "baseline",
-        })
+        df = pd.DataFrame(
+            {
+                "density_veh_per_km": k,
+                "speed_kmh": v,
+                "scenario_type": "baseline",
+            }
+        )
         result = fit_greenshields_model(df)
         assert "error" not in result
         assert abs(result["free_flow_speed_kmh"] - vf_true) < 3.0
@@ -186,11 +191,13 @@ class TestMFDAnalysis:
 
     def test_fit_greenshields_no_baseline(self):
         """Returns error when no baseline data."""
-        df = pd.DataFrame({
-            "density_veh_per_km": [1, 2],
-            "speed_kmh": [50, 45],
-            "scenario_type": "incident",
-        })
+        df = pd.DataFrame(
+            {
+                "density_veh_per_km": [1, 2],
+                "speed_kmh": [50, 45],
+                "scenario_type": "incident",
+            }
+        )
         result = fit_greenshields_model(df)
         assert "error" in result
 
@@ -241,16 +248,18 @@ class TestMFDAnalysis:
         for stype in ["baseline", "default_incident"]:
             for seed in [42, 43]:
                 for ts in [1500, 2000, 2500]:
-                    rows.append({
-                        "period": 1.0,
-                        "scenario_type": stype,
-                        "seed": seed,
-                        "timestamp_seconds": ts,
-                        "density_veh_per_km": 10.0,
-                        "flow_veh_per_hour": 500.0,
-                        "speed_kmh": 40.0,
-                        "active_accidents": 0,
-                    })
+                    rows.append(
+                        {
+                            "period": 1.0,
+                            "scenario_type": stype,
+                            "seed": seed,
+                            "timestamp_seconds": ts,
+                            "density_veh_per_km": 10.0,
+                            "flow_veh_per_hour": 500.0,
+                            "speed_kmh": 40.0,
+                            "active_accidents": 0,
+                        }
+                    )
         mfd_data = pd.DataFrame(rows)
 
         scenarios = [
@@ -276,18 +285,30 @@ class TestMFDAnalysis:
         rows = []
         for seed in [42]:
             for ts in [1500, 2000]:
-                rows.append({
-                    "period": 1.0, "scenario_type": "baseline", "seed": seed,
-                    "timestamp_seconds": ts,
-                    "density_veh_per_km": 10.0, "flow_veh_per_hour": 500.0,
-                    "speed_kmh": 40.0, "active_accidents": 0,
-                })
-                rows.append({
-                    "period": 1.0, "scenario_type": "default_incident", "seed": seed,
-                    "timestamp_seconds": ts,
-                    "density_veh_per_km": 15.0, "flow_veh_per_hour": 100.0,
-                    "speed_kmh": 10.0, "active_accidents": 3,
-                })
+                rows.append(
+                    {
+                        "period": 1.0,
+                        "scenario_type": "baseline",
+                        "seed": seed,
+                        "timestamp_seconds": ts,
+                        "density_veh_per_km": 10.0,
+                        "flow_veh_per_hour": 500.0,
+                        "speed_kmh": 40.0,
+                        "active_accidents": 0,
+                    }
+                )
+                rows.append(
+                    {
+                        "period": 1.0,
+                        "scenario_type": "default_incident",
+                        "seed": seed,
+                        "timestamp_seconds": ts,
+                        "density_veh_per_km": 15.0,
+                        "flow_veh_per_hour": 100.0,
+                        "speed_kmh": 10.0,
+                        "active_accidents": 3,
+                    }
+                )
         mfd_data = pd.DataFrame(rows)
 
         scenarios = [
@@ -368,8 +389,13 @@ class TestWeakPoints:
             json.dump(reports, f)
 
         scenario = Scenario(
-            "incident_p1p00_s42", "default_incident", 1.0, 42, 1.5e-4,
-            str(run_dir), "/tmp/t.cfg",
+            "incident_p1p00_s42",
+            "default_incident",
+            1.0,
+            42,
+            1.5e-4,
+            str(run_dir),
+            "/tmp/t.cfg",
         )
         result = compute_weak_points([scenario], top_n=5)
         assert len(result) >= 1
@@ -441,9 +467,14 @@ class TestResilienceReport:
             ai_aggregate=-0.02,
             weak_points=[
                 EdgeVulnerability(
-                    edge_id="E1", x=100, y=200, accident_count=5,
-                    mean_duration_seconds=600, mean_vehicles_affected=8,
-                    mean_speed_drop_ratio=0.7, edge_importance=0.9,
+                    edge_id="E1",
+                    x=100,
+                    y=200,
+                    accident_count=5,
+                    mean_duration_seconds=600,
+                    mean_vehicles_affected=8,
+                    mean_speed_drop_ratio=0.7,
+                    edge_importance=0.9,
                     vulnerability_index=0.45,
                 ),
             ],
@@ -451,16 +482,28 @@ class TestResilienceReport:
 
         scenarios = [
             Scenario("b_s42", "baseline", 1.0, 42, 0.0, str(tmp_path / "b42"), "/tmp/t.cfg"),
-            Scenario("i_s42", "default_incident", 1.0, 42, 1.5e-4, str(tmp_path / "i42"), "/tmp/t.cfg"),
+            Scenario(
+                "i_s42", "default_incident", 1.0, 42, 1.5e-4, str(tmp_path / "i42"), "/tmp/t.cfg"
+            ),
         ]
         results = [
             {"status": "success", "summary": {"total_accidents": 0, "antifragility_index": None}},
             {"status": "success", "summary": {"total_accidents": 3, "antifragility_index": -0.05}},
         ]
-        config = {"sumo": {"config_file": "test.sumocfg"}, "risk": {}, "accident": {}, "output": {}}
+        config = {
+            "sumo": {"config_file": "test.sumocfg"},
+            "risk": {},
+            "accident": {},
+            "output": {},
+        }
 
         report_path = generate_resilience_report(
-            str(tmp_path), score, scenarios, results, config, {},
+            str(tmp_path),
+            score,
+            scenarios,
+            results,
+            config,
+            {},
         )
         assert os.path.exists(report_path)
 

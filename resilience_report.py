@@ -14,14 +14,12 @@ report is portable when the entire output directory is moved together.
 
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any
 
-from mfd_analysis import EdgeVulnerability, ResilienceScore
+from mfd_analysis import ResilienceScore
 from scenario_generator import Scenario
 
 logger = logging.getLogger(__name__)
@@ -88,7 +86,6 @@ def generate_resilience_report(
 
     # Count successes / failures.
     n_success = sum(1 for r in all_results if r.get("status") == "success")
-    n_fail = sum(1 for r in all_results if r.get("status") != "success")
     n_total = len(scenarios)
 
     # Demand levels and incident types.
@@ -124,10 +121,18 @@ def generate_resilience_report(
     html.append(f"    <div class='score-interp'>{resilience_score.interpretation}</div>")
     html.append("  </div>")
     html.append("  <div class='summary-stats'>")
-    html.append(f"    <div class='stat'><span class='stat-val'>{n_total}</span><span class='stat-label'>Scenarios</span></div>")
-    html.append(f"    <div class='stat'><span class='stat-val'>{n_success}</span><span class='stat-label'>Successful</span></div>")
-    html.append(f"    <div class='stat'><span class='stat-val'>{len(demand_levels)}</span><span class='stat-label'>Demand Levels</span></div>")
-    html.append(f"    <div class='stat'><span class='stat-val'>{len(incident_types)}</span><span class='stat-label'>Incident Types</span></div>")
+    html.append(
+        f"    <div class='stat'><span class='stat-val'>{n_total}</span><span class='stat-label'>Scenarios</span></div>"
+    )
+    html.append(
+        f"    <div class='stat'><span class='stat-val'>{n_success}</span><span class='stat-label'>Successful</span></div>"
+    )
+    html.append(
+        f"    <div class='stat'><span class='stat-val'>{len(demand_levels)}</span><span class='stat-label'>Demand Levels</span></div>"
+    )
+    html.append(
+        f"    <div class='stat'><span class='stat-val'>{len(incident_types)}</span><span class='stat-label'>Incident Types</span></div>"
+    )
     html.append("  </div>")
     html.append("</div>")
 
@@ -135,21 +140,31 @@ def generate_resilience_report(
     html.append("<div class='key-findings'>")
     html.append("  <h3>Key Findings</h3>")
     html.append("  <ul>")
-    html.append(f"    <li>Speed resilience: <strong>{resilience_score.speed_resilience:.2f}</strong> — "
-                f"{'minimal' if resilience_score.speed_resilience > 0.85 else 'some' if resilience_score.speed_resilience > 0.7 else 'significant'} "
-                f"speed degradation under incidents</li>")
-    html.append(f"    <li>Throughput resilience: <strong>{resilience_score.throughput_resilience:.2f}</strong> — "
-                f"{'flow well maintained' if resilience_score.throughput_resilience > 0.85 else 'moderate flow impact' if resilience_score.throughput_resilience > 0.7 else 'significant flow reduction'}</li>")
-    html.append(f"    <li>Recovery: <strong>{resilience_score.recovery_resilience:.2f}</strong> — "
-                f"{'excellent' if resilience_score.recovery_resilience > 0.85 else 'good' if resilience_score.recovery_resilience > 0.6 else 'slow'} "
-                f"post-incident recovery (AI = {resilience_score.ai_aggregate:.3f})</li>")
-    html.append(f"    <li>Robustness: <strong>{resilience_score.robustness:.2f}</strong> — "
-                f"{'strong' if resilience_score.robustness > 0.85 else 'moderate' if resilience_score.robustness > 0.6 else 'weak'} "
-                f"tolerance to increasing incident rates</li>")
+    html.append(
+        f"    <li>Speed resilience: <strong>{resilience_score.speed_resilience:.2f}</strong> — "
+        f"{'minimal' if resilience_score.speed_resilience > 0.85 else 'some' if resilience_score.speed_resilience > 0.7 else 'significant'} "
+        f"speed degradation under incidents</li>"
+    )
+    html.append(
+        f"    <li>Throughput resilience: <strong>{resilience_score.throughput_resilience:.2f}</strong> — "
+        f"{'flow well maintained' if resilience_score.throughput_resilience > 0.85 else 'moderate flow impact' if resilience_score.throughput_resilience > 0.7 else 'significant flow reduction'}</li>"
+    )
+    html.append(
+        f"    <li>Recovery: <strong>{resilience_score.recovery_resilience:.2f}</strong> — "
+        f"{'excellent' if resilience_score.recovery_resilience > 0.85 else 'good' if resilience_score.recovery_resilience > 0.6 else 'slow'} "
+        f"post-incident recovery (AI = {resilience_score.ai_aggregate:.3f})</li>"
+    )
+    html.append(
+        f"    <li>Robustness: <strong>{resilience_score.robustness:.2f}</strong> — "
+        f"{'strong' if resilience_score.robustness > 0.85 else 'moderate' if resilience_score.robustness > 0.6 else 'weak'} "
+        f"tolerance to increasing incident rates</li>"
+    )
     if resilience_score.weak_points:
         top_wp = resilience_score.weak_points[0]
-        html.append(f"    <li>Most vulnerable edge: <strong>{top_wp.edge_id}</strong> "
-                    f"({top_wp.accident_count} incidents, vulnerability index {top_wp.vulnerability_index:.3f})</li>")
+        html.append(
+            f"    <li>Most vulnerable edge: <strong>{top_wp.edge_id}</strong> "
+            f"({top_wp.accident_count} incidents, vulnerability index {top_wp.vulnerability_index:.3f})</li>"
+        )
     html.append("  </ul>")
     html.append("</div>")
 
@@ -158,18 +173,30 @@ def generate_resilience_report(
     html.append("<div class='metadata'>")
     mfd_p = resilience_score.mfd_parameters
     if "free_flow_speed_kmh" in mfd_p:
-        html.append(f"  <div class='metadata-row'><span class='metadata-label'>Free-flow speed:</span>"
-                    f"<span class='metadata-value'>{mfd_p['free_flow_speed_kmh']:.1f} km/h</span></div>")
-        html.append(f"  <div class='metadata-row'><span class='metadata-label'>Jam density:</span>"
-                    f"<span class='metadata-value'>{mfd_p['jam_density_veh_per_km']:.1f} veh/km</span></div>")
-        html.append(f"  <div class='metadata-row'><span class='metadata-label'>Capacity:</span>"
-                    f"<span class='metadata-value'>{mfd_p['capacity_veh_per_hour']:.0f} veh/h</span></div>")
-        html.append(f"  <div class='metadata-row'><span class='metadata-label'>Greenshields R\u00b2:</span>"
-                    f"<span class='metadata-value'>{mfd_p['r_squared']:.3f}</span></div>")
-    html.append(f"  <div class='metadata-row'><span class='metadata-label'>Demand levels tested:</span>"
-                f"<span class='metadata-value'>{', '.join(f'p={p}' for p in demand_levels)}</span></div>")
-    html.append(f"  <div class='metadata-row'><span class='metadata-label'>Scenario types:</span>"
-                f"<span class='metadata-value'>{', '.join(incident_types)}</span></div>")
+        html.append(
+            f"  <div class='metadata-row'><span class='metadata-label'>Free-flow speed:</span>"
+            f"<span class='metadata-value'>{mfd_p['free_flow_speed_kmh']:.1f} km/h</span></div>"
+        )
+        html.append(
+            f"  <div class='metadata-row'><span class='metadata-label'>Jam density:</span>"
+            f"<span class='metadata-value'>{mfd_p['jam_density_veh_per_km']:.1f} veh/km</span></div>"
+        )
+        html.append(
+            f"  <div class='metadata-row'><span class='metadata-label'>Capacity:</span>"
+            f"<span class='metadata-value'>{mfd_p['capacity_veh_per_hour']:.0f} veh/h</span></div>"
+        )
+        html.append(
+            f"  <div class='metadata-row'><span class='metadata-label'>Greenshields R\u00b2:</span>"
+            f"<span class='metadata-value'>{mfd_p['r_squared']:.3f}</span></div>"
+        )
+    html.append(
+        f"  <div class='metadata-row'><span class='metadata-label'>Demand levels tested:</span>"
+        f"<span class='metadata-value'>{', '.join(f'p={p}' for p in demand_levels)}</span></div>"
+    )
+    html.append(
+        f"  <div class='metadata-row'><span class='metadata-label'>Scenario types:</span>"
+        f"<span class='metadata-value'>{', '.join(incident_types)}</span></div>"
+    )
     html.append("</div>")
 
     # Scenario matrix table.
@@ -218,16 +245,20 @@ def generate_resilience_report(
     if resilience_score.weak_points:
         html.append("<h3>Top Vulnerable Edges</h3>")
         html.append("<table class='scenario-table'>")
-        html.append("  <tr><th>#</th><th>Edge ID</th><th>Incidents</th>"
-                    "<th>Mean Duration (s)</th><th>Mean Affected</th>"
-                    "<th>Importance</th><th>Vulnerability</th></tr>")
+        html.append(
+            "  <tr><th>#</th><th>Edge ID</th><th>Incidents</th>"
+            "<th>Mean Duration (s)</th><th>Mean Affected</th>"
+            "<th>Importance</th><th>Vulnerability</th></tr>"
+        )
         for i, wp in enumerate(resilience_score.weak_points, 1):
-            html.append(f"  <tr><td>{i}</td><td>{wp.edge_id}</td>"
-                       f"<td>{wp.accident_count}</td>"
-                       f"<td>{wp.mean_duration_seconds:.0f}</td>"
-                       f"<td>{wp.mean_vehicles_affected:.1f}</td>"
-                       f"<td>{wp.edge_importance:.3f}</td>"
-                       f"<td>{wp.vulnerability_index:.4f}</td></tr>")
+            html.append(
+                f"  <tr><td>{i}</td><td>{wp.edge_id}</td>"
+                f"<td>{wp.accident_count}</td>"
+                f"<td>{wp.mean_duration_seconds:.0f}</td>"
+                f"<td>{wp.mean_vehicles_affected:.1f}</td>"
+                f"<td>{wp.edge_importance:.3f}</td>"
+                f"<td>{wp.vulnerability_index:.4f}</td></tr>"
+            )
         html.append("</table>")
     else:
         html.append("<p>No weak points identified (no accident data available).</p>")
@@ -236,17 +267,13 @@ def generate_resilience_report(
     html.append("<h2>6. Scenario Results</h2>")
     for period in demand_levels:
         period_scenarios = [s for s in scenarios if s.period == period]
-        period_results = [
-            all_results[i] if i < len(all_results) else {"status": "missing"}
-            for i, s in enumerate(scenarios)
-            if s.period == period
-        ]
-        html.append(f"<details>")
+        html.append("<details>")
         html.append(f"  <summary>Demand Level p={period} ({len(period_scenarios)} runs)</summary>")
         html.append("  <table class='scenario-table'>")
-        html.append("    <tr><th>Scenario</th><th>Status</th><th>Accidents</th>"
-                    "<th>Mean Speed (km/h)</th><th>AI</th></tr>")
-        result_idx = 0
+        html.append(
+            "    <tr><th>Scenario</th><th>Status</th><th>Accidents</th>"
+            "<th>Mean Speed (km/h)</th><th>AI</th></tr>"
+        )
         for s in scenarios:
             if s.period != period:
                 continue
@@ -259,8 +286,10 @@ def generate_resilience_report(
             ai = summary.get("antifragility_index")
             ai_str = f"{ai:.3f}" if ai is not None else "-"
             status_icon = "OK" if status == "success" else "FAIL"
-            html.append(f"    <tr><td>{s.scenario_id}</td><td>{status_icon}</td>"
-                       f"<td>{accidents}</td><td>{speed_str}</td><td>{ai_str}</td></tr>")
+            html.append(
+                f"    <tr><td>{s.scenario_id}</td><td>{status_icon}</td>"
+                f"<td>{accidents}</td><td>{speed_str}</td><td>{ai_str}</td></tr>"
+            )
         html.append("  </table>")
         html.append("</details>")
 
@@ -287,8 +316,10 @@ def generate_resilience_report(
     # ── Footer ──
     html.append("<div class='footer'>")
     html.append("  Generated by SAS One-Click Resilience Assessment<br>")
-    html.append("  <a href='https://github.com/tvlahopanagiotis/sumo-accident-simulation'>"
-                "github.com/tvlahopanagiotis/sumo-accident-simulation</a>")
+    html.append(
+        "  <a href='https://github.com/tvlahopanagiotis/sumo-accident-simulation'>"
+        "github.com/tvlahopanagiotis/sumo-accident-simulation</a>"
+    )
     html.append("</div>")
 
     html.append("</div>")  # container
@@ -325,56 +356,70 @@ def _generate_recommendations(score: ResilienceScore) -> list[dict[str, str]]:
     for key, val, label in components:
         if val < 0.6:
             if key == "speed":
-                recs.append({
-                    "title": "Improve speed maintenance under incidents",
-                    "description": "Consider adding alternative routes, dynamic rerouting, "
-                    "or variable message signs to distribute traffic away from incident zones. "
-                    f"Current speed resilience ({val:.2f}) indicates significant speed drops during incidents.",
-                })
+                recs.append(
+                    {
+                        "title": "Improve speed maintenance under incidents",
+                        "description": "Consider adding alternative routes, dynamic rerouting, "
+                        "or variable message signs to distribute traffic away from incident zones. "
+                        f"Current speed resilience ({val:.2f}) indicates significant speed drops during incidents.",
+                    }
+                )
             elif key == "throughput":
-                recs.append({
-                    "title": "Increase throughput resilience",
-                    "description": "Review bottleneck junctions and consider signal timing optimisation, "
-                    "lane management, or capacity improvements at critical intersections. "
-                    f"Current throughput resilience ({val:.2f}) shows substantial flow reduction under stress.",
-                })
+                recs.append(
+                    {
+                        "title": "Increase throughput resilience",
+                        "description": "Review bottleneck junctions and consider signal timing optimisation, "
+                        "lane management, or capacity improvements at critical intersections. "
+                        f"Current throughput resilience ({val:.2f}) shows substantial flow reduction under stress.",
+                    }
+                )
             elif key == "recovery":
-                recs.append({
-                    "title": "Improve post-incident recovery",
-                    "description": "Reduce incident response times through better emergency coordination, "
-                    "dedicated incident management teams, and faster clearance protocols. "
-                    f"Current recovery score ({val:.2f}) indicates slow return to normal operations.",
-                })
+                recs.append(
+                    {
+                        "title": "Improve post-incident recovery",
+                        "description": "Reduce incident response times through better emergency coordination, "
+                        "dedicated incident management teams, and faster clearance protocols. "
+                        f"Current recovery score ({val:.2f}) indicates slow return to normal operations.",
+                    }
+                )
             elif key == "robustness":
-                recs.append({
-                    "title": "Strengthen network robustness",
-                    "description": "Improve network redundancy by adding alternative corridors, "
-                    "reducing dependency on high-centrality links, and implementing traffic management "
-                    f"strategies. Current robustness ({val:.2f}) shows high sensitivity to incident rates.",
-                })
+                recs.append(
+                    {
+                        "title": "Strengthen network robustness",
+                        "description": "Improve network redundancy by adding alternative corridors, "
+                        "reducing dependency on high-centrality links, and implementing traffic management "
+                        f"strategies. Current robustness ({val:.2f}) shows high sensitivity to incident rates.",
+                    }
+                )
         elif val < 0.8:
-            recs.append({
-                "title": f"Monitor {label.lower()} resilience",
-                "description": f"{label} resilience ({val:.2f}) is adequate but could be improved. "
-                "Consider targeted interventions at the identified weak points.",
-            })
+            recs.append(
+                {
+                    "title": f"Monitor {label.lower()} resilience",
+                    "description": f"{label} resilience ({val:.2f}) is adequate but could be improved. "
+                    "Consider targeted interventions at the identified weak points.",
+                }
+            )
 
     # Weak point specific recommendations.
     if score.weak_points:
         top_edges = [wp.edge_id for wp in score.weak_points[:3]]
-        recs.append({
-            "title": "Address identified weak points",
-            "description": f"The most vulnerable edges ({', '.join(top_edges)}) should be prioritised "
-            "for infrastructure improvements, incident response pre-positioning, "
-            "and traffic management measures.",
-        })
+        recs.append(
+            {
+                "title": "Address identified weak points",
+                "description": f"The most vulnerable edges ({', '.join(top_edges)}) should be prioritised "
+                "for infrastructure improvements, incident response pre-positioning, "
+                "and traffic management measures.",
+            }
+        )
 
     if not recs:
-        recs.append({
-            "title": "Maintain current performance",
-            "description": "The network demonstrates strong resilience across all dimensions. "
-            "Continue monitoring and periodic assessment to maintain this level of performance.",
-        })
+        recs.append(
+            {
+                "title": "Maintain current performance",
+                "description": "The network demonstrates strong resilience across all dimensions. "
+                "Continue monitoring and periodic assessment to maintain this level of performance.",
+            }
+        )
 
     return recs
 
