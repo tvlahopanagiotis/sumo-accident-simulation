@@ -22,6 +22,48 @@ quantifies whether the network adapts and improves after repeated disruptions.
 
 ---
 
+## Start Here (Transport Engineer Workflow)
+
+If you just want to run Thessaloniki scenarios and calibration targets, use the `main-clean` worktree:
+
+```bash
+cd <repo-root>/.worktrees/main-clean
+```
+
+Set up environment and run one simulation:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+python runner.py --config config_thessaloniki_postmetro_50kph.yaml
+```
+
+For a 10-run batch:
+
+```bash
+python runner.py --config config_thessaloniki_postmetro_50kph.yaml --runs 10
+```
+
+To build post-metro calibration/validation targets from govgr historical downloads:
+
+```bash
+python govgr_targets.py \
+  --downloads-root thessaloniki_govgr/downloads \
+  --calibration-year 2025 \
+  --validation-year 2026 \
+  --output-dir thessaloniki_govgr/targets/post_metro_2025_2026
+```
+
+If you prefer shorter commands, `make` wrappers are available (`make help`).
+
+Supporting docs:
+
+- `docs/WORKTREES.md` (why there are multiple folders/branches)
+- `docs/THESSALONIKI_OPERATOR_GUIDE.md` (day-to-day command flow)
+
+---
+
 ## Context: AntifragiCity Project
 
 SAS is the **scenario-testing and measurement engine** for the
@@ -145,12 +187,14 @@ pip install -e ".[dev]"
 ## Quick Start
 
 > **Prerequisites:** complete the [Installation](#installation) steps first
-> (install SUMO, set `SUMO_HOME`, then run `pip install .`).
+> (install SUMO, set `SUMO_HOME`).
 
 ```bash
 git clone https://github.com/tvlahopanagiotis/sumo-accident-simulation.git
 cd sumo-accident-simulation
-pip install .
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
 
 ### Single run (uses seed from config.yaml)
@@ -165,11 +209,24 @@ python runner.py --runs 10
 
 ### Custom config file
 ```bash
-python runner.py --config experiments/high_risk.yaml --runs 5
+python runner.py --config config_thessaloniki_postmetro_50kph.yaml
 ```
 
 ### Visual run (opens SUMO GUI)
 In `config.yaml` set `sumo.binary: sumo-gui`, then run as normal.
+
+---
+
+## Repository Layout (Simple Mental Model)
+
+- Root Python files (`runner.py`, `risk_model.py`, etc.): simulation engine code.
+- `config.yaml`: default simulation configuration.
+- `thessaloniki_network_postmetro_50kph/`: Thessaloniki network variant for new runs.
+- `thessaloniki_govgr/`: downloaded govgr data and generated targets.
+- `results/`: simulation outputs.
+- `.worktrees/`: separate checkouts for separate branches (hidden in Finder).
+
+If Finder looks inconsistent, read `docs/WORKTREES.md`.
 
 ---
 

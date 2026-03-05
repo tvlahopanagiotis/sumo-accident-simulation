@@ -1,5 +1,7 @@
 # ── Simulation outputs ───────────────────────────────────────────────
 results/
+thessaloniki_govgr/downloads/
+thessaloniki_govgr/targets/
 
 # ── Large generated network files ───────────────────────────────────
 # The Thessaloniki network is auto-generated; don't version binary blobs

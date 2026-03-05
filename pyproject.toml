@@ -63,12 +63,14 @@ dev = [
 py-modules = [
     "runner", "risk_model", "accident_manager", "metrics", "visualize",
     "resilience_assessment", "parallel_runner", "scenario_generator",
-    "mfd_analysis", "resilience_report",
+    "mfd_analysis", "resilience_report", "govgr_downloader", "govgr_targets",
 ]
 
 [project.scripts]
 sas = "runner:main"
 sas-assess = "resilience_assessment:main"
+sas-fetch-govgr = "govgr_downloader:main"
+sas-build-govgr-targets = "govgr_targets:main"
 
 [project.urls]
 Homepage = "https://github.com/tvlahopanagiotis/sumo-accident-simulation"
@@ -103,7 +105,7 @@ ignore = [
 known-first-party = [
     "runner", "risk_model", "accident_manager", "metrics", "visualize",
     "resilience_assessment", "parallel_runner", "scenario_generator",
-    "mfd_analysis", "resilience_report",
+    "mfd_analysis", "resilience_report", "govgr_downloader", "govgr_targets",
 ]
 
 
