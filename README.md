@@ -144,6 +144,15 @@ pip install -e ".[dev]"
 
 ## Quick Start
 
+> **Prerequisites:** complete the [Installation](#installation) steps first
+> (install SUMO, set `SUMO_HOME`, then run `pip install .`).
+
+```bash
+git clone https://github.com/tvlahopanagiotis/sumo-accident-simulation.git
+cd sumo-accident-simulation
+pip install .
+```
+
 ### Single run (uses seed from config.yaml)
 ```bash
 python runner.py
