@@ -186,3 +186,56 @@ output:
   # captured the ramp-up phase (lower density, higher speeds), making the
   # post-accident comparison unfairly pessimistic.
   baseline_window_steps: 3600
+
+# -----------------------------------------------------------------------------
+resilience_assessment:
+# -----------------------------------------------------------------------------
+# Configuration for the one-click resilience assessment.
+# Run with: python resilience_assessment.py
+# See also: python resilience_assessment.py --help
+# -----------------------------------------------------------------------------
+
+  # Number of parallel SUMO instances.  null = auto (min(CPU_count - 1, 8)).
+  # Each instance uses ~400 MB RAM for the Thessaloniki network.
+  max_workers: null
+
+  # Starting TCP port for TraCI connections.  Each worker gets a unique port
+  # in the range [base_port, base_port + max_workers).
+  base_port: 10000
+
+  # Demand levels to test (randomTrips period values).
+  # Lower period = more vehicles = higher demand.
+  #   0.5 → ~1400–1600 veh  (heavily congested)
+  #   1.0 → ~1100–1200 veh  (near-capacity)
+  #   5.0 → ~150–200 veh    (very light, free-flow)
+  demand_levels: [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0]
+
+  # Number of random seeds per scenario for statistical significance.
+  seeds_per_scenario: 3
+
+  # Base seed — seeds will be base_seed, base_seed+1, …, base_seed+n-1.
+  base_seed: 42
+
+  # Incident configurations to test.
+  # Each overrides risk.base_probability for that scenario group.
+  incident_configs:
+    - name: baseline
+      base_probability: 0.0           # no accidents (pure traffic dynamics)
+    - name: low_incident
+      base_probability: 5.0e-05       # low incident rate
+    - name: default_incident
+      base_probability: 1.5e-04       # moderate (calibrated default)
+    - name: high_incident
+      base_probability: 5.0e-04       # stress test
+    - name: extreme_incident
+      base_probability: 1.0e-03       # extreme overload
+
+  # Resilience score component weights (must sum to 1.0).
+  resilience_weights:
+    speed: 0.30
+    throughput: 0.25
+    recovery: 0.25
+    robustness: 0.20
+
+  # Number of top weak points to identify and include in the report.
+  top_weak_points: 10

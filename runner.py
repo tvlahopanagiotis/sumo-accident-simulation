@@ -180,7 +180,13 @@ def validate_config(config: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str]:
+def run_once(
+    config: dict,
+    run_seed: int,
+    output_folder: str,
+    traci_port: int | None = None,
+    traci_label: str | None = None,
+) -> tuple[dict, str]:
     """
     Execute one complete simulation run.
 
@@ -188,6 +194,8 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
         config:        Full config dict (sumo / risk / accident / output).
         run_seed:      Random seed for this run.
         output_folder: Directory to write all results into.
+        traci_port:    Optional TCP port for TraCI (for parallel execution).
+        traci_label:   Optional TraCI connection label (for parallel execution).
 
     Returns:
         (summary dict, sumo_version string)
@@ -240,7 +248,12 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
         "true",
     ]
     logger.info("Starting SUMO: %s", " ".join(sumo_cmd))
-    traci.start(sumo_cmd)
+    start_kwargs: dict = {}
+    if traci_port is not None:
+        start_kwargs["port"] = traci_port
+    if traci_label is not None:
+        start_kwargs["label"] = traci_label
+    traci.start(sumo_cmd, **start_kwargs)
 
     sumo_version = traci.getVersion()[1]
     logger.info(

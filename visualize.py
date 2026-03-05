@@ -19,11 +19,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import xml.etree.ElementTree as ET
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.collections import LineCollection
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,86 @@ SEVERITY_COLORS = {
 }
 
 SEVERITY_ORDER = ["MINOR", "MODERATE", "MAJOR", "CRITICAL"]
+
+
+def _parse_shape_points(shape: str) -> list[tuple[float, float]]:
+    """Convert SUMO shape string 'x1,y1 x2,y2 ...' to point tuples."""
+    pts: list[tuple[float, float]] = []
+    for raw in shape.split():
+        if "," not in raw:
+            continue
+        try:
+            x_str, y_str = raw.split(",", 1)
+            pts.append((float(x_str), float(y_str)))
+        except ValueError:
+            continue
+    return pts
+
+
+def _resolve_net_file_from_metadata(output_dir: str) -> str | None:
+    """
+    Resolve the SUMO net.xml path for a run using output_dir/metadata.json.
+    """
+    metadata_path = os.path.join(output_dir, "metadata.json")
+    if not os.path.exists(metadata_path):
+        return None
+
+    try:
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+        sumo_cfg = metadata.get("config", {}).get("sumo", {}).get("config_file")
+        if not sumo_cfg:
+            return None
+        sumo_cfg = str(sumo_cfg)
+        if not os.path.isabs(sumo_cfg):
+            sumo_cfg = os.path.normpath(os.path.join(output_dir, sumo_cfg))
+        if not os.path.exists(sumo_cfg):
+            return None
+
+        tree = ET.parse(sumo_cfg)
+        root = tree.getroot()
+        input_elem = root.find("input")
+        if input_elem is None:
+            return None
+        net_elem = input_elem.find("net-file")
+        if net_elem is None:
+            return None
+        net_value = net_elem.attrib.get("value")
+        if not net_value:
+            return None
+        if os.path.isabs(net_value):
+            net_path = net_value
+        else:
+            net_path = os.path.normpath(os.path.join(os.path.dirname(sumo_cfg), net_value))
+        return net_path if os.path.exists(net_path) else None
+    except Exception as exc:
+        logger.debug("Could not resolve net file from metadata: %s", exc)
+        return None
+
+
+def _load_network_segments(net_xml_path: str) -> list[list[tuple[float, float]]]:
+    """
+    Load road geometry from SUMO .net.xml as line segments for plotting.
+    """
+    segments: list[list[tuple[float, float]]] = []
+    try:
+        tree = ET.parse(net_xml_path)
+        root = tree.getroot()
+        for edge in root.findall("edge"):
+            if edge.attrib.get("function") == "internal":
+                continue
+            lane = edge.find("lane")
+            if lane is None:
+                continue
+            shape = lane.attrib.get("shape")
+            if not shape:
+                continue
+            pts = _parse_shape_points(shape)
+            if len(pts) >= 2:
+                segments.append(pts)
+    except Exception as exc:
+        logger.debug("Failed to parse network file '%s': %s", net_xml_path, exc)
+    return segments
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -93,24 +175,64 @@ def plot_network_metrics(
     axes[0].set_title("Network Occupancy", fontsize=12, fontweight="bold")
     axes[0].grid(True, alpha=0.3)
 
-    # Plot 2: Mean speed
-    axes[1].plot(
-        df["hours"],
-        df["mean_speed_kmh"],
-        linewidth=2.5,
-        color="#e74c3c",
-        label="Mean speed",
-    )
+    # Plot 2: Speed dynamics (smoothed median + p10/p90 envelope)
+    speed = df["mean_speed_kmh"].astype(float)
+    if len(df) > 1:
+        sample_dt_s = float(df["timestamp_seconds"].diff().median())
+        if np.isnan(sample_dt_s) or sample_dt_s <= 0:
+            sample_dt_s = 60.0
+    else:
+        sample_dt_s = 60.0
+
+    # Use a broad window to suppress minute-level stop-go oscillations.
+    # Default target is ~15 minutes regardless of sampling cadence.
+    window_points = max(5, int(round(900.0 / sample_dt_s)))
+    if window_points % 2 == 0:
+        window_points += 1
+
+    roll = speed.rolling(window=window_points, center=True, min_periods=max(2, window_points // 3))
+    speed_p10 = roll.quantile(0.10)
+    speed_median = roll.quantile(0.50)
+    speed_p90 = roll.quantile(0.90)
+
+    # Secondary smoothing pass for cleaner band edges.
+    post_window = max(3, window_points // 3)
+    if post_window % 2 == 0:
+        post_window += 1
+    speed_p10 = speed_p10.rolling(
+        window=post_window, center=True, min_periods=max(2, post_window // 2)
+    ).mean()
+    speed_median = speed_median.rolling(
+        window=post_window, center=True, min_periods=max(2, post_window // 2)
+    ).mean()
+    speed_p90 = speed_p90.rolling(
+        window=post_window, center=True, min_periods=max(2, post_window // 2)
+    ).mean()
+
+    speed_p10 = speed_p10.fillna(speed)
+    speed_median = speed_median.fillna(speed)
+    speed_p90 = speed_p90.fillna(speed)
+
     axes[1].fill_between(
         df["hours"],
-        df["mean_speed_kmh"],
-        alpha=0.2,
+        speed_p10,
+        speed_p90,
+        alpha=0.22,
         color="#e74c3c",
+        label="p10-p90 band",
+    )
+    axes[1].plot(
+        df["hours"],
+        speed_median,
+        linewidth=2.8,
+        color="#e74c3c",
+        label="Smoothed median speed (~15 min)",
     )
     axes[1].set_xlabel("Simulation Time (hours)", fontsize=11)
     axes[1].set_ylabel("Speed (km/h)", fontsize=11)
-    axes[1].set_title("Network Congestion", fontsize=12, fontweight="bold")
+    axes[1].set_title("Network Congestion (Smoothed)", fontsize=12, fontweight="bold")
     axes[1].grid(True, alpha=0.3)
+    axes[1].legend(loc="upper right", fontsize=9)
 
     # Plot 3: Active accidents
     axes[2].bar(
@@ -379,7 +501,32 @@ def plot_accident_heatmap(
 
     # Plot
     fig, ax = plt.subplots(figsize=FIGSIZE_SQUARE)
-    ax.scatter(xs, ys, c=colors_list, s=sizes, alpha=0.7, edgecolors="black", linewidth=1.5)
+
+    # Draw road network in background when metadata + net file are available.
+    net_xml = _resolve_net_file_from_metadata(output_dir)
+    if net_xml:
+        segments = _load_network_segments(net_xml)
+        if segments:
+            roads = LineCollection(
+                segments,
+                colors="#8d99ae",
+                linewidths=0.45,
+                alpha=0.35,
+                zorder=1,
+            )
+            ax.add_collection(roads)
+
+    ax.scatter(
+        xs,
+        ys,
+        c=colors_list,
+        s=sizes,
+        alpha=0.8,
+        edgecolors="black",
+        linewidth=1.5,
+        zorder=3,
+    )
+    ax.set_aspect("equal", adjustable="box")
 
     ax.set_xlabel("X coordinate (m)", fontsize=11)
     ax.set_ylabel("Y coordinate (m)", fontsize=11)
