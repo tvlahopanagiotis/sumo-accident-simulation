@@ -293,6 +293,7 @@ class MetricsCollector:
         """
         report = {
             "accident_id":    accident.accident_id,
+            "severity":       accident.severity,
             "trigger_step":   accident.trigger_step,
             "resolved_step":  accident.resolved_step,
             "duration_seconds": accident.resolved_step - accident.trigger_step,

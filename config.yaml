@@ -5,11 +5,11 @@ sumo:
   seed: 42
   step_length: 5
 risk:
-  # Thessaloniki calibration: ~500 simultaneous vehicles at steady state.
-  # Target ~5 accidents per 2-hour run → 5.0e-05
-  # (Sioux Falls used 1.5e-04 for ~150 vehicles; Thessaloniki is ~3× denser
-  #  so the per-vehicle probability scales down by ~3× to keep the same rate)
-  base_probability: 5.0e-05
+  # Thessaloniki calibration: ~1100-1200 simultaneous vehicles at steady state.
+  # Target ~3-5 accidents per 2-hour run → 1.5e-05
+  # (Full run produced 11 accidents at 5.0e-05 with ~1150 vehicles; reducing
+  #  ~3× to reach scientific target of 3-5 accidents per 2-hour window)
+  base_probability: 1.5e-05
   speed_weight: 0.4
   speed_exponent: 2.0
   speed_variance_weight: 0.3
@@ -24,7 +24,10 @@ risk:
   trigger_threshold: 0.35
   neighbor_radius_m: 150
 accident:
-  max_concurrent_accidents: 2
+  # Raised from 2 → 4: at 1100+ simultaneous vehicles the cap of 2 was hit
+  # 84% of the time, suppressing accident triggering and reducing measurable
+  # AI events to n=2 (statistically insufficient).
+  max_concurrent_accidents: 4
   secondary_accident_enabled: true
   severity:
     minor:
@@ -68,4 +71,8 @@ output:
   save_accident_heatmap: true
   pre_window_seconds: 300
   post_window_seconds: 300
-  baseline_window_steps: 1800
+  # Raised from 1800 → 3600: with period=1.0 the network doesn't reach
+  # steady-state vehicle count until ~step 2400; a 1800-step baseline was
+  # capturing the ramp-up phase (lower density, higher speeds) which makes
+  # the post-accident comparison unfairly pessimistic.
+  baseline_window_steps: 3600
