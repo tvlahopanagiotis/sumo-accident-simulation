@@ -8,18 +8,16 @@ os.path.exists is also mocked where needed so tests do not depend on the
 filesystem having a real .sumocfg file.
 """
 
-import copy
 from unittest.mock import patch
 
 import pytest
 
-import traci  # mock from conftest.py
 from runner import validate_config
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _valid_config():
     """Return a config dict that passes all validation checks."""
@@ -74,6 +72,7 @@ def _valid_config():
 # Valid config test
 # ---------------------------------------------------------------------------
 
+
 class TestValidConfig:
     """Verify that a correct config passes validation without error."""
 
@@ -88,6 +87,7 @@ class TestValidConfig:
 # ---------------------------------------------------------------------------
 # Risk parameter validation
 # ---------------------------------------------------------------------------
+
 
 class TestRiskValidation:
     """Tests for risk section parameter validation."""
@@ -120,6 +120,7 @@ class TestRiskValidation:
 # ---------------------------------------------------------------------------
 # Severity tier validation
 # ---------------------------------------------------------------------------
+
 
 class TestSeverityValidation:
     """Tests for accident.severity tier validation."""
@@ -168,6 +169,7 @@ class TestSeverityValidation:
 # ---------------------------------------------------------------------------
 # SUMO config file validation
 # ---------------------------------------------------------------------------
+
 
 class TestSumoConfigValidation:
     """Tests for sumo.config_file path validation."""

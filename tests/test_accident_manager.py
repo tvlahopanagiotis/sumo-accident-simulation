@@ -6,21 +6,19 @@ Tests for the AccidentManager class (accident_manager.py).
 All tests use the mock traci injected by conftest.py.
 """
 
-import math
 import random
 import statistics
 from collections import Counter
-from unittest.mock import MagicMock, patch
 
 import pytest
-
 import traci  # mock from conftest.py
-from accident_manager import AccidentManager, Accident, Severity
 
+from accident_manager import Accident, AccidentManager
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _minimal_severity_config():
     """Return a minimal accident config with one tier."""
@@ -64,6 +62,7 @@ def _setup_traci_for_trigger(
 # Concurrency tests
 # ---------------------------------------------------------------------------
 
+
 class TestConcurrency:
     """Tests for can_trigger_accident concurrency control."""
 
@@ -94,6 +93,7 @@ class TestConcurrency:
 # ---------------------------------------------------------------------------
 # Severity tier parsing tests
 # ---------------------------------------------------------------------------
+
 
 class TestSeverityTiers:
     """Tests for _load_severity_tiers configuration parsing."""
@@ -131,6 +131,7 @@ class TestSeverityTiers:
 # Duration sampling tests
 # ---------------------------------------------------------------------------
 
+
 class TestDurationSampling:
     """Tests for _sample_duration log-normal distribution."""
 
@@ -159,6 +160,7 @@ class TestDurationSampling:
 # ---------------------------------------------------------------------------
 # Trigger accident tests
 # ---------------------------------------------------------------------------
+
 
 class TestTriggerAccident:
     """Tests for the trigger_accident method."""
@@ -190,6 +192,7 @@ class TestTriggerAccident:
 # ---------------------------------------------------------------------------
 # Severity distribution tests
 # ---------------------------------------------------------------------------
+
 
 class TestSeverityDistribution:
     """Tests that the weighted random draw approximates the configured weights."""
@@ -224,6 +227,7 @@ class TestSeverityDistribution:
 # ---------------------------------------------------------------------------
 # Update lifecycle tests
 # ---------------------------------------------------------------------------
+
 
 class TestUpdateLifecycle:
     """Tests for the update() method and phase transitions."""
@@ -272,6 +276,7 @@ class TestUpdateLifecycle:
 # ---------------------------------------------------------------------------
 # Secondary multiplier tests
 # ---------------------------------------------------------------------------
+
 
 class TestSecondaryMultiplier:
     """Tests for get_secondary_multiplier proximity calculation."""

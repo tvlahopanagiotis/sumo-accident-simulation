@@ -9,8 +9,8 @@ at module level.  We inject a MagicMock into sys.modules BEFORE any of those
 imports run, so the entire test suite can execute without SUMO.
 """
 
-import sys
 import os
+import sys
 from unittest.mock import MagicMock
 
 import pytest
@@ -47,6 +47,7 @@ if _project_root not in sys.path:
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def sample_config():

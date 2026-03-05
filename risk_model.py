@@ -41,6 +41,7 @@ from __future__ import annotations
 import logging
 import math
 import random
+from typing import Any
 
 import traci
 
@@ -55,7 +56,7 @@ class RiskModel:
     Calculates accident risk for vehicles in the SUMO network.
     """
 
-    def __init__(self, config: dict[str, object]) -> None:
+    def __init__(self, config: dict[str, Any]) -> None:
         """
         Initialise the risk model with parameters from config.yaml.
 
@@ -74,12 +75,12 @@ class RiskModel:
 
         # ── Performance caches ────────────────────────────────────────────
         # Static properties (never change once SUMO has loaded the network):
-        self._lane_multiplier_cache: dict[str, float] = {}   # edge_id → road multiplier
-        self._road_speed_cache:      dict[str, float] = {}   # edge_id → speed limit (m/s)
-        self._edge_length_cache:     dict[str, float] = {}   # edge_id → length in km
+        self._lane_multiplier_cache: dict[str, float] = {}  # edge_id → road multiplier
+        self._road_speed_cache: dict[str, float] = {}  # edge_id → speed limit (m/s)
+        self._edge_length_cache: dict[str, float] = {}  # edge_id → length in km
 
         # Per-step density cache — refreshed each step by prepare_step().
-        self._edge_density_cache: dict[str, float] = {}      # edge_id → vehicles/km
+        self._edge_density_cache: dict[str, float] = {}  # edge_id → vehicles/km
 
     # ------------------------------------------------------------------
     # Fast-path API  (zero TraCI calls in the hot loop)
@@ -116,7 +117,7 @@ class RiskModel:
         self,
         vehicle_id: str,
         vdata: dict,
-        neighbor_speeds: dict,
+        neighbor_speeds: dict[str, float],
     ) -> float:
         """
         Compute a risk score (0.0–1.0) using pre-fetched subscription data.
@@ -133,8 +134,8 @@ class RiskModel:
         Returns:
             A float in [0, 1] representing composite risk.
         """
-        speed   = vdata.get(_tc.VAR_SPEED,  -1.0)
-        edge_id = vdata.get(_tc.VAR_ROAD_ID, "")
+        speed: float = float(vdata.get(_tc.VAR_SPEED, -1.0))
+        edge_id: str = str(vdata.get(_tc.VAR_ROAD_ID, ""))
 
         # Guard: SUMO returns INVALID_DOUBLE_VALUE (≈ −1.07e9) for vehicles
         # that are teleporting or not yet fully inserted into the network.
@@ -145,30 +146,27 @@ class RiskModel:
         # Normalise against the road's *posted speed limit*, not the vehicle's
         # mechanical maximum.  A vehicle driving at the limit scores 1.0;
         # a vehicle exceeding it is clamped to 1.0 (risk fully saturated).
-        road_limit       = self._get_road_speed_limit_cached(edge_id)
-        normalised_speed = (min(speed / road_limit, 1.0)
-                            if road_limit > 0 else 0.0)
-        speed_risk = normalised_speed ** self.speed_exponent
+        road_limit = self._get_road_speed_limit_cached(edge_id)
+        normalised_speed = min(speed / road_limit, 1.0) if road_limit > 0 else 0.0
+        speed_risk = normalised_speed**self.speed_exponent
 
         # --- 2. Speed Variance Risk ---
         if neighbor_speeds:
             mean_neighbor_speed = sum(neighbor_speeds.values()) / len(neighbor_speeds)
             speed_diff = abs(speed - mean_neighbor_speed)
-            variance_risk = min(
-                speed_diff / max(self.speed_variance_threshold, 0.1), 1.0
-            )
+            variance_risk = min(speed_diff / max(self.speed_variance_threshold, 0.1), 1.0)
         else:
             variance_risk = 0.0
 
         # --- 3. Density Risk ---
-        density      = self._edge_density_cache.get(edge_id, 0.0)
+        density = self._edge_density_cache.get(edge_id, 0.0)
         density_risk = self._density_risk_curve(density)
 
         # --- 4. Composite Score (weighted sum, clamped) ---
         composite = (
-            self.speed_weight          * speed_risk
+            self.speed_weight * speed_risk
             + self.speed_variance_weight * variance_risk
-            + self.density_weight        * density_risk
+            + self.density_weight * density_risk
         )
         composite = max(0.0, min(1.0, composite))
 
@@ -176,13 +174,13 @@ class RiskModel:
         road_multiplier = self._get_road_multiplier_cached(edge_id)
         composite = min(composite * road_multiplier, 1.0)
 
-        return composite
+        return float(composite)
 
     def should_trigger_accident_fast(
         self,
         vehicle_id: str,
         vdata: dict,
-        neighbor_speeds: dict,
+        neighbor_speeds: dict[str, float],
         secondary_multiplier: float = 1.0,
     ) -> bool:
         """
@@ -204,10 +202,8 @@ class RiskModel:
         if risk_score < self.trigger_threshold:
             return False
 
-        excess_risk    = risk_score - self.trigger_threshold
-        effective_prob = (
-            self.base_probability * (1 + excess_risk * 10) * secondary_multiplier
-        )
+        excess_risk = risk_score - self.trigger_threshold
+        effective_prob = self.base_probability * (1 + excess_risk * 10) * secondary_multiplier
         return random.random() < effective_prob
 
     # ------------------------------------------------------------------
@@ -226,18 +222,17 @@ class RiskModel:
             A float between 0.0 and 1.0 representing composite risk.
         """
         try:
-            speed   = traci.vehicle.getSpeed(vehicle_id)    # m/s
-            edge_id = traci.vehicle.getRoadID(vehicle_id)
+            speed = traci.vehicle.getSpeed(vehicle_id)  # m/s
+            edge_id: str = str(traci.vehicle.getRoadID(vehicle_id))
         except traci.exceptions.TraCIException as exc:
             logger.debug("Cannot fetch data for vehicle %s (likely departed): %s", vehicle_id, exc)
             return 0.0
 
         # --- 1. Speed Risk (Nilsson Power Model) ---
         # Use the road's posted speed limit, not the vehicle's mechanical max.
-        road_limit       = self._get_road_speed_limit_cached(edge_id)
-        normalised_speed = (min(speed / road_limit, 1.0)
-                            if road_limit > 0 else 0.0)
-        speed_risk = normalised_speed ** self.speed_exponent
+        road_limit = self._get_road_speed_limit_cached(edge_id)
+        normalised_speed = min(speed / road_limit, 1.0) if road_limit > 0 else 0.0
+        speed_risk = normalised_speed**self.speed_exponent
 
         # --- 2. Speed Variance Risk ---
         neighbor_speeds = []
@@ -256,14 +251,14 @@ class RiskModel:
             variance_risk = 0.0
 
         # --- 3. Density Risk ---
-        density      = self._get_edge_density(edge_id)
+        density = self._get_edge_density(edge_id)
         density_risk = self._density_risk_curve(density)
 
         # --- 4. Composite Score (weighted sum) ---
         composite = (
-            self.speed_weight          * speed_risk
+            self.speed_weight * speed_risk
             + self.speed_variance_weight * variance_risk
-            + self.density_weight        * density_risk
+            + self.density_weight * density_risk
         )
         composite = max(0.0, min(1.0, composite))
 
@@ -271,7 +266,7 @@ class RiskModel:
         road_multiplier = self._get_road_multiplier(edge_id)
         composite = min(composite * road_multiplier, 1.0)
 
-        return composite
+        return float(composite)
 
     def should_trigger_accident(
         self,
@@ -295,10 +290,8 @@ class RiskModel:
         if risk_score < self.trigger_threshold:
             return False
 
-        excess_risk    = risk_score - self.trigger_threshold
-        effective_prob = (
-            self.base_probability * (1 + excess_risk * 10) * secondary_multiplier
-        )
+        excess_risk = risk_score - self.trigger_threshold
+        effective_prob = self.base_probability * (1 + excess_risk * 10) * secondary_multiplier
         return random.random() < effective_prob
 
     # ------------------------------------------------------------------
@@ -336,7 +329,7 @@ class RiskModel:
         if edge_id.startswith(":"):
             return 0.0
         try:
-            vehicle_count  = traci.edge.getLastStepVehicleNumber(edge_id)
+            vehicle_count: int = int(traci.edge.getLastStepVehicleNumber(edge_id))
             edge_length_km = self._get_edge_length_km(edge_id)
             if edge_length_km > 0:
                 return vehicle_count / edge_length_km
@@ -350,8 +343,8 @@ class RiskModel:
         Risk peaks at self.peak_density and falls off on either side.
         Uses a Gaussian-like shape.
         """
-        sigma    = self.peak_density * 0.5
-        exponent = -((density - self.peak_density) ** 2) / (2 * sigma ** 2)
+        sigma = self.peak_density * 0.5
+        exponent = -((density - self.peak_density) ** 2) / (2 * sigma**2)
         return math.exp(exponent)
 
     def _get_road_speed_limit_cached(self, edge_id: str) -> float:
@@ -364,12 +357,10 @@ class RiskModel:
         """
         if edge_id not in self._road_speed_cache:
             try:
-                self._road_speed_cache[edge_id] = traci.lane.getMaxSpeed(
-                    edge_id + "_0"
-                )
+                self._road_speed_cache[edge_id] = traci.lane.getMaxSpeed(edge_id + "_0")
             except traci.exceptions.TraCIException as exc:
                 logger.debug("Cannot get speed limit for edge %s: %s", edge_id, exc)
-                self._road_speed_cache[edge_id] = 1.0   # safe fallback
+                self._road_speed_cache[edge_id] = 1.0  # safe fallback
         return self._road_speed_cache[edge_id]
 
     def _get_road_multiplier(self, edge_id: str) -> float:
@@ -391,9 +382,9 @@ class RiskModel:
             return self.road_type_multipliers.get("intersection", 2.0)
 
         speed_mps = self._get_road_speed_limit_cached(edge_id)
-        if speed_mps >= 25.0:    # ≥ 90 km/h → highway
+        if speed_mps >= 25.0:  # ≥ 90 km/h → highway
             return self.road_type_multipliers.get("highway", 1.5)
         elif speed_mps >= 13.9:  # ≥ 50 km/h → arterial
             return self.road_type_multipliers.get("arterial", 1.0)
-        else:                    # < 50 km/h  → local
+        else:  # < 50 km/h  → local
             return self.road_type_multipliers.get("local", 0.6)

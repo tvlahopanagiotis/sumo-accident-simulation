@@ -8,11 +8,9 @@ All tests use the mock traci injected by conftest.py.
 
 import math
 import random
-from unittest.mock import MagicMock, patch
-
-import pytest
 
 import traci  # This is the mock injected by conftest.py
+
 from risk_model import RiskModel
 
 # Shorthand for the mock constants
@@ -22,6 +20,7 @@ _tc = traci.constants
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_vdata(speed, edge_id="edge_1", position=(100.0, 200.0)):
     """Build a subscription-result dict for a single vehicle."""
@@ -50,6 +49,7 @@ def _make_model(risk_config, road_limit=13.89, edge_length_m=1000.0):
 # ---------------------------------------------------------------------------
 # Speed risk tests
 # ---------------------------------------------------------------------------
+
 
 class TestSpeedRisk:
     """Tests for the speed-risk component of get_risk_score_fast."""
@@ -119,6 +119,7 @@ class TestSpeedRisk:
 # Variance risk tests
 # ---------------------------------------------------------------------------
 
+
 class TestVarianceRisk:
     """Tests for the speed-variance component."""
 
@@ -166,6 +167,7 @@ class TestVarianceRisk:
 # Density risk tests
 # ---------------------------------------------------------------------------
 
+
 class TestDensityRisk:
     """Tests for the density-risk component."""
 
@@ -190,6 +192,7 @@ class TestDensityRisk:
 # ---------------------------------------------------------------------------
 # Composite risk tests
 # ---------------------------------------------------------------------------
+
 
 class TestCompositeRisk:
     """Tests for the weighted composite score."""
@@ -226,6 +229,7 @@ class TestCompositeRisk:
 # Trigger tests
 # ---------------------------------------------------------------------------
 
+
 class TestTrigger:
     """Tests for should_trigger_accident_fast."""
 
@@ -235,10 +239,7 @@ class TestTrigger:
         model = _make_model(risk_config, road_limit=13.9)
         vdata = _make_vdata(speed=1.0)  # very slow => low risk
 
-        results = [
-            model.should_trigger_accident_fast("v0", vdata, {})
-            for _ in range(1000)
-        ]
+        results = [model.should_trigger_accident_fast("v0", vdata, {}) for _ in range(1000)]
         assert not any(results), "Should never trigger when risk < threshold"
 
     def test_trigger_above_threshold_can_fire(self, risk_config):
@@ -254,16 +255,14 @@ class TestTrigger:
         neighbors = {"n1": 0.0}  # high variance
 
         random.seed(42)
-        results = [
-            model.should_trigger_accident_fast("v0", vdata, neighbors)
-            for _ in range(100)
-        ]
+        results = [model.should_trigger_accident_fast("v0", vdata, neighbors) for _ in range(100)]
         assert any(results), "Should trigger at least once with high probability"
 
 
 # ---------------------------------------------------------------------------
 # prepare_step tests
 # ---------------------------------------------------------------------------
+
 
 class TestPrepareStep:
     """Tests for the prepare_step density pre-computation."""

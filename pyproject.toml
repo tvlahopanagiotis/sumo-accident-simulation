@@ -55,6 +55,7 @@ dev = [
     "pytest-cov>=4.0",
     "mypy>=1.5",
     "ruff>=0.4",
+    "types-PyYAML",
 ]
 
 [tool.setuptools]
@@ -112,6 +113,15 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["sumolib", "sumolib.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["yaml"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["pandas", "pandas.*", "seaborn", "seaborn.*", "numpy", "numpy.*", "matplotlib", "matplotlib.*"]
+ignore_missing_imports = true
+follow_imports = "silent"
 
 
 # ── Pytest ───────────────────────────────────────────────────────────────────

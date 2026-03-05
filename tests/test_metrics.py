@@ -8,12 +8,10 @@ All tests use the mock traci injected by conftest.py.
 
 import json
 import os
-import statistics
-
-import pytest
 
 import traci  # mock from conftest.py
-from metrics import MetricsCollector, _t_critical, NetworkSnapshot
+
+from metrics import MetricsCollector, _t_critical
 
 _tc = traci.constants
 
@@ -22,15 +20,13 @@ _tc = traci.constants
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_all_sub(n_vehicles, speed=10.0):
     """
     Build a mock getAllSubscriptionResults() dict with n_vehicles
     all travelling at the given speed.
     """
-    return {
-        f"v{i}": {_tc.VAR_SPEED: speed}
-        for i in range(n_vehicles)
-    }
+    return {f"v{i}": {_tc.VAR_SPEED: speed} for i in range(n_vehicles)}
 
 
 def _make_collector(output_config, sample_config):
@@ -41,6 +37,7 @@ def _make_collector(output_config, sample_config):
 # ---------------------------------------------------------------------------
 # _t_critical tests
 # ---------------------------------------------------------------------------
+
 
 class TestTCritical:
     """Tests for the t-distribution critical value lookup."""
@@ -69,6 +66,7 @@ class TestTCritical:
 # accumulate_arrivals tests
 # ---------------------------------------------------------------------------
 
+
 class TestAccumulateArrivals:
     """Tests for the arrival accumulator."""
 
@@ -90,6 +88,7 @@ class TestAccumulateArrivals:
 # ---------------------------------------------------------------------------
 # record_step tests
 # ---------------------------------------------------------------------------
+
 
 class TestRecordStep:
     """Tests for the record_step snapshot recording."""
@@ -131,6 +130,7 @@ class TestRecordStep:
 # Baseline speed tests
 # ---------------------------------------------------------------------------
 
+
 class TestBaseline:
     """Tests for the free-flow baseline speed establishment."""
 
@@ -152,6 +152,7 @@ class TestBaseline:
 # Antifragility Index tests
 # ---------------------------------------------------------------------------
 
+
 class TestAntifragilityIndex:
     """Tests for the per-event and aggregate AI computation."""
 
@@ -160,14 +161,16 @@ class TestAntifragilityIndex:
         mc = _make_collector(output_config, sample_config)
 
         # Manually inject a finalised per-event AI where post > pre
-        mc._per_event_ais.append({
-            "accident_id": "ACC_0001",
-            "event_ai": 0.10,  # post was 10% faster than pre
-            "pre_mean_speed_kmh": 50.0,
-            "post_mean_speed_kmh": 55.0,
-            "n_pre_samples": 5,
-            "n_post_samples": 5,
-        })
+        mc._per_event_ais.append(
+            {
+                "accident_id": "ACC_0001",
+                "event_ai": 0.10,  # post was 10% faster than pre
+                "pre_mean_speed_kmh": 50.0,
+                "post_mean_speed_kmh": 55.0,
+                "n_pre_samples": 5,
+                "n_post_samples": 5,
+            }
+        )
 
         result = mc.compute_antifragility_index()
         assert result["antifragility_index"] is not None
@@ -177,14 +180,16 @@ class TestAntifragilityIndex:
         """If post-accident speed < pre-accident speed => AI < 0."""
         mc = _make_collector(output_config, sample_config)
 
-        mc._per_event_ais.append({
-            "accident_id": "ACC_0001",
-            "event_ai": -0.15,  # post was 15% slower
-            "pre_mean_speed_kmh": 50.0,
-            "post_mean_speed_kmh": 42.5,
-            "n_pre_samples": 5,
-            "n_post_samples": 5,
-        })
+        mc._per_event_ais.append(
+            {
+                "accident_id": "ACC_0001",
+                "event_ai": -0.15,  # post was 15% slower
+                "pre_mean_speed_kmh": 50.0,
+                "post_mean_speed_kmh": 42.5,
+                "n_pre_samples": 5,
+                "n_post_samples": 5,
+            }
+        )
 
         result = mc.compute_antifragility_index()
         assert result["antifragility_index"] < 0
@@ -202,15 +207,30 @@ class TestAntifragilityIndex:
         mc = _make_collector(output_config, sample_config)
 
         mc._per_event_ais = [
-            {"accident_id": "ACC_0001", "event_ai": 0.05,
-             "pre_mean_speed_kmh": 50.0, "post_mean_speed_kmh": 52.5,
-             "n_pre_samples": 5, "n_post_samples": 5},
-            {"accident_id": "ACC_0002", "event_ai": -0.03,
-             "pre_mean_speed_kmh": 50.0, "post_mean_speed_kmh": 48.5,
-             "n_pre_samples": 5, "n_post_samples": 5},
-            {"accident_id": "ACC_0003", "event_ai": 0.02,
-             "pre_mean_speed_kmh": 50.0, "post_mean_speed_kmh": 51.0,
-             "n_pre_samples": 5, "n_post_samples": 5},
+            {
+                "accident_id": "ACC_0001",
+                "event_ai": 0.05,
+                "pre_mean_speed_kmh": 50.0,
+                "post_mean_speed_kmh": 52.5,
+                "n_pre_samples": 5,
+                "n_post_samples": 5,
+            },
+            {
+                "accident_id": "ACC_0002",
+                "event_ai": -0.03,
+                "pre_mean_speed_kmh": 50.0,
+                "post_mean_speed_kmh": 48.5,
+                "n_pre_samples": 5,
+                "n_post_samples": 5,
+            },
+            {
+                "accident_id": "ACC_0003",
+                "event_ai": 0.02,
+                "pre_mean_speed_kmh": 50.0,
+                "post_mean_speed_kmh": 51.0,
+                "n_pre_samples": 5,
+                "n_post_samples": 5,
+            },
         ]
 
         result = mc.compute_antifragility_index()
@@ -223,6 +243,7 @@ class TestAntifragilityIndex:
 # ---------------------------------------------------------------------------
 # Export tests
 # ---------------------------------------------------------------------------
+
 
 class TestExport:
     """Tests for file export functionality."""
@@ -252,14 +273,16 @@ class TestExport:
         mc = _make_collector(output_config, sample_config)
 
         # Add a fake event so AI computes
-        mc._per_event_ais.append({
-            "accident_id": "ACC_0001",
-            "event_ai": 0.05,
-            "pre_mean_speed_kmh": 50.0,
-            "post_mean_speed_kmh": 52.5,
-            "n_pre_samples": 5,
-            "n_post_samples": 5,
-        })
+        mc._per_event_ais.append(
+            {
+                "accident_id": "ACC_0001",
+                "event_ai": 0.05,
+                "pre_mean_speed_kmh": 50.0,
+                "post_mean_speed_kmh": 52.5,
+                "n_pre_samples": 5,
+                "n_post_samples": 5,
+            }
+        )
 
         mc.export_all()
 

@@ -36,6 +36,7 @@ import logging
 import math
 import random
 from dataclasses import dataclass, field
+from typing import Any
 
 import traci
 
@@ -45,24 +46,27 @@ logger = logging.getLogger("sas.accident")
 # Bit pattern 31 = 11111₂ restores all SUMO safety checks.
 # Bit pattern  0 = 00000₂ disables all checks, allowing forced speed override.
 _SPEED_MODE_DEFAULT = 31
-_SPEED_MODE_FROZEN  = 0
+_SPEED_MODE_FROZEN = 0
 
 
 # ---------------------------------------------------------------------------
 # Severity tier
 # ---------------------------------------------------------------------------
 
+
 class Severity:
     """String constants for the four severity tiers."""
-    MINOR    = "MINOR"
+
+    MINOR = "MINOR"
     MODERATE = "MODERATE"
-    MAJOR    = "MAJOR"
+    MAJOR = "MAJOR"
     CRITICAL = "CRITICAL"
 
 
 # ---------------------------------------------------------------------------
 # Accident dataclass
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class Accident:
@@ -75,31 +79,31 @@ class Accident:
     """
 
     # Identity
-    accident_id: str          # Unique identifier, e.g. "ACC_0042"
-    trigger_step: int         # Simulation step when the accident occurred
-    vehicle_id: str           # Primary vehicle involved
-    edge_id: str              # Road segment (SUMO edge ID)
-    lane_id: str              # Lane ID
-    position: float           # Distance from edge start (metres)
-    x: float                  # Cartesian x position
-    y: float                  # Cartesian y position
+    accident_id: str  # Unique identifier, e.g. "ACC_0042"
+    trigger_step: int  # Simulation step when the accident occurred
+    vehicle_id: str  # Primary vehicle involved
+    edge_id: str  # Road segment (SUMO edge ID)
+    lane_id: str  # Lane ID
+    position: float  # Distance from edge start (metres)
+    x: float  # Cartesian x position
+    y: float  # Cartesian y position
 
     # Severity
     severity: str = Severity.MINOR  # MINOR / MODERATE / MAJOR / CRITICAL
 
     # Timing (set at trigger time from severity tier)
-    duration_steps: int = 0         # How long the accident lasts (simulated seconds)
-    response_time_steps: int = 0    # Seconds until clearance begins
-    clearance_start_step: int = 0   # Filled when clearance begins
-    resolved_step: int = 0          # Filled when fully resolved
+    duration_steps: int = 0  # How long the accident lasts (simulated seconds)
+    response_time_steps: int = 0  # Seconds until clearance begins
+    clearance_start_step: int = 0  # Filled when clearance begins
+    resolved_step: int = 0  # Filled when fully resolved
 
     # Traffic impact (set at trigger time from severity tier)
-    capacity_fraction: float = 0.70          # Lane capacity remaining during active phase
-    secondary_risk_radius_m: float = 75.0    # Radius of elevated-risk zone
-    secondary_risk_multiplier: float = 1.5   # Risk multiplier within that zone
+    capacity_fraction: float = 0.70  # Lane capacity remaining during active phase
+    secondary_risk_radius_m: float = 75.0  # Radius of elevated-risk zone
+    secondary_risk_multiplier: float = 1.5  # Risk multiplier within that zone
 
     # Lifecycle state
-    phase: str = "ACTIVE"                          # ACTIVE → CLEARING → RESOLVED
+    phase: str = "ACTIVE"  # ACTIVE → CLEARING → RESOLVED
     affected_vehicles: list = field(default_factory=list)
 
     # Impact metrics (updated during simulation)
@@ -110,6 +114,7 @@ class Accident:
 # ---------------------------------------------------------------------------
 # AccidentManager
 # ---------------------------------------------------------------------------
+
 
 class AccidentManager:
     """
@@ -122,7 +127,7 @@ class AccidentManager:
         get_secondary_multiplier() — Risk elevation near active scenes
     """
 
-    def __init__(self, config: dict[str, object]) -> None:
+    def __init__(self, config: dict[str, Any]) -> None:
         """
         Args:
             config: The 'accident' section of config.yaml.
@@ -132,12 +137,12 @@ class AccidentManager:
 
         # Parse severity tiers from config
         self._severity_tiers: list[dict] = self._load_severity_tiers(config["severity"])
-        self._severity_names: list[str] = [t["name"]   for t in self._severity_tiers]
+        self._severity_names: list[str] = [t["name"] for t in self._severity_tiers]
         self._severity_weights: list[float] = [t["weight"] for t in self._severity_tiers]
 
-        self.active_accidents:   dict[str, Accident] = {}
-        self.resolved_accidents: list[Accident]      = []
-        self._accident_counter:  int                 = 0
+        self.active_accidents: dict[str, Accident] = {}
+        self.resolved_accidents: list[Accident] = []
+        self._accident_counter: int = 0
 
     # ------------------------------------------------------------------
     # Public API
@@ -170,10 +175,10 @@ class AccidentManager:
         """
         # Fetch vehicle state via TraCI
         try:
-            edge_id  = traci.vehicle.getRoadID(vehicle_id)
-            lane_id  = traci.vehicle.getLaneID(vehicle_id)
+            edge_id = traci.vehicle.getRoadID(vehicle_id)
+            lane_id = traci.vehicle.getLaneID(vehicle_id)
             position = traci.vehicle.getLanePosition(vehicle_id)
-            x, y     = traci.vehicle.getPosition(vehicle_id)
+            x, y = traci.vehicle.getPosition(vehicle_id)
         except traci.exceptions.TraCIException:
             return None  # Vehicle left the network before we could act
 
@@ -193,20 +198,20 @@ class AccidentManager:
         accident_id = f"ACC_{self._accident_counter:04d}"
 
         accident = Accident(
-            accident_id               = accident_id,
-            trigger_step              = current_step,
-            vehicle_id                = vehicle_id,
-            edge_id                   = edge_id,
-            lane_id                   = lane_id,
-            position                  = position,
-            x                         = x,
-            y                         = y,
-            severity                  = tier["name"],
-            duration_steps            = duration,
-            response_time_steps       = tier["response_time_s"],
-            capacity_fraction         = tier["lane_capacity_fraction"],
-            secondary_risk_radius_m   = tier["secondary_risk_radius_m"],
-            secondary_risk_multiplier = tier["secondary_risk_multiplier"],
+            accident_id=accident_id,
+            trigger_step=current_step,
+            vehicle_id=vehicle_id,
+            edge_id=edge_id,
+            lane_id=lane_id,
+            position=position,
+            x=x,
+            y=y,
+            severity=tier["name"],
+            duration_steps=duration,
+            response_time_steps=tier["response_time_s"],
+            capacity_fraction=tier["lane_capacity_fraction"],
+            secondary_risk_radius_m=tier["secondary_risk_radius_m"],
+            secondary_risk_multiplier=tier["secondary_risk_multiplier"],
         )
 
         self._apply_accident_effects(accident)
@@ -215,8 +220,12 @@ class AccidentManager:
         logger.info(
             "ACCIDENT %s — severity: %s | vehicle: %s | edge: %s | "
             "duration: %ds | capacity: %.0f%%",
-            accident_id, tier["name"], vehicle_id, edge_id,
-            duration, tier["lane_capacity_fraction"] * 100,
+            accident_id,
+            tier["name"],
+            vehicle_id,
+            edge_id,
+            duration,
+            tier["lane_capacity_fraction"] * 100,
         )
         return accident
 
@@ -290,17 +299,19 @@ class AccidentManager:
         Raises ValueError if a required key is missing or if no tiers are defined.
         """
         required = {
-            "weight", "duration_min_s", "duration_max_s",
-            "lane_capacity_fraction", "response_time_s",
-            "secondary_risk_radius_m", "secondary_risk_multiplier",
+            "weight",
+            "duration_min_s",
+            "duration_max_s",
+            "lane_capacity_fraction",
+            "response_time_s",
+            "secondary_risk_radius_m",
+            "secondary_risk_multiplier",
         }
         tiers = []
         for tier_name, params in severity_cfg.items():
             missing = required - set(params.keys())
             if missing:
-                raise ValueError(
-                    f"Severity tier '{tier_name}' is missing keys: {missing}"
-                )
+                raise ValueError(f"Severity tier '{tier_name}' is missing keys: {missing}")
             tiers.append({"name": tier_name.upper(), **params})
 
         if not tiers:
@@ -321,9 +332,9 @@ class AccidentManager:
         sigma = 0.5 gives a realistic right-skewed distribution (most
         incidents resolve quickly, rare ones take much longer).
         """
-        mu    = math.log(math.sqrt(min_s * max_s))   # geometric mean
+        mu = math.log(math.sqrt(min_s * max_s))  # geometric mean
         sigma = 0.5
-        raw   = random.lognormvariate(mu, sigma)
+        raw = random.lognormvariate(mu, sigma)
         return int(max(min_s, min(max_s, raw)))
 
     # ------------------------------------------------------------------
@@ -340,19 +351,23 @@ class AccidentManager:
         except traci.exceptions.TraCIException as exc:
             logger.warning(
                 "Failed to freeze vehicle %s for %s: %s",
-                accident.vehicle_id, accident.accident_id, exc,
+                accident.vehicle_id,
+                accident.accident_id,
+                exc,
             )
 
         # Reduce lane max speed proportional to remaining capacity.
         try:
             original = traci.lane.getMaxSpeed(accident.lane_id)
-            reduced  = original * accident.capacity_fraction
+            reduced = original * accident.capacity_fraction
             traci.lane.setMaxSpeed(accident.lane_id, reduced)
             accident.__dict__["_original_lane_speed"] = original
         except traci.exceptions.TraCIException as exc:
             logger.warning(
                 "Failed to reduce lane capacity on %s for %s: %s",
-                accident.lane_id, accident.accident_id, exc,
+                accident.lane_id,
+                accident.accident_id,
+                exc,
             )
             accident.__dict__["_original_lane_speed"] = None
 
@@ -366,26 +381,27 @@ class AccidentManager:
         try:
             vehicles_on_edge = traci.edge.getLastStepVehicleIDs(accident.edge_id)
             blocked = [
-                v for v in vehicles_on_edge
+                v
+                for v in vehicles_on_edge
                 if traci.vehicle.getLanePosition(v) < accident.position
                 and v != accident.vehicle_id
             ]
-            accident.vehicles_affected_count = max(
-                accident.vehicles_affected_count, len(blocked)
-            )
+            accident.vehicles_affected_count = max(accident.vehicles_affected_count, len(blocked))
             accident.peak_queue_length = max(accident.peak_queue_length, len(blocked))
         except traci.exceptions.TraCIException as exc:
             logger.debug(
                 "Could not update queue metrics for %s: %s",
-                accident.accident_id, exc,
+                accident.accident_id,
+                exc,
             )
 
         if elapsed >= accident.response_time_steps:
-            accident.phase              = "CLEARING"
+            accident.phase = "CLEARING"
             accident.clearance_start_step = current_step
             logger.info(
                 "ACCIDENT %s (%s) — emergency services on scene, clearance begins.",
-                accident.accident_id, accident.severity,
+                accident.accident_id,
+                accident.severity,
             )
 
     def _update_clearing(self, accident: Accident, current_step: int):
@@ -399,14 +415,14 @@ class AccidentManager:
         if original is None:
             return
 
-        reduced          = original * accident.capacity_fraction
-        clearing_total   = accident.duration_steps - accident.response_time_steps
+        reduced = original * accident.capacity_fraction
+        clearing_total = accident.duration_steps - accident.response_time_steps
         clearing_elapsed = current_step - accident.clearance_start_step
 
         if clearing_total <= 0:
             return
 
-        fraction      = min(clearing_elapsed / clearing_total, 1.0)
+        fraction = min(clearing_elapsed / clearing_total, 1.0)
         current_speed = reduced + (original - reduced) * fraction
 
         try:
@@ -414,12 +430,14 @@ class AccidentManager:
         except traci.exceptions.TraCIException as exc:
             logger.debug(
                 "Could not update clearing speed on %s for %s: %s",
-                accident.lane_id, accident.accident_id, exc,
+                accident.lane_id,
+                accident.accident_id,
+                exc,
             )
 
     def _resolve_accident(self, accident: Accident, current_step: int) -> None:
         """Restore full lane capacity and release the accident vehicle."""
-        accident.phase         = "RESOLVED"
+        accident.phase = "RESOLVED"
         accident.resolved_step = current_step
 
         original = accident.__dict__.get("_original_lane_speed")
@@ -429,12 +447,14 @@ class AccidentManager:
             except traci.exceptions.TraCIException as exc:
                 logger.warning(
                     "Failed to restore lane speed on %s for %s: %s",
-                    accident.lane_id, accident.accident_id, exc,
+                    accident.lane_id,
+                    accident.accident_id,
+                    exc,
                 )
 
         try:
             traci.vehicle.setSpeedMode(accident.vehicle_id, _SPEED_MODE_DEFAULT)
-            traci.vehicle.setSpeed(accident.vehicle_id, -1)   # return control to SUMO
+            traci.vehicle.setSpeed(accident.vehicle_id, -1)  # return control to SUMO
         except traci.exceptions.TraCIException:
             # Vehicle may have left the network; try to remove it cleanly
             try:
@@ -442,7 +462,8 @@ class AccidentManager:
             except traci.exceptions.TraCIException:
                 logger.debug(
                     "Vehicle %s already left network during %s resolution.",
-                    accident.vehicle_id, accident.accident_id,
+                    accident.vehicle_id,
+                    accident.accident_id,
                 )
 
         logger.info(

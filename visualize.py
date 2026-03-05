@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,10 +38,10 @@ FIGSIZE_WIDE = (14, 5)
 FIGSIZE_SQUARE = (10, 8)
 
 SEVERITY_COLORS = {
-    "MINOR": "#2ecc71",       # green
-    "MODERATE": "#f39c12",    # orange
-    "MAJOR": "#e74c3c",       # red
-    "CRITICAL": "#8b0000",    # dark red
+    "MINOR": "#2ecc71",  # green
+    "MODERATE": "#f39c12",  # orange
+    "MAJOR": "#e74c3c",  # red
+    "CRITICAL": "#8b0000",  # dark red
 }
 
 SEVERITY_ORDER = ["MINOR", "MODERATE", "MAJOR", "CRITICAL"]
@@ -51,6 +50,7 @@ SEVERITY_ORDER = ["MINOR", "MODERATE", "MAJOR", "CRITICAL"]
 # ───────────────────────────────────────────────────────────────────────────────
 # Network Metrics Timeseries
 # ───────────────────────────────────────────────────────────────────────────────
+
 
 def plot_network_metrics(
     metrics_csv: str,
@@ -143,6 +143,7 @@ def plot_network_metrics(
 # Severity Distribution
 # ───────────────────────────────────────────────────────────────────────────────
 
+
 def plot_severity_distribution(
     accident_reports_json: str,
     output_dir: str,
@@ -172,7 +173,7 @@ def plot_severity_distribution(
         return
 
     # Count severities
-    severity_counts = {}
+    severity_counts: dict[str, int] = {}
     for acc in accidents:
         sev = acc.get("severity", "UNKNOWN")
         severity_counts[sev] = severity_counts.get(sev, 0) + 1
@@ -184,7 +185,7 @@ def plot_severity_distribution(
 
     # Create pie chart
     fig, ax = plt.subplots(figsize=FIGSIZE_SQUARE)
-    wedges, texts, autotexts = ax.pie(
+    wedges, texts, autotexts = ax.pie(  # type: ignore[misc]
         counts,
         labels=severities,
         colors=colors,
@@ -213,6 +214,7 @@ def plot_severity_distribution(
 # ───────────────────────────────────────────────────────────────────────────────
 # Before/After Speed Comparison
 # ───────────────────────────────────────────────────────────────────────────────
+
 
 def plot_before_after_speeds(
     accident_reports_json: str,
@@ -266,17 +268,9 @@ def plot_before_after_speeds(
     for idx, acc in enumerate(accidents):
         ax = axes[idx]
         trigger_step = acc["trigger_step"]
-        resolved_step = acc["resolved_step"]
 
-        # Window in steps (assuming each row is a snapshot at metrics_interval_steps=60)
-        before_start = max(0, trigger_step - window_seconds)
-        before_end = trigger_step
-        after_start = trigger_step
-        after_end = min(len(df_metrics) - 1, trigger_step + window_seconds)
-
-        # Note: this assumes a 1:1 mapping between step and timestamp_seconds
-        # Filter by timestamp instead
-        trigger_time = trigger_step  # assuming step ≈ timestamp_seconds
+        # Filter metrics by timestamp (trigger_step ≈ timestamp_seconds in this model)
+        trigger_time = trigger_step
         before_mask = (df_metrics["timestamp_seconds"] >= trigger_time - window_seconds) & (
             df_metrics["timestamp_seconds"] < trigger_time
         )
@@ -333,6 +327,7 @@ def plot_before_after_speeds(
 # Accident Heatmap
 # ───────────────────────────────────────────────────────────────────────────────
 
+
 def plot_accident_heatmap(
     accident_reports_json: str,
     output_dir: str,
@@ -384,19 +379,22 @@ def plot_accident_heatmap(
 
     # Plot
     fig, ax = plt.subplots(figsize=FIGSIZE_SQUARE)
-    scatter = ax.scatter(xs, ys, c=colors_list, s=sizes, alpha=0.7, edgecolors="black", linewidth=1.5)
+    ax.scatter(xs, ys, c=colors_list, s=sizes, alpha=0.7, edgecolors="black", linewidth=1.5)
 
     ax.set_xlabel("X coordinate (m)", fontsize=11)
     ax.set_ylabel("Y coordinate (m)", fontsize=11)
 
     # Create custom legend
     from matplotlib.patches import Patch
+
     legend_elements = [
         Patch(facecolor=SEVERITY_COLORS.get(sev, "#95a5a6"), edgecolor="black", label=sev)
         for sev in SEVERITY_ORDER
         if sev in SEVERITY_COLORS
     ]
-    ax.legend(handles=legend_elements, loc="best", fontsize=10, title="Severity", title_fontsize=11)
+    ax.legend(
+        handles=legend_elements, loc="best", fontsize=10, title="Severity", title_fontsize=11
+    )
 
     title = f"Accident Location Heatmap (n={len(accidents)})"
     if run_id is not None:
@@ -414,6 +412,7 @@ def plot_accident_heatmap(
 # ───────────────────────────────────────────────────────────────────────────────
 # HTML Report Generation
 # ───────────────────────────────────────────────────────────────────────────────
+
 
 def generate_html_report(
     output_dir: str,
@@ -505,7 +504,9 @@ def generate_html_report(
                 val = metadata[key]
                 if isinstance(val, (int, float)):
                     val = f"{val:,}"
-                html_parts.append(f"            <div class='metadata-row'><span class='metadata-label'>{key}:</span><span class='metadata-value'>{val}</span></div>")
+                html_parts.append(
+                    f"            <div class='metadata-row'><span class='metadata-label'>{key}:</span><span class='metadata-value'>{val}</span></div>"
+                )
 
         html_parts.append("        </div>")
 
@@ -518,13 +519,17 @@ def generate_html_report(
         ai_class = "ai-positive" if ai_score and ai_score > 0 else "ai-negative"
         html_parts.append("        <h2>Antifragility Index</h2>")
         html_parts.append(f"        <div class='ai-highlight {ai_class}'>")
-        html_parts.append(f"            <strong>AI Score:</strong> {ai_score:.3f} ({interpretation})<br>")
+        html_parts.append(
+            f"            <strong>AI Score:</strong> {ai_score:.3f} ({interpretation})<br>"
+        )
         html_parts.append(f"            <strong>Events Measured:</strong> {n_events}<br>")
 
         if "ci_95_low" in ai_data and "ci_95_high" in ai_data:
             ci_low = ai_data["ci_95_low"]
             ci_high = ai_data["ci_95_high"]
-            html_parts.append(f"            <strong>95% Confidence Interval:</strong> [{ci_low:.3f}, {ci_high:.3f}]")
+            html_parts.append(
+                f"            <strong>95% Confidence Interval:</strong> [{ci_low:.3f}, {ci_high:.3f}]"
+            )
 
         html_parts.append("        </div>")
 
@@ -542,7 +547,9 @@ def generate_html_report(
     # Footer
     html_parts.append("        <div class='footer'>")
     html_parts.append("            Generated by SAS (SUMO Accident Simulation)<br>")
-    html_parts.append(f"            <a href='https://github.com/tvlahopanagiotis/sumo-accident-simulation'>github.com/tvlahopanagiotis/sumo-accident-simulation</a>")
+    html_parts.append(
+        "            <a href='https://github.com/tvlahopanagiotis/sumo-accident-simulation'>github.com/tvlahopanagiotis/sumo-accident-simulation</a>"
+    )
     html_parts.append("        </div>")
 
     html_parts.extend(["    </div>", "</body>", "</html>"])
@@ -559,6 +566,7 @@ def generate_html_report(
 # ───────────────────────────────────────────────────────────────────────────────
 # Batch-level visualization
 # ───────────────────────────────────────────────────────────────────────────────
+
 
 def visualize_batch_results(batch_dir: str, all_summaries: list[dict]) -> None:
     """
@@ -578,7 +586,7 @@ def visualize_batch_results(batch_dir: str, all_summaries: list[dict]) -> None:
 
     for i, summary in enumerate(all_summaries):
         run_id = summary.get("run_id", f"Run {i}")
-        ai_file = os.path.join(batch_dir, f"antifragility_{i+1}.json")
+        ai_file = os.path.join(batch_dir, f"antifragility_{i + 1}.json")
 
         if os.path.exists(ai_file):
             try:
@@ -599,7 +607,9 @@ def visualize_batch_results(batch_dir: str, all_summaries: list[dict]) -> None:
     fig, ax = plt.subplots(figsize=(12, 6))
 
     colors = ["#2ecc71" if ai > 0 else "#e74c3c" for ai in ai_scores]
-    bars = ax.bar(range(len(ai_scores)), ai_scores, color=colors, alpha=0.7, edgecolor="black", linewidth=1.5)
+    bars = ax.bar(
+        range(len(ai_scores)), ai_scores, color=colors, alpha=0.7, edgecolor="black", linewidth=1.5
+    )
 
     # Add horizontal line at AI=0
     ax.axhline(y=0, color="black", linestyle="--", linewidth=2, alpha=0.5)
@@ -608,11 +618,11 @@ def visualize_batch_results(batch_dir: str, all_summaries: list[dict]) -> None:
     ax.set_ylabel("Antifragility Index (AI)", fontsize=12)
     ax.set_title("Per-Run Antifragility Scores (Batch Summary)", fontsize=13, fontweight="bold")
     ax.set_xticks(range(len(ai_scores)))
-    ax.set_xticklabels([f"Run {i+1}" for i in range(len(ai_scores))], fontsize=10)
+    ax.set_xticklabels([f"Run {i + 1}" for i in range(len(ai_scores))], fontsize=10)
     ax.grid(True, alpha=0.3, axis="y")
 
     # Add value labels on bars
-    for i, (bar, ai) in enumerate(zip(bars, ai_scores)):
+    for _i, (bar, ai) in enumerate(zip(bars, ai_scores, strict=False)):
         height = bar.get_height()
         ax.text(
             bar.get_x() + bar.get_width() / 2,

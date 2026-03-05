@@ -39,7 +39,6 @@ import xml.etree.ElementTree as ET
 import requests
 import yaml
 
-
 # ---------------------------------------------------------------------------
 # Network bounding box — Thessaloniki city centre
 # ---------------------------------------------------------------------------
@@ -59,6 +58,7 @@ RANDOM_TRIPS = os.path.join(SUMO_HOME, "tools", "randomTrips.py")
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _run(cmd: list[str], desc: str = "") -> subprocess.CompletedProcess:
     """Run a subprocess, print the command, exit on failure."""
@@ -83,6 +83,7 @@ def _write(path: str, content: str) -> None:
 # ---------------------------------------------------------------------------
 # Step 1 — Download OSM data
 # ---------------------------------------------------------------------------
+
 
 def download_osm(out_path: str, bbox: tuple[float, float, float, float]) -> None:
     """
@@ -125,6 +126,7 @@ out body;
 # Step 2 — Convert OSM → SUMO network
 # ---------------------------------------------------------------------------
 
+
 def build_network(osm_path: str, net_path: str, typemap: str) -> None:
     """
     Run netconvert to convert the OSM file into a SUMO network.
@@ -141,25 +143,37 @@ def build_network(osm_path: str, net_path: str, typemap: str) -> None:
     """
     if not os.path.exists(typemap):
         print(f"⚠   typemap not found at {typemap}")
-        print(f"    Set SUMO_HOME correctly or install SUMO.")
+        print("    Set SUMO_HOME correctly or install SUMO.")
         sys.exit(1)
 
-    _run([
-        "netconvert",
-        "--osm-files",               osm_path,
-        "--type-files",              typemap,
-        "--output-file",             net_path,
-        "--geometry.remove",
-        "--roundabouts.guess",
-        "--ramps.guess",
-        "--junctions.join",
-        "--tls.guess-signals",       "true",
-        "--tls.discard-simple",      "false",
-        "--tls.join",                "true",
-        "--keep-edges.by-vclass",    "passenger,truck",
-        "--no-internal-links",       "false",
-        "--no-warnings",             "true",
-    ], desc="netconvert")
+    _run(
+        [
+            "netconvert",
+            "--osm-files",
+            osm_path,
+            "--type-files",
+            typemap,
+            "--output-file",
+            net_path,
+            "--geometry.remove",
+            "--roundabouts.guess",
+            "--ramps.guess",
+            "--junctions.join",
+            "--tls.guess-signals",
+            "true",
+            "--tls.discard-simple",
+            "false",
+            "--tls.join",
+            "true",
+            "--keep-edges.by-vclass",
+            "passenger,truck",
+            "--no-internal-links",
+            "false",
+            "--no-warnings",
+            "true",
+        ],
+        desc="netconvert",
+    )
     size_mb = os.path.getsize(net_path) / 1_048_576
     print(f"    Network compiled → {net_path}  ({size_mb:.1f} MB)")
 
@@ -167,6 +181,7 @@ def build_network(osm_path: str, net_path: str, typemap: str) -> None:
 # ---------------------------------------------------------------------------
 # Step 3 — Generate routes
 # ---------------------------------------------------------------------------
+
 
 def generate_routes(net_path: str, rou_path: str, period: float) -> None:
     """
@@ -179,25 +194,34 @@ def generate_routes(net_path: str, rou_path: str, period: float) -> None:
     """
     if not os.path.exists(RANDOM_TRIPS):
         print(f"❌  randomTrips.py not found at {RANDOM_TRIPS}")
-        print(f"    Set SUMO_HOME correctly.")
+        print("    Set SUMO_HOME correctly.")
         sys.exit(1)
 
-    _run([
-        sys.executable, RANDOM_TRIPS,
-        "-n",          net_path,
-        "-o",          rou_path,
-        "--period",    str(period),
-        "--begin",     "0",
-        "--end",       "7200",
-        "--validate",
-        "--remove-loops",
-    ], desc="randomTrips.py")
+    _run(
+        [
+            sys.executable,
+            RANDOM_TRIPS,
+            "-n",
+            net_path,
+            "-o",
+            rou_path,
+            "--period",
+            str(period),
+            "--begin",
+            "0",
+            "--end",
+            "7200",
+            "--validate",
+            "--remove-loops",
+        ],
+        desc="randomTrips.py",
+    )
 
     # Count generated vehicles
     try:
-        tree   = ET.parse(rou_path)
-        root   = tree.getroot()
-        n_veh  = len(root.findall("vehicle")) + len(root.findall("trip"))
+        tree = ET.parse(rou_path)
+        root = tree.getroot()
+        n_veh = len(root.findall("vehicle")) + len(root.findall("trip"))
         print(f"    Routes generated → {rou_path}  ({n_veh:,} trips)")
     except Exception:
         print(f"    Routes generated → {rou_path}")
@@ -207,27 +231,29 @@ def generate_routes(net_path: str, rou_path: str, period: float) -> None:
 # Step 4 — Write .sumocfg
 # ---------------------------------------------------------------------------
 
+
 def write_sumocfg(cfg_path: str, net_file: str, rou_file: str) -> None:
     root = ET.Element("configuration")
 
     inp = ET.SubElement(root, "input")
-    ET.SubElement(inp, "net-file",    value=net_file)
+    ET.SubElement(inp, "net-file", value=net_file)
     ET.SubElement(inp, "route-files", value=rou_file)
 
     tim = ET.SubElement(root, "time")
     ET.SubElement(tim, "begin", value="0")
-    ET.SubElement(tim, "end",   value="7200")
+    ET.SubElement(tim, "end", value="7200")
 
     proc = ET.SubElement(root, "processing")
     ET.SubElement(proc, "ignore-route-errors", value="true")
 
-    raw    = ET.tostring(root, encoding="unicode")
+    raw = ET.tostring(root, encoding="unicode")
     pretty = _pretty_xml(raw)
     _write(cfg_path, pretty)
 
 
 def _pretty_xml(raw: str) -> str:
     from xml.dom import minidom
+
     return minidom.parseString(raw).toprettyxml(indent="    ")
 
 
@@ -235,17 +261,18 @@ def _pretty_xml(raw: str) -> str:
 # Step 5 — Patch config.yaml
 # ---------------------------------------------------------------------------
 
+
 def update_config_yaml(config_path: str, sumocfg_path: str, binary: str) -> None:
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
     cfg["sumo"]["config_file"] = os.path.abspath(sumocfg_path)
-    cfg["sumo"]["binary"]      = binary
+    cfg["sumo"]["binary"] = binary
 
     with open(config_path, "w") as f:
         yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
 
-    print(f"\n  ✅  config.yaml updated:")
+    print("\n  ✅  config.yaml updated:")
     print(f"      sumo.config_file = {os.path.abspath(sumocfg_path)}")
     print(f"      sumo.binary      = {binary}")
 
@@ -254,25 +281,28 @@ def update_config_yaml(config_path: str, sumocfg_path: str, binary: str) -> None
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     ap = argparse.ArgumentParser(
         description="Generate the Thessaloniki city-centre SUMO network from OSM"
     )
     ap.add_argument(
         "--out-dir",
-        default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             "thessaloniki_network"),
+        default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "thessaloniki_network"),
         help="Output directory (default: ./thessaloniki_network/)",
     )
     ap.add_argument(
-        "--period", type=float, default=1.0,
+        "--period",
+        type=float,
+        default=1.0,
         help=(
             "randomTrips vehicle insertion period in seconds "
             "(lower = more vehicles; 1.0 → ~200–300 simultaneous, default)"
         ),
     )
     ap.add_argument(
-        "--update-config", action="store_true",
+        "--update-config",
+        action="store_true",
         help="Patch config.yaml so runner.py uses this network immediately",
     )
     ap.add_argument(
@@ -281,16 +311,18 @@ def main() -> None:
         help="Path to config.yaml to update (default: ./config.yaml)",
     )
     ap.add_argument(
-        "--gui", action="store_true",
+        "--gui",
+        action="store_true",
         help="Set binary to sumo-gui in config.yaml (opens graphical interface)",
     )
     ap.add_argument(
-        "--skip-download", action="store_true",
+        "--skip-download",
+        action="store_true",
         help="Skip OSM download if thessaloniki.osm already exists in --out-dir",
     )
     args = ap.parse_args()
 
-    out     = args.out_dir
+    out = args.out_dir
     os.makedirs(out, exist_ok=True)
 
     osm_path = os.path.join(out, "thessaloniki.osm")
@@ -298,11 +330,11 @@ def main() -> None:
     rou_path = os.path.join(out, "thessaloniki.rou.xml")
     cfg_path = os.path.join(out, "thessaloniki.sumocfg")
 
-    print(f"\n{'='*60}")
-    print(f"  Thessaloniki City-Centre Network")
+    print(f"\n{'=' * 60}")
+    print("  Thessaloniki City-Centre Network")
     print(f"  OSM bbox: {BBOX[0]}°N {BBOX[1]}°E  →  {BBOX[2]}°N {BBOX[3]}°E")
     print(f"  Output   → {out}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # 1. Download
     if args.skip_download and os.path.exists(osm_path):
@@ -332,16 +364,16 @@ def main() -> None:
         binary = "sumo-gui" if args.gui else "sumo"
         update_config_yaml(args.config, cfg_path, binary)
 
-    print(f"\n{'='*60}")
-    print(f"  Network ready!")
-    print(f"\n  Next steps:")
+    print(f"\n{'=' * 60}")
+    print("  Network ready!")
+    print("\n  Next steps:")
     print(f"    1. Update config.yaml → sumo.config_file: {cfg_path}")
-    print(f"       (or re-run with --update-config to do this automatically)")
-    print(f"    2. Run the simulation:")
-    print(f"         python runner.py")
-    print(f"    3. Or open in SUMO GUI first to inspect the network:")
+    print("       (or re-run with --update-config to do this automatically)")
+    print("    2. Run the simulation:")
+    print("         python runner.py")
+    print("    3. Or open in SUMO GUI first to inspect the network:")
     print(f"         sumo-gui -c {cfg_path}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":
