@@ -1,5 +1,9 @@
 # SUMO Accident Simulation (SAS)
 
+[![CI](https://github.com/tvlahopanagiotis/sumo-accident-simulation/actions/workflows/ci.yml/badge.svg)](https://github.com/tvlahopanagiotis/sumo-accident-simulation/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
 A scientifically-calibrated, probabilistic traffic accident simulator built on top of
 [SUMO (Eclipse Simulation of Urban MObility)](https://sumo.dlr.de/).
 
@@ -127,9 +131,14 @@ PYTHONPATH = %SUMO_HOME%\tools
 ### 3 — Python dependencies
 
 ```bash
-pip install pyyaml
-# traci ships with SUMO — no separate install needed once PYTHONPATH is set
+# Install all dependencies (from pyproject.toml)
+pip install .
+
+# Or for development (includes pytest, mypy, ruff)
+pip install -e ".[dev]"
 ```
+
+> **Note:** `traci` ships with SUMO — no separate pip install needed once `PYTHONPATH` is set.
 
 ---
 
@@ -155,6 +164,63 @@ In `config.yaml` set `sumo.binary: sumo-gui`, then run as normal.
 
 ---
 
+## Bundled Networks
+
+Three network generators ship with SAS. Each downloads or builds the required
+SUMO files and can auto-patch `config.yaml` so `runner.py` is ready to go
+immediately:
+
+| Script | Network | Scale | Simultaneous vehicles |
+|--------|---------|-------|-----------------------|
+| `generate_thessaloniki.py` | Thessaloniki city centre (real OSM) | Urban, ~7 km² | ~300–500 |
+| `generate_sioux_falls.py` | Sioux Falls benchmark (synthetic) | 24-node grid | ~150 |
+| `generate_network.py` | Riverside District (synthetic) | Small urban | ~80 |
+
+### Thessaloniki — real city, recommended for full-city runs
+
+Downloads OSM data from OpenStreetMap, converts it with SUMO's `netconvert`,
+and generates randomised vehicle routes:
+
+```bash
+python generate_thessaloniki.py --update-config
+python runner.py
+```
+
+`--update-config` patches `config.yaml` automatically. Add `--gui` to also
+open SUMO's graphical interface while the simulation runs.
+
+```bash
+# all options
+python generate_thessaloniki.py --help
+
+# re-run without re-downloading the OSM file
+python generate_thessaloniki.py --update-config --skip-download
+
+# denser traffic (lower period → more vehicles inserted per second)
+python generate_thessaloniki.py --update-config --period 0.5
+```
+
+### Sioux Falls — classic benchmark
+
+Classic 24-node transport benchmark. Useful for reproducing published results
+and quick experiments (~30 s to generate):
+
+```bash
+python generate_sioux_falls.py --update-config
+python runner.py
+```
+
+### Riverside District — small synthetic network
+
+Fastest to generate; ideal for development and testing the pipeline end-to-end:
+
+```bash
+python generate_network.py --update-config
+python runner.py
+```
+
+---
+
 ## Configuration
 
 `config.yaml` is the single control point. Every parameter is documented inline.
@@ -167,10 +233,12 @@ sumo:
   seed: 42
 
 risk:
-  # Global accident-rate scaler.  Rough targets for a 2-hour run:
-  #   ~2  accidents → 5.0e-05
-  #   ~5  accidents → 1.5e-04   ← default
-  #   ~15 accidents → 5.0e-04
+  # Global accident-rate scaler. Scales with simultaneous vehicle count.
+  # See the calibration table below for per-network recommendations.
+  # Rough targets for ~150 simultaneous vehicles (Sioux Falls baseline):
+  #   ~2  accidents / 2 h → 5.0e-05
+  #   ~5  accidents / 2 h → 1.5e-04   ← Sioux Falls default
+  #   ~15 accidents / 2 h → 5.0e-04
   base_probability: 1.5e-04
 
   # Nilsson Power Model exponent:
@@ -190,6 +258,23 @@ accident:
 ```
 
 See `config.yaml` for the full parameter reference with inline explanations.
+
+### Calibrating `base_probability` for your network
+
+`base_probability` is the most important tuning knob. It scales with the
+**number of simultaneous vehicles**, not the total trip count. Use these
+tested values as a starting point for a target of ~5 accidents per 2-hour run:
+
+| Network | Simultaneous vehicles | Recommended `base_probability` |
+|---------|-----------------------|-------------------------------|
+| Riverside District | ~80 | `2.0e-04` |
+| Sioux Falls | ~150 | `1.5e-04` |
+| Thessaloniki city centre | ~500 | `5.0e-05` |
+| Large city (~2 000 vehicles) | ~2 000 | `1.5e-05` |
+
+**Rule of thumb:** if you double the simultaneous vehicle count, halve
+`base_probability`. Run with `--log-level INFO`, watch the accident count in
+the terminal, and adjust until you see your target rate.
 
 ---
 
@@ -397,6 +482,45 @@ If you use SAS in academic or professional work, please cite:
   note        = {Implements the Nilsson (1981) Power Model with four-tier
                  NHTSA-calibrated severity classification}
 }
+```
+
+---
+
+## Development
+
+### Setup
+
+```bash
+git clone https://github.com/tvlahopanagiotis/sumo-accident-simulation.git
+cd sumo-accident-simulation
+pip install -e ".[dev]"
+```
+
+### Running tests
+
+The test suite contains **55 unit tests** across four modules. All unit tests
+run without SUMO installed (TraCI is mocked at the session level in
+`tests/conftest.py`):
+
+```bash
+# All unit tests (no SUMO required)
+pytest tests/ -v
+
+# With coverage report
+pytest tests/ --cov=. --cov-report=term-missing
+
+# Integration tests (requires a running SUMO installation)
+pytest tests/ -m integration
+```
+
+### Code quality
+
+```bash
+# Linting
+ruff check .
+
+# Type checking
+mypy runner.py risk_model.py accident_manager.py metrics.py
 ```
 
 ---

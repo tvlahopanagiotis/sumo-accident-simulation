@@ -30,11 +30,12 @@ time, and secondary-risk zone.  All parameters are user-configurable via
 config.yaml.
 """
 
+from __future__ import annotations
+
 import logging
 import math
 import random
 from dataclasses import dataclass, field
-from typing import Optional
 
 import traci
 
@@ -121,18 +122,18 @@ class AccidentManager:
         get_secondary_multiplier() — Risk elevation near active scenes
     """
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, object]) -> None:
         """
         Args:
             config: The 'accident' section of config.yaml.
         """
-        self.max_concurrent      = config["max_concurrent_accidents"]
-        self.secondary_enabled   = config.get("secondary_accident_enabled", True)
+        self.max_concurrent: int = int(config["max_concurrent_accidents"])
+        self.secondary_enabled: bool = bool(config.get("secondary_accident_enabled", True))
 
         # Parse severity tiers from config
-        self._severity_tiers     = self._load_severity_tiers(config["severity"])
-        self._severity_names     = [t["name"]   for t in self._severity_tiers]
-        self._severity_weights   = [t["weight"] for t in self._severity_tiers]
+        self._severity_tiers: list[dict] = self._load_severity_tiers(config["severity"])
+        self._severity_names: list[str] = [t["name"]   for t in self._severity_tiers]
+        self._severity_weights: list[float] = [t["weight"] for t in self._severity_tiers]
 
         self.active_accidents:   dict[str, Accident] = {}
         self.resolved_accidents: list[Accident]      = []
@@ -150,7 +151,7 @@ class AccidentManager:
         self,
         vehicle_id: str,
         current_step: int,
-    ) -> Optional[Accident]:
+    ) -> Accident | None:
         """
         Initiate a new accident at the vehicle's current position.
 
@@ -329,15 +330,18 @@ class AccidentManager:
     # Private — lifecycle phases
     # ------------------------------------------------------------------
 
-    def _apply_accident_effects(self, accident: Accident):
+    def _apply_accident_effects(self, accident: Accident) -> None:
         """Stop the accident vehicle and reduce lane capacity immediately."""
         # Freeze the accident vehicle at zero speed.
         # Disabling safety checks prevents SUMO from overriding the forced speed.
         try:
             traci.vehicle.setSpeed(accident.vehicle_id, 0.0)
             traci.vehicle.setSpeedMode(accident.vehicle_id, _SPEED_MODE_FROZEN)
-        except traci.exceptions.TraCIException:
-            pass
+        except traci.exceptions.TraCIException as exc:
+            logger.warning(
+                "Failed to freeze vehicle %s for %s: %s",
+                accident.vehicle_id, accident.accident_id, exc,
+            )
 
         # Reduce lane max speed proportional to remaining capacity.
         try:
@@ -345,7 +349,11 @@ class AccidentManager:
             reduced  = original * accident.capacity_fraction
             traci.lane.setMaxSpeed(accident.lane_id, reduced)
             accident.__dict__["_original_lane_speed"] = original
-        except traci.exceptions.TraCIException:
+        except traci.exceptions.TraCIException as exc:
+            logger.warning(
+                "Failed to reduce lane capacity on %s for %s: %s",
+                accident.lane_id, accident.accident_id, exc,
+            )
             accident.__dict__["_original_lane_speed"] = None
 
     def _update_active(
@@ -353,7 +361,7 @@ class AccidentManager:
         accident: Accident,
         current_step: int,
         elapsed: int,
-    ):
+    ) -> None:
         """Track impact metrics and transition to CLEARING after response time."""
         try:
             vehicles_on_edge = traci.edge.getLastStepVehicleIDs(accident.edge_id)
@@ -366,8 +374,11 @@ class AccidentManager:
                 accident.vehicles_affected_count, len(blocked)
             )
             accident.peak_queue_length = max(accident.peak_queue_length, len(blocked))
-        except traci.exceptions.TraCIException:
-            pass
+        except traci.exceptions.TraCIException as exc:
+            logger.debug(
+                "Could not update queue metrics for %s: %s",
+                accident.accident_id, exc,
+            )
 
         if elapsed >= accident.response_time_steps:
             accident.phase              = "CLEARING"
@@ -400,10 +411,13 @@ class AccidentManager:
 
         try:
             traci.lane.setMaxSpeed(accident.lane_id, current_speed)
-        except traci.exceptions.TraCIException:
-            pass
+        except traci.exceptions.TraCIException as exc:
+            logger.debug(
+                "Could not update clearing speed on %s for %s: %s",
+                accident.lane_id, accident.accident_id, exc,
+            )
 
-    def _resolve_accident(self, accident: Accident, current_step: int):
+    def _resolve_accident(self, accident: Accident, current_step: int) -> None:
         """Restore full lane capacity and release the accident vehicle."""
         accident.phase         = "RESOLVED"
         accident.resolved_step = current_step
@@ -412,17 +426,24 @@ class AccidentManager:
         if original is not None:
             try:
                 traci.lane.setMaxSpeed(accident.lane_id, original)
-            except traci.exceptions.TraCIException:
-                pass
+            except traci.exceptions.TraCIException as exc:
+                logger.warning(
+                    "Failed to restore lane speed on %s for %s: %s",
+                    accident.lane_id, accident.accident_id, exc,
+                )
 
         try:
             traci.vehicle.setSpeedMode(accident.vehicle_id, _SPEED_MODE_DEFAULT)
             traci.vehicle.setSpeed(accident.vehicle_id, -1)   # return control to SUMO
         except traci.exceptions.TraCIException:
+            # Vehicle may have left the network; try to remove it cleanly
             try:
                 traci.vehicle.remove(accident.vehicle_id)
             except traci.exceptions.TraCIException:
-                pass   # Already left the network — that is fine
+                logger.debug(
+                    "Vehicle %s already left network during %s resolution.",
+                    accident.vehicle_id, accident.accident_id,
+                )
 
         logger.info(
             "ACCIDENT %s (%s) — RESOLVED | "

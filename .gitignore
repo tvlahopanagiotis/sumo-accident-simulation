@@ -26,6 +26,17 @@ build/
 venv/
 env/
 
+# ── Testing & type-checking ─────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Claude Code ─────────────────────────────────────────────────────
+.claude/
+
 # ── macOS ────────────────────────────────────────────────────────────
 .DS_Store
 .AppleDouble

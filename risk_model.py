@@ -36,12 +36,18 @@ Two code-paths are provided:
     and are retained for testing / debugging.
 """
 
+from __future__ import annotations
+
+import logging
 import math
 import random
+
 import traci
 
 # Short alias used throughout this module
 _tc = traci.constants
+
+logger = logging.getLogger("sas.risk_model")
 
 
 class RiskModel:
@@ -49,22 +55,22 @@ class RiskModel:
     Calculates accident risk for vehicles in the SUMO network.
     """
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict[str, object]) -> None:
         """
         Initialise the risk model with parameters from config.yaml.
 
         Args:
             config: The 'risk' section of the loaded config dictionary.
         """
-        self.base_probability = config["base_probability"]
-        self.speed_weight = config["speed_weight"]
-        self.speed_exponent = config["speed_exponent"]
-        self.speed_variance_weight = config["speed_variance_weight"]
-        self.speed_variance_threshold = config["speed_variance_threshold_ms"]
-        self.density_weight = config["density_weight"]
-        self.peak_density = config["peak_density_vehicles_per_km"]
-        self.road_type_multipliers = config["road_type_multipliers"]
-        self.trigger_threshold = config["trigger_threshold"]
+        self.base_probability: float = float(config["base_probability"])
+        self.speed_weight: float = float(config["speed_weight"])
+        self.speed_exponent: float = float(config["speed_exponent"])
+        self.speed_variance_weight: float = float(config["speed_variance_weight"])
+        self.speed_variance_threshold: float = float(config["speed_variance_threshold_ms"])
+        self.density_weight: float = float(config["density_weight"])
+        self.peak_density: float = float(config["peak_density_vehicles_per_km"])
+        self.road_type_multipliers: dict[str, float] = config["road_type_multipliers"]
+        self.trigger_threshold: float = float(config["trigger_threshold"])
 
         # ── Performance caches ────────────────────────────────────────────
         # Static properties (never change once SUMO has loaded the network):
@@ -79,7 +85,7 @@ class RiskModel:
     # Fast-path API  (zero TraCI calls in the hot loop)
     # ------------------------------------------------------------------
 
-    def prepare_step(self, all_sub: dict):
+    def prepare_step(self, all_sub: dict[str, dict]) -> None:
         """
         Pre-compute per-edge vehicle density from this step's subscription data.
         Must be called once per simulation step, before evaluating any vehicles.
@@ -208,7 +214,7 @@ class RiskModel:
     # Legacy API  (individual TraCI calls — kept for debugging)
     # ------------------------------------------------------------------
 
-    def get_risk_score(self, vehicle_id: str, neighbor_ids: list) -> float:
+    def get_risk_score(self, vehicle_id: str, neighbor_ids: list[str]) -> float:
         """
         Compute a risk score (0.0 to 1.0) for a given vehicle.
 
@@ -222,8 +228,9 @@ class RiskModel:
         try:
             speed   = traci.vehicle.getSpeed(vehicle_id)    # m/s
             edge_id = traci.vehicle.getRoadID(vehicle_id)
-        except traci.exceptions.TraCIException:
-            return 0.0  # Vehicle may have left the network
+        except traci.exceptions.TraCIException as exc:
+            logger.debug("Cannot fetch data for vehicle %s (likely departed): %s", vehicle_id, exc)
+            return 0.0
 
         # --- 1. Speed Risk (Nilsson Power Model) ---
         # Use the road's posted speed limit, not the vehicle's mechanical max.
@@ -307,7 +314,8 @@ class RiskModel:
             try:
                 length_m = traci.lane.getLength(edge_id + "_0")
                 self._edge_length_cache[edge_id] = length_m / 1000.0
-            except traci.exceptions.TraCIException:
+            except traci.exceptions.TraCIException as exc:
+                logger.debug("Cannot get length for edge %s: %s", edge_id, exc)
                 self._edge_length_cache[edge_id] = 0.0
         return self._edge_length_cache[edge_id]
 
@@ -332,8 +340,8 @@ class RiskModel:
             edge_length_km = self._get_edge_length_km(edge_id)
             if edge_length_km > 0:
                 return vehicle_count / edge_length_km
-        except traci.exceptions.TraCIException:
-            pass
+        except traci.exceptions.TraCIException as exc:
+            logger.debug("Failed to compute density for edge %s: %s", edge_id, exc)
         return 0.0
 
     def _density_risk_curve(self, density: float) -> float:
@@ -359,7 +367,8 @@ class RiskModel:
                 self._road_speed_cache[edge_id] = traci.lane.getMaxSpeed(
                     edge_id + "_0"
                 )
-            except traci.exceptions.TraCIException:
+            except traci.exceptions.TraCIException as exc:
+                logger.debug("Cannot get speed limit for edge %s: %s", edge_id, exc)
                 self._road_speed_cache[edge_id] = 1.0   # safe fallback
         return self._road_speed_cache[edge_id]
 

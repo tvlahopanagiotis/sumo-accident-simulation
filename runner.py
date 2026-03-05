@@ -43,16 +43,18 @@ After optimisation  : 2 batch calls per step + one TraCI call per *unique edge*
                       for the Thessaloniki network — incurred only once.
 """
 
-import sys
-import os
+from __future__ import annotations
+
 import argparse
 import datetime
 import json
 import logging
 import math
+import os
 import platform
 import random
 import statistics
+import sys
 
 import yaml
 
@@ -101,7 +103,7 @@ def load_config(config_path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def validate_config(config: dict):
+def validate_config(config: dict[str, object]) -> None:
     """
     Check critical config values before starting SUMO.
     Logs a clear error and exits if anything is invalid.
@@ -393,10 +395,10 @@ def write_metadata(
     sumo_version: str,
 ):
     """Write a metadata.json alongside every run's results."""
-    ts = datetime.datetime.utcnow()
+    ts = datetime.datetime.now(datetime.timezone.utc)
     metadata = {
         "run_id":         f"run_{run_seed:04d}_{ts.strftime('%Y%m%d_%H%M%S')}",
-        "timestamp_utc":  ts.isoformat() + "Z",
+        "timestamp_utc":  ts.isoformat(),
         "seed":           run_seed,
         "sumo_version":   sumo_version,
         "python_version": platform.python_version(),
@@ -413,7 +415,7 @@ def write_metadata(
 # Multi-run aggregation
 # ---------------------------------------------------------------------------
 
-def aggregate_runs(run_summaries: list[dict]) -> dict:
+def aggregate_runs(run_summaries: list[dict[str, object]]) -> dict[str, object]:
     """
     Compute aggregate statistics (mean, std, 95% CI) over N simulation runs.
 
@@ -448,22 +450,68 @@ def aggregate_runs(run_summaries: list[dict]) -> dict:
 # Main
 # ---------------------------------------------------------------------------
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
-        description="SUMO Accident Simulation (SAS) — probabilistic accident modelling"
+        prog="runner.py",
+        description=(
+            "SAS — SUMO Accident Simulation\n"
+            "Probabilistic traffic accident simulator with Antifragility Index measurement.\n"
+            "\n"
+            "Triggers accidents stochastically based on vehicle speed, speed variance,\n"
+            "and road density (Nilsson Power Model). Measures how the network recovers\n"
+            "using the Antifragility Index (AI > 0 = improved, AI ≈ 0 = resilient,\n"
+            "AI < 0 = degraded)."
+        ),
+        epilog=(
+            "examples:\n"
+            "  python runner.py                              # single run, default config\n"
+            "  python runner.py --runs 10                   # 10 runs, aggregate statistics\n"
+            "  python runner.py --config experiments/high_risk.yaml --runs 5\n"
+            "  python runner.py --log-level DEBUG           # verbose output\n"
+            "\n"
+            "output files (written to output_folder in config.yaml):\n"
+            "  network_metrics.csv        step-by-step speed, throughput, accidents\n"
+            "  accident_reports.json      per-accident impact (queue length, duration)\n"
+            "  antifragility_index.json   AI score + 95%% confidence interval\n"
+            "  metadata.json              full config + summary for reproducibility\n"
+            "\n"
+            "config:\n"
+            "  Edit config.yaml to change the network, accident rate, severity\n"
+            "  distribution, and output settings. Every parameter is documented inline.\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--config", default="config.yaml",
-        help="Path to YAML config file (default: config.yaml)",
+        "--config",
+        default="config.yaml",
+        metavar="FILE",
+        help=(
+            "path to YAML configuration file "
+            "(default: config.yaml in the current directory)"
+        ),
     )
     parser.add_argument(
-        "--runs", type=int, default=1,
-        help="Number of independent runs with consecutive seeds (default: 1)",
+        "--runs",
+        type=int,
+        default=1,
+        metavar="N",
+        help=(
+            "number of independent simulation runs to execute, each with a "
+            "different random seed (seed, seed+1, …, seed+N-1). "
+            "Results are aggregated into aggregate/aggregate_summary.json. "
+            "(default: 1)"
+        ),
     )
     parser.add_argument(
-        "--log-level", default="INFO",
+        "--log-level",
+        default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="Logging verbosity (default: INFO)",
+        help=(
+            "logging verbosity: DEBUG shows every risk score and TraCI call; "
+            "INFO shows step summaries and accident events; "
+            "WARNING shows only errors; "
+            "(default: INFO)"
+        ),
     )
     args = parser.parse_args()
 

@@ -38,15 +38,16 @@ Interpretation:
     AI ≤ -0.20  → BRITTLE     — network suffered lasting damage
 """
 
+from __future__ import annotations
+
 import csv
+import json
+import logging
 import math
 import os
-import json
 import statistics
-import logging
 from collections import deque
-from dataclasses import dataclass, asdict
-from typing import Optional
+from dataclasses import asdict, dataclass
 
 import traci
 
@@ -109,23 +110,25 @@ class MetricsCollector:
     Collects, stores, and exports all simulation performance data.
     """
 
-    def __init__(self, config: dict, output_config: dict):
+    def __init__(self, config: dict[str, object], output_config: dict[str, object]) -> None:
         """
         Args:
             config:        Full simulation config dict (needs 'sumo' section
                            for step_length).
             output_config: The 'output' section of config.yaml.
         """
-        self.output_folder        = output_config["output_folder"]
-        self.metrics_interval     = output_config["metrics_interval_steps"]   # seconds
-        self.compute_antifragility = output_config.get("compute_antifragility_index", True)
+        self.output_folder: str = str(output_config["output_folder"])
+        self.metrics_interval: int = int(output_config["metrics_interval_steps"])   # seconds
+        self.compute_antifragility: bool = bool(
+            output_config.get("compute_antifragility_index", True)
+        )
 
         # Per-event AI window sizes (seconds of simulation time)
-        self._pre_window_s  = output_config.get("pre_window_seconds",  300)
-        self._post_window_s = output_config.get("post_window_seconds", 300)
+        self._pre_window_s: int  = int(output_config.get("pre_window_seconds",  300))
+        self._post_window_s: int = int(output_config.get("post_window_seconds", 300))
 
         # Baseline establishment window (seconds)
-        self._baseline_steps = output_config.get("baseline_window_steps", 1800)
+        self._baseline_steps: int = int(output_config.get("baseline_window_steps", 1800))
 
         os.makedirs(self.output_folder, exist_ok=True)
 
@@ -158,7 +161,7 @@ class MetricsCollector:
     # Public API — called from runner.py
     # -----------------------------------------------------------------------
 
-    def accumulate_arrivals(self, n: int):
+    def accumulate_arrivals(self, n: int) -> None:
         """
         Accumulate vehicles that completed their route in this simulation step.
 
@@ -174,8 +177,8 @@ class MetricsCollector:
         self,
         current_step: int,
         active_accident_count: int,
-        all_sub: Optional[dict] = None,
-    ):
+        all_sub: dict | None = None,
+    ) -> None:
         """
         Record a network-wide snapshot at the current simulation time.
         Call this every self.metrics_interval seconds of simulation time.
@@ -197,9 +200,13 @@ class MetricsCollector:
             n_vehicles = len(speeds)
         else:
             # Legacy fallback — individual TraCI calls
-            vehicle_ids = traci.vehicle.getIDList()
-            n_vehicles  = len(vehicle_ids)
-            speeds      = [traci.vehicle.getSpeed(v) for v in vehicle_ids]
+            try:
+                vehicle_ids = traci.vehicle.getIDList()
+                n_vehicles  = len(vehicle_ids)
+                speeds      = [traci.vehicle.getSpeed(v) for v in vehicle_ids]
+            except traci.exceptions.TraCIException as exc:
+                logger.warning("Failed to fetch vehicle data at step %d: %s", current_step, exc)
+                return
 
         if n_vehicles == 0:
             self._arrived_interval = 0
@@ -276,7 +283,7 @@ class MetricsCollector:
     # Accident recording
     # -----------------------------------------------------------------------
 
-    def record_accident_resolved(self, accident):
+    def record_accident_resolved(self, accident: object) -> None:
         """
         Record a resolved accident's metrics and register it for AI monitoring.
         Call immediately when an accident transitions to RESOLVED.
@@ -313,7 +320,7 @@ class MetricsCollector:
     # Antifragility index
     # -----------------------------------------------------------------------
 
-    def compute_antifragility_index(self) -> dict:
+    def compute_antifragility_index(self) -> dict[str, object]:
         """
         Compute the aggregate Antifragility Index from per-event measurements.
 
@@ -371,7 +378,7 @@ class MetricsCollector:
 
         return result
 
-    def export_all(self):
+    def export_all(self) -> None:
         """
         Write all final outputs to disk. Call once at the end of simulation.
         """

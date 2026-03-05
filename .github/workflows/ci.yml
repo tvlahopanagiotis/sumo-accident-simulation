@@ -1,0 +1,68 @@
+# =============================================================================
+# AntifragiCity / SAS — Continuous Integration
+# =============================================================================
+# Runs on every push and pull request:
+#   1. Lint + format check (ruff)
+#   2. Type checking (mypy)
+#   3. Unit tests (pytest) — no SUMO required
+#
+# Integration tests (requiring SUMO) are not included in CI; run locally with:
+#   pytest tests/ -m integration
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, antifragility]
+  pull_request:
+    branches: [main, antifragility]
+
+jobs:
+
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install ".[dev]"
+
+      - name: Ruff check
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Mypy
+        run: mypy runner.py risk_model.py accident_manager.py metrics.py
+
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: pip install ".[dev]"
+
+      - name: Run unit tests
+        run: pytest tests/ -m "not integration" --tb=short -q
+
+      - name: Run tests with coverage
+        if: matrix.python-version == '3.12'
+        run: pytest tests/ -m "not integration" --cov=. --cov-report=term-missing
