@@ -380,6 +380,31 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
         accident_manager._accident_counter,
         summary.get("antifragility_index", "N/A"),
     )
+
+    # ── Generate visualizations ───────────────────────────────────────────
+    if config["output"].get("save_accident_heatmap", False):
+        try:
+            from visualize import (
+                plot_network_metrics,
+                plot_severity_distribution,
+                plot_before_after_speeds,
+                plot_accident_heatmap,
+                generate_html_report,
+            )
+
+            metrics_csv = os.path.join(output_folder, "network_metrics.csv")
+            accidents_json = os.path.join(output_folder, "accident_reports.json")
+
+            plot_network_metrics(metrics_csv, output_folder, run_id=run_seed)
+            plot_severity_distribution(accidents_json, output_folder, run_id=run_seed)
+            plot_before_after_speeds(accidents_json, metrics_csv, output_folder, run_id=run_seed)
+            plot_accident_heatmap(accidents_json, output_folder, run_id=run_seed)
+            generate_html_report(output_folder, run_id=run_seed, config=config)
+
+            logger.info("Visualizations generated → %s/", output_folder)
+        except Exception as exc:
+            logger.warning("Failed to generate visualizations: %s", exc)
+
     return summary, sumo_version
 
 
@@ -450,6 +475,51 @@ def aggregate_runs(run_summaries: list[dict[str, object]]) -> dict[str, object]:
 # Main
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Output folder naming
+# ---------------------------------------------------------------------------
+
+
+def _generate_output_folder_name(
+    base_path: str,
+    network_name_from_config: str,
+    run_number: int = 1,
+    is_batch: bool = False,
+) -> str:
+    """
+    Generate a coherent output folder name with network name, run number, and timestamp.
+
+    Args:
+        base_path: Base output directory (from config.yaml)
+        network_name_from_config: Path to network config file, e.g., '/path/to/thessaloniki.sumocfg'
+        run_number: Run number (1, 2, 3, ...) for single-run naming
+        is_batch: If True, generate batch folder name instead
+
+    Returns:
+        Full path to output folder
+    """
+    # Extract network name from config path
+    config_filename = os.path.basename(network_name_from_config)
+    network_name = os.path.splitext(config_filename)[0].capitalize()
+
+    # Generate timestamp
+    now = datetime.datetime.now(datetime.timezone.utc)
+    timestamp = now.strftime("%Y-%m-%d_%H:%M")
+
+    # Generate folder name
+    if is_batch:
+        folder_name = f"{network_name}_Batch_{timestamp}"
+    else:
+        folder_name = f"{network_name}_Run{run_number}_{timestamp}"
+
+    return os.path.join(base_path, folder_name)
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="runner.py",
@@ -515,19 +585,37 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    config      = load_config(args.config)
-    base_output = config["output"]["output_folder"]
-    base_seed   = config["sumo"].get("seed", 42)
+    config           = load_config(args.config)
+    base_output_path = config["output"]["output_folder"]  # base directory
+    base_seed        = config["sumo"].get("seed", 42)
 
-    setup_logging(base_output, level=getattr(logging, args.log_level))
+    # Generate output folder name with timestamp and run/batch info
+    if args.runs == 1:
+        # Single run: Network_Run1_YYYY-MM-DD_HH:MM
+        output_folder = _generate_output_folder_name(
+            base_output_path,
+            config["sumo"]["config_file"],
+            run_number=1,
+            is_batch=False,
+        )
+    else:
+        # Multi-run batch: Network_Batch_YYYY-MM-DD_HH:MM
+        output_folder = _generate_output_folder_name(
+            base_output_path,
+            config["sumo"]["config_file"],
+            run_number=1,  # not used for batch
+            is_batch=True,
+        )
+
+    setup_logging(output_folder, level=getattr(logging, args.log_level))
     logger.info("Config: %s", os.path.abspath(args.config))
 
     validate_config(config)
 
     # ── Single run ────────────────────────────────────────────────────────
     if args.runs == 1:
-        summary, sumo_version = run_once(config, base_seed, base_output)
-        write_metadata(base_output, config, base_seed, summary, sumo_version)
+        summary, sumo_version = run_once(config, base_seed, output_folder)
+        write_metadata(output_folder, config, base_seed, summary, sumo_version)
         logger.info(
             "\n  Antifragility Index : %s\n"
             "  95%% CI             : [%s, %s]\n"
@@ -549,7 +637,7 @@ def main() -> None:
 
     for i in range(args.runs):
         seed       = base_seed + i
-        run_folder = os.path.join(base_output, f"run_{seed:04d}")
+        run_folder = os.path.join(output_folder, f"run_{seed:04d}")
         logger.info("── Run %d / %d  (seed %d) ──", i + 1, args.runs, seed)
 
         summary, sumo_version = run_once(config, seed, run_folder)
@@ -558,7 +646,7 @@ def main() -> None:
 
     # Aggregate and save
     agg        = aggregate_runs(all_summaries)
-    agg_folder = os.path.join(base_output, "aggregate")
+    agg_folder = os.path.join(output_folder, "aggregate")
     os.makedirs(agg_folder, exist_ok=True)
 
     agg_path = os.path.join(agg_folder, "aggregate_summary.json")
@@ -577,6 +665,16 @@ def main() -> None:
         agg_path,
         "=" * 60,
     )
+
+    # ── Generate batch-level visualizations ─────────────────────────────────
+    if config["output"].get("save_accident_heatmap", False):
+        try:
+            from visualize import visualize_batch_results
+
+            visualize_batch_results(output_folder, all_summaries)
+            logger.info("Batch visualization saved → %s/batch_ai_distribution.png", output_folder)
+        except Exception as exc:
+            logger.warning("Failed to generate batch visualization: %s", exc)
 
 
 if __name__ == "__main__":
