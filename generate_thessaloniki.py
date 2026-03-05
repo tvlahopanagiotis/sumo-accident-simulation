@@ -263,17 +263,36 @@ def _pretty_xml(raw: str) -> str:
 
 
 def update_config_yaml(config_path: str, sumocfg_path: str, binary: str) -> None:
-    with open(config_path) as f:
-        cfg = yaml.safe_load(f)
+    # NOTE: we do NOT use yaml.dump() here because PyYAML strips all comments.
+    # Instead we patch only the two relevant lines with a targeted regex replace,
+    # leaving the rest of the file (including all explanatory comments) intact.
+    import re
 
-    cfg["sumo"]["config_file"] = os.path.abspath(sumocfg_path)
-    cfg["sumo"]["binary"] = binary
+    with open(config_path, encoding="utf-8") as f:
+        text = f.read()
 
-    with open(config_path, "w") as f:
-        yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
+    abs_cfg = os.path.abspath(sumocfg_path)
+
+    # Replace the config_file value (handles any existing path on that line)
+    text = re.sub(
+        r"^(\s*config_file\s*:\s*).*$",
+        rf"\g<1>{abs_cfg}",
+        text,
+        flags=re.MULTILINE,
+    )
+    # Replace the binary value
+    text = re.sub(
+        r"^(\s*binary\s*:\s*).*$",
+        rf"\g<1>{binary}",
+        text,
+        flags=re.MULTILINE,
+    )
+
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(text)
 
     print("\n  ✅  config.yaml updated:")
-    print(f"      sumo.config_file = {os.path.abspath(sumocfg_path)}")
+    print(f"      sumo.config_file = {abs_cfg}")
     print(f"      sumo.binary      = {binary}")
 
 
