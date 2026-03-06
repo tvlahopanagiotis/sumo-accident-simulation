@@ -64,6 +64,8 @@ def generate_resilience_report(
     all_results: list[dict],
     config: dict,
     figures: dict[str, str],
+    *,
+    claude_analysis: str | None = None,
 ) -> str:
     """
     Generate the complete HTML resilience assessment report.
@@ -75,6 +77,7 @@ def generate_resilience_report(
         all_results:      List of result dicts from parallel execution.
         config:           Base configuration dict.
         figures:          Dict mapping figure name to file path.
+        claude_analysis:  Optional AI-generated analysis text (markdown).
 
     Returns:
         Path to the generated report.html file.
@@ -215,30 +218,63 @@ def generate_resilience_report(
         html.append("  </tr>")
     html.append("</table>")
 
-    # ── Section 3: MFD Analysis ──
-    html.append("<h2>3. Macroscopic Fundamental Diagram</h2>")
-    html.append("<div class='image-grid'>")
-    for key in ["mfd_density_flow", "mfd_density_speed"]:
-        if key in figures:
-            html.append(_img_tag(figures[key], key.replace("_", " ").title()))
-    html.append("</div>")
+    # ── Section 3: Network Dynamics ──
+    html.append("<h2>3. Network Dynamics</h2>")
+    html.append(
+        "<p class='section-note'>Ensemble of all non-baseline simulation runs "
+        "(individual traces + mean ± IQR). Speed shown as 5-minute rolling average.</p>"
+    )
+    if "network_dynamics" in figures:
+        html.append(_img_tag(figures["network_dynamics"], "Network Dynamics"))
+    else:
+        html.append("<p class='missing-img'>[Network dynamics figure not available]</p>")
 
-    # ── Section 4: Resilience Breakdown ──
-    html.append("<h2>4. Resilience Score Breakdown</h2>")
-    if "resilience_components" in figures:
-        html.append(_img_tag(figures["resilience_components"], "Resilience Components"))
+    # ── Section 4: Resilience Statistics ──
+    html.append("<h2>4. Resilience Statistics</h2>")
+    html.append(
+        "<p class='section-note'>AI distribution, accident counts, AI–accident correlation, "
+        "and antifragility category breakdown across all incident scenarios.</p>"
+    )
+    if "resilience_statistics" in figures:
+        html.append(_img_tag(figures["resilience_statistics"], "Resilience Statistics"))
+    else:
+        html.append("<p class='missing-img'>[Resilience statistics figure not available]</p>")
 
-    html.append("<div class='image-grid'>")
-    for key in ["speed_comparison", "throughput_comparison"]:
-        if key in figures:
-            html.append(_img_tag(figures[key], key.replace("_", " ").title()))
-    html.append("</div>")
+    # ── Section 5: Accident Characteristics ──
+    html.append("<h2>5. Accident Characteristics</h2>")
+    html.append(
+        "<p class='section-note'>Severity distribution, incident durations, temporal "
+        "trigger patterns, and vehicle impact across all incident scenarios.</p>"
+    )
+    if "accident_characteristics" in figures:
+        html.append(_img_tag(figures["accident_characteristics"], "Accident Characteristics"))
+    else:
+        html.append("<p class='missing-img'>[Accident characteristics figure not available]</p>")
 
-    if "ai_distribution" in figures:
-        html.append(_img_tag(figures["ai_distribution"], "AI Distribution"))
+    # ── Section 6: Per-Event AI Analysis ──
+    html.append("<h2>6. Per-Event Antifragility Analysis</h2>")
+    html.append(
+        "<p class='section-note'>Per-event AI values by severity class and pre/post-incident "
+        "speed comparisons.</p>"
+    )
+    if "per_event_ai" in figures:
+        html.append(_img_tag(figures["per_event_ai"], "Per-Event AI"))
+    else:
+        html.append("<p class='missing-img'>[Per-event AI figure not available]</p>")
 
-    # ── Section 5: Weak Point Analysis ──
-    html.append("<h2>5. Weak Point Analysis</h2>")
+    # ── Section 7: Spatial Heatmap ──
+    html.append("<h2>7. Spatial Accident Heatmap</h2>")
+    html.append(
+        "<p class='section-note'>Kernel-density estimated accident hotspots and severity "
+        "scatter plot overlaid on the Thessaloniki road network.</p>"
+    )
+    if "spatial_heatmap" in figures:
+        html.append(_img_tag(figures["spatial_heatmap"], "Spatial Heatmap"))
+    else:
+        html.append("<p class='missing-img'>[Spatial heatmap figure not available]</p>")
+
+    # ── Section 8: Weak Point Analysis ──
+    html.append("<h2>8. Weak Point Analysis</h2>")
     if "weak_point_map" in figures:
         html.append(_img_tag(figures["weak_point_map"], "Weak Point Map"))
 
@@ -263,8 +299,8 @@ def generate_resilience_report(
     else:
         html.append("<p>No weak points identified (no accident data available).</p>")
 
-    # ── Section 6: Scenario Results ──
-    html.append("<h2>6. Scenario Results</h2>")
+    # ── Section 9: Scenario Results ──
+    html.append("<h2>9. Scenario Results</h2>")
     for period in demand_levels:
         period_scenarios = [s for s in scenarios if s.period == period]
         html.append("<details>")
@@ -293,8 +329,8 @@ def generate_resilience_report(
         html.append("  </table>")
         html.append("</details>")
 
-    # ── Section 7: Recommendations ──
-    html.append("<h2>7. Recommendations</h2>")
+    # ── Section 10: Recommendations ──
+    html.append("<h2>10. Recommendations</h2>")
     html.append("<div class='recommendations'>")
     recommendations = _generate_recommendations(resilience_score)
     html.append("  <ol>")
@@ -303,9 +339,33 @@ def generate_resilience_report(
     html.append("  </ol>")
     html.append("</div>")
 
-    # ── Section 8: Appendix ──
+    # ── Section 11: Claude AI-Assisted Analysis ──
+    html.append("<h2>11. AI-Assisted Expert Analysis</h2>")
+    if claude_analysis:
+        html.append("<div class='claude-analysis'>")
+        html.append(
+            "  <p class='claude-badge'>&#129302; Generated by Claude (Anthropic) — "
+            "expert analysis of methodology, findings, and recommended interventions</p>"
+        )
+        # Convert basic markdown to HTML (headings, bold, lists)
+        html.append("  <div class='claude-body'>")
+        html.append(_markdown_to_html(claude_analysis))
+        html.append("  </div>")
+        html.append("</div>")
+    else:
+        html.append("<div class='claude-analysis claude-missing'>")
+        html.append(
+            "  <p>AI-assisted analysis not available for this run.<br>"
+            "  To enable: set the <code>ANTHROPIC_API_KEY</code> environment variable "
+            "  before running the assessment.</p>"
+        )
+        html.append("</div>")
+
+    # ── Section 12: Appendix ──
     html.append("<details>")
-    html.append("  <summary><h2 style='display:inline'>8. Appendix — Configuration</h2></summary>")
+    html.append(
+        "  <summary><h2 style='display:inline'>12. Appendix — Configuration</h2></summary>"
+    )
     html.append("  <pre class='config-block'>")
     # Sanitize config for display (remove file paths that might be sensitive).
     display_config = {k: v for k, v in config.items() if k != "resilience_assessment"}
@@ -333,6 +393,97 @@ def generate_resilience_report(
 
     logger.info("Resilience report saved → %s", report_path)
     return report_path
+
+
+# ---------------------------------------------------------------------------
+# Markdown → HTML (lightweight, no external deps)
+# ---------------------------------------------------------------------------
+
+
+def _markdown_to_html(text: str) -> str:
+    """
+    Convert a subset of Markdown to HTML for the Claude analysis section.
+
+    Handles:
+      - ### Heading 3 → <h3>
+      - **bold** → <strong>
+      - Bullet lines starting with - or * → <ul><li>
+      - Numbered lines → <ol><li>
+      - Blank lines → paragraph breaks
+    """
+    import re
+
+    lines = text.split("\n")
+    out: list[str] = []
+    in_ul = False
+    in_ol = False
+
+    def close_lists() -> None:
+        nonlocal in_ul, in_ol
+        if in_ul:
+            out.append("</ul>")
+            in_ul = False
+        if in_ol:
+            out.append("</ol>")
+            in_ol = False
+
+    def inline(s: str) -> str:
+        # **bold**
+        s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
+        # *italic*
+        s = re.sub(r"\*(.+?)\*", r"<em>\1</em>", s)
+        # `code`
+        s = re.sub(r"`(.+?)`", r"<code>\1</code>", s)
+        return s
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Headings
+        if stripped.startswith("### "):
+            close_lists()
+            out.append(f"<h3>{inline(stripped[4:])}</h3>")
+        elif stripped.startswith("## "):
+            close_lists()
+            out.append(f"<h4>{inline(stripped[3:])}</h4>")
+        elif stripped.startswith("# "):
+            close_lists()
+            out.append(f"<h4>{inline(stripped[2:])}</h4>")
+        # Horizontal rule
+        elif stripped in ("---", "***", "___"):
+            close_lists()
+            out.append("<hr>")
+        # Unordered list item
+        elif re.match(r"^[-*]\s+", stripped):
+            if in_ol:
+                out.append("</ol>")
+                in_ol = False
+            if not in_ul:
+                out.append("<ul>")
+                in_ul = True
+            content = re.sub(r"^[-*]\s+", "", stripped)
+            out.append(f"<li>{inline(content)}</li>")
+        # Ordered list item
+        elif re.match(r"^\d+\.\s+", stripped):
+            if in_ul:
+                out.append("</ul>")
+                in_ul = False
+            if not in_ol:
+                out.append("<ol>")
+                in_ol = True
+            content = re.sub(r"^\d+\.\s+", "", stripped)
+            out.append(f"<li>{inline(content)}</li>")
+        # Blank line → paragraph break
+        elif stripped == "":
+            close_lists()
+            out.append("<br>")
+        # Normal paragraph text
+        else:
+            close_lists()
+            out.append(f"<p>{inline(stripped)}</p>")
+
+    close_lists()
+    return "\n".join(out)
 
 
 # ---------------------------------------------------------------------------
@@ -602,6 +753,47 @@ details[open] summary { border-bottom: 1px solid #ddd; margin-bottom: 10px; }
 }
 .recommendations ol { padding-left: 20px; }
 .recommendations li { margin: 10px 0; }
+
+/* Section notes */
+.section-note {
+    font-size: 0.88em;
+    color: #666;
+    font-style: italic;
+    margin: -8px 0 12px 0;
+}
+
+/* Claude analysis */
+.claude-analysis {
+    background: #f0f4ff;
+    border-left: 4px solid #3f51b5;
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin: 15px 0;
+}
+.claude-badge {
+    font-size: 0.85em;
+    color: #3f51b5;
+    font-weight: bold;
+    border-bottom: 1px solid #c5cae9;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+}
+.claude-body h3 { color: #3f51b5; margin-top: 18px; font-size: 1.05em; }
+.claude-body h4 { color: #5c6bc0; margin-top: 14px; font-size: 0.95em; }
+.claude-body ul, .claude-body ol { margin: 6px 0; padding-left: 22px; }
+.claude-body li { margin: 4px 0; }
+.claude-body code {
+    background: #e8eaf6;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+.claude-missing {
+    background: #fafafa;
+    border-left: 4px solid #bdbdbd;
+    color: #757575;
+}
+.claude-missing p { margin: 0; font-size: 0.95em; }
 
 /* Footer */
 .footer {
