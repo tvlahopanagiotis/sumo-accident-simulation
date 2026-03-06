@@ -3,6 +3,11 @@ results/
 thessaloniki_govgr/downloads/
 thessaloniki_govgr/targets/
 
+# ── Large Seattle dataset files (>100 MB, exceed GitHub limit) ───────
+seattle_bundle/crash_data/sdot_collisions_all_years.csv
+seattle_bundle/crash_data/sdot_collisions_all_years.geojson
+seattle_bundle/source/20_us_cities.zip
+
 # ── Large generated network files ───────────────────────────────────
 # The Thessaloniki network is auto-generated; don't version binary blobs
 *.osm

@@ -177,14 +177,16 @@ class ParallelExecutor:
             total,
             self.max_workers,
             self.base_port,
-            self.base_port + self.max_workers - 1,
+            self.base_port + total - 1,
         )
 
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_idx: dict = {}
 
             for idx, (config, seed, output_folder) in enumerate(scenarios):
-                port = self.base_port + (idx % self.max_workers)
+                # Unique port per scenario — avoids TraCI conflicts when a slow
+                # scenario from batch N is still running when batch N+1 starts.
+                port = self.base_port + idx
                 future = executor.submit(
                     _run_scenario_worker,
                     config,

@@ -18,7 +18,7 @@ sumo:
 
   # Random seed passed to both SUMO and Python's RNG — set to a fixed integer
   # for reproducible results, or change between runs to explore variance.
-  seed: 42
+  seed: 1
 
   # Duration of each simulation step in seconds.
   # 5 s is a good balance: fine enough for congestion dynamics, fast enough
