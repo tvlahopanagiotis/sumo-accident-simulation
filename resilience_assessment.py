@@ -534,6 +534,8 @@ def run_assessment(args: argparse.Namespace) -> None:
         compute_weak_points,
         extract_mfd_data,
         fit_greenshields_model,
+        plot_mfd_density_flow,
+        plot_mfd_density_speed,
         score_to_dict,
     )
     from parallel_runner import ParallelExecutor  # noqa: PLC0415
@@ -556,7 +558,7 @@ def run_assessment(args: argparse.Namespace) -> None:
     if args.output_dir:
         output_dir = args.output_dir
     else:
-        ts = datetime.now().strftime("%Y-%m-%d_%H:%M")
+        ts = datetime.now().strftime("%Y-%m-%d_%H%M")
         base_out = config.get("output", {}).get("output_folder", "results")
         output_dir = os.path.join(base_out, f"resilience_{ts}")
 
@@ -752,6 +754,14 @@ def run_assessment(args: argparse.Namespace) -> None:
     batch_data = _build_assessment_batch_data(matrix.scenarios, all_results, label=ts_label)
 
     figures: dict[str, str] = {}
+
+    # MFD figures (density-flow and density-speed, coloured by scenario type)
+    if not mfd_data.empty:
+        try:
+            figures["mfd_density_flow"] = plot_mfd_density_flow(mfd_data, str(figures_dir))
+            figures["mfd_density_speed"] = plot_mfd_density_speed(mfd_data, str(figures_dir))
+        except Exception as exc:
+            logger.warning("MFD figures failed: %s", exc)
 
     # Figure 1: Resilience statistics (AI distribution, accident counts, scatter, categories)
     if len(batch_data["runs"]) >= 3:

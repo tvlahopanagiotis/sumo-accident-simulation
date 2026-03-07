@@ -174,24 +174,6 @@ def generate_resilience_report(
     # ── Section 2: Network Overview ──
     html.append("<h2>2. Network Overview</h2>")
     html.append("<div class='metadata'>")
-    mfd_p = resilience_score.mfd_parameters
-    if "free_flow_speed_kmh" in mfd_p:
-        html.append(
-            f"  <div class='metadata-row'><span class='metadata-label'>Free-flow speed:</span>"
-            f"<span class='metadata-value'>{mfd_p['free_flow_speed_kmh']:.1f} km/h</span></div>"
-        )
-        html.append(
-            f"  <div class='metadata-row'><span class='metadata-label'>Jam density:</span>"
-            f"<span class='metadata-value'>{mfd_p['jam_density_veh_per_km']:.1f} veh/km</span></div>"
-        )
-        html.append(
-            f"  <div class='metadata-row'><span class='metadata-label'>Capacity:</span>"
-            f"<span class='metadata-value'>{mfd_p['capacity_veh_per_hour']:.0f} veh/h</span></div>"
-        )
-        html.append(
-            f"  <div class='metadata-row'><span class='metadata-label'>Greenshields R\u00b2:</span>"
-            f"<span class='metadata-value'>{mfd_p['r_squared']:.3f}</span></div>"
-        )
     html.append(
         f"  <div class='metadata-row'><span class='metadata-label'>Demand levels tested:</span>"
         f"<span class='metadata-value'>{', '.join(f'p={p}' for p in demand_levels)}</span></div>"
@@ -218,8 +200,42 @@ def generate_resilience_report(
         html.append("  </tr>")
     html.append("</table>")
 
-    # ── Section 3: Network Dynamics ──
-    html.append("<h2>3. Network Dynamics</h2>")
+    # ── Section 3: Macroscopic Fundamental Diagram ──
+    html.append("<h2>3. Macroscopic Fundamental Diagram</h2>")
+    html.append(
+        "<p class='section-note'>Density–flow and density–speed relationships across all "
+        "demand levels and incident configurations. Each point is one 5-minute "
+        "measurement window. Colours denote scenario type.</p>"
+    )
+    html.append("<div class='image-grid'>")
+    for key in ["mfd_density_flow", "mfd_density_speed"]:
+        if key in figures:
+            html.append(_img_tag(figures[key], key.replace("_", " ").title()))
+        else:
+            html.append(f"<p class='missing-img'>[{key.replace('_', ' ').title()} not available]</p>")
+    html.append("</div>")
+    if "free_flow_speed_kmh" in (mfd_p := resilience_score.mfd_parameters):
+        html.append("<div class='metadata'>")
+        html.append(
+            f"  <div class='metadata-row'><span class='metadata-label'>Free-flow speed:</span>"
+            f"<span class='metadata-value'>{mfd_p['free_flow_speed_kmh']:.1f} km/h</span></div>"
+        )
+        html.append(
+            f"  <div class='metadata-row'><span class='metadata-label'>Jam density:</span>"
+            f"<span class='metadata-value'>{mfd_p['jam_density_veh_per_km']:.1f} veh/km</span></div>"
+        )
+        html.append(
+            f"  <div class='metadata-row'><span class='metadata-label'>Capacity:</span>"
+            f"<span class='metadata-value'>{mfd_p['capacity_veh_per_hour']:.0f} veh/h</span></div>"
+        )
+        html.append(
+            f"  <div class='metadata-row'><span class='metadata-label'>Greenshields R\u00b2:</span>"
+            f"<span class='metadata-value'>{mfd_p['r_squared']:.3f}</span></div>"
+        )
+        html.append("</div>")
+
+    # ── Section 4: Network Dynamics ──
+    html.append("<h2>4. Network Dynamics</h2>")
     html.append(
         "<p class='section-note'>Ensemble of all non-baseline simulation runs "
         "(individual traces + mean ± IQR). Speed shown as 5-minute rolling average.</p>"
@@ -230,7 +246,7 @@ def generate_resilience_report(
         html.append("<p class='missing-img'>[Network dynamics figure not available]</p>")
 
     # ── Section 4: Resilience Statistics ──
-    html.append("<h2>4. Resilience Statistics</h2>")
+    html.append("<h2>5. Resilience Statistics</h2>")
     html.append(
         "<p class='section-note'>AI distribution, accident counts, AI–accident correlation, "
         "and antifragility category breakdown across all incident scenarios.</p>"
@@ -241,7 +257,7 @@ def generate_resilience_report(
         html.append("<p class='missing-img'>[Resilience statistics figure not available]</p>")
 
     # ── Section 5: Accident Characteristics ──
-    html.append("<h2>5. Accident Characteristics</h2>")
+    html.append("<h2>6. Accident Characteristics</h2>")
     html.append(
         "<p class='section-note'>Severity distribution, incident durations, temporal "
         "trigger patterns, and vehicle impact across all incident scenarios.</p>"
@@ -252,7 +268,7 @@ def generate_resilience_report(
         html.append("<p class='missing-img'>[Accident characteristics figure not available]</p>")
 
     # ── Section 6: Per-Event AI Analysis ──
-    html.append("<h2>6. Per-Event Antifragility Analysis</h2>")
+    html.append("<h2>7. Per-Event Antifragility Analysis</h2>")
     html.append(
         "<p class='section-note'>Per-event AI values by severity class and pre/post-incident "
         "speed comparisons.</p>"
@@ -263,7 +279,7 @@ def generate_resilience_report(
         html.append("<p class='missing-img'>[Per-event AI figure not available]</p>")
 
     # ── Section 7: Spatial Heatmap ──
-    html.append("<h2>7. Spatial Accident Heatmap</h2>")
+    html.append("<h2>8. Spatial Accident Heatmap</h2>")
     html.append(
         "<p class='section-note'>Kernel-density estimated accident hotspots and severity "
         "scatter plot overlaid on the Thessaloniki road network.</p>"
@@ -274,7 +290,7 @@ def generate_resilience_report(
         html.append("<p class='missing-img'>[Spatial heatmap figure not available]</p>")
 
     # ── Section 8: Weak Point Analysis ──
-    html.append("<h2>8. Weak Point Analysis</h2>")
+    html.append("<h2>9. Weak Point Analysis</h2>")
     if "weak_point_map" in figures:
         html.append(_img_tag(figures["weak_point_map"], "Weak Point Map"))
 
@@ -300,7 +316,7 @@ def generate_resilience_report(
         html.append("<p>No weak points identified (no accident data available).</p>")
 
     # ── Section 9: Scenario Results ──
-    html.append("<h2>9. Scenario Results</h2>")
+    html.append("<h2>10. Scenario Results</h2>")
     for period in demand_levels:
         period_scenarios = [s for s in scenarios if s.period == period]
         html.append("<details>")
@@ -330,7 +346,7 @@ def generate_resilience_report(
         html.append("</details>")
 
     # ── Section 10: Recommendations ──
-    html.append("<h2>10. Recommendations</h2>")
+    html.append("<h2>11. Recommendations</h2>")
     html.append("<div class='recommendations'>")
     recommendations = _generate_recommendations(resilience_score)
     html.append("  <ol>")
@@ -340,7 +356,7 @@ def generate_resilience_report(
     html.append("</div>")
 
     # ── Section 11: Claude AI-Assisted Analysis ──
-    html.append("<h2>11. AI-Assisted Expert Analysis</h2>")
+    html.append("<h2>12. AI-Assisted Expert Analysis</h2>")
     if claude_analysis:
         html.append("<div class='claude-analysis'>")
         html.append(
@@ -364,7 +380,7 @@ def generate_resilience_report(
     # ── Section 12: Appendix ──
     html.append("<details>")
     html.append(
-        "  <summary><h2 style='display:inline'>12. Appendix — Configuration</h2></summary>"
+        "  <summary><h2 style='display:inline'>13. Appendix — Configuration</h2></summary>"
     )
     html.append("  <pre class='config-block'>")
     # Sanitize config for display (remove file paths that might be sensitive).
