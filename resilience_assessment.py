@@ -650,7 +650,7 @@ def run_assessment(args: argparse.Namespace) -> None:
     scenario_tuples = [
         (build_scenario_config(config, s), s.seed, s.output_folder) for s in matrix.scenarios
     ]
-    all_results = executor.execute_scenarios(scenario_tuples)
+    all_results = executor.execute_scenarios(scenario_tuples, output_dir=output_dir)
 
     # Attach scenario metadata to results for easier downstream processing.
     for i, r in enumerate(all_results):
