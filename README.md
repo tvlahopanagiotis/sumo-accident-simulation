@@ -14,11 +14,14 @@ lifecycle (blockage → emergency response → clearance → full recovery), and
 how the network responds, including computing an **Antifragility Index** that
 quantifies whether the network adapts and improves after repeated disruptions.
 
-> **Two branches, one codebase**
-> - `main` — standalone accident simulator; production code only (this README)
-> - `antifragility` — adds `experiment_sweep.py` + three visualisation scripts for
->   systematically studying how the AI changes across hundreds of parameter
->   combinations; see its own README for details
+> **Branch guide**
+>
+> | Branch | Contents | Start here if… |
+> |---|---|---|
+> | `main` | Core accident simulator engine | You want to plug SAS into your own network |
+> | `antifragility` | + Analysis tools, MFD, batch assessment, Sioux Falls example | You want resilience analysis or HTML reports |
+> | `thessaloniki` | + Thessaloniki generators & govgr calibration toolchain | You're working on the AntifragiCity Thessaloniki case |
+> | `seattle` | + Seattle generator & real-world validation | You're working on the Seattle case study |
 
 ---
 
