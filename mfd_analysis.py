@@ -648,6 +648,264 @@ def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
     return path
 
 
+def plot_mfd_degradation_deficit(mfd_data: pd.DataFrame, output_dir: str) -> str:
+    """
+    Plot density-binned speed deficit analysis.
+
+    Shows how incidents degrade network speed relative to baseline at matched
+    density levels.  This non-parametric approach captures non-linear interaction
+    effects that the Greenshields linear model averages away.
+
+    Two-panel figure:
+      Left  — Mean speed vs density bin for each scenario type (with ±1 SE
+              shading), making it immediately visible that incident curves sit
+              below baseline.
+      Right — Speed deficit as percentage of baseline speed per density bin.
+              A monotonically increasing or density-dependent deficit pattern
+              would demonstrate that incidents interact with congestion
+              non-linearly.
+
+    Args:
+        mfd_data:   DataFrame from extract_mfd_data().
+        output_dir: Directory to save the PNG.
+
+    Returns:
+        Absolute path of the saved PNG, or empty string on failure.
+    """
+    if mfd_data.empty or "baseline" not in mfd_data["scenario_type"].values:
+        logger.warning("Cannot plot degradation deficit — missing data or baseline")
+        return ""
+
+    # ── Density bins ─────────────────────────────────────────────────────
+    k = mfd_data["density_veh_per_km"]
+    # Use quantile-based bins so each bin has roughly equal data volume.
+    n_bins = 12
+    mfd_data = mfd_data.copy()
+    mfd_data["density_bin"] = pd.qcut(k, q=n_bins, duplicates="drop")
+
+    # ── Compute per-bin statistics ───────────────────────────────────────
+    stats = (
+        mfd_data.groupby(["density_bin", "scenario_type"], observed=True)["speed_kmh"]
+        .agg(["mean", "std", "count"])
+        .reset_index()
+    )
+    stats["se"] = stats["std"] / np.sqrt(stats["count"])
+    # Bin midpoints for plotting.
+    stats["k_mid"] = stats["density_bin"].apply(lambda x: x.mid)
+    stats.sort_values("k_mid", inplace=True)
+
+    # ── Baseline reference ───────────────────────────────────────────────
+    baseline = stats[stats["scenario_type"] == "baseline"][["k_mid", "mean"]].copy()
+    baseline.rename(columns={"mean": "baseline_speed"}, inplace=True)
+
+    ordered_types = [
+        "baseline",
+        "low_incident",
+        "default_incident",
+        "high_incident",
+        "extreme_incident",
+    ]
+
+    fig, (ax_abs, ax_pct) = plt.subplots(1, 2, figsize=(18, 7))
+
+    # ── Panel 1: Absolute speed by density bin ───────────────────────────
+    for stype in ordered_types:
+        sub = stats[stats["scenario_type"] == stype].copy()
+        if sub.empty:
+            continue
+        color = SCENARIO_COLORS.get(stype, "#999999")
+        label = stype.replace("_", " ").title()
+        ax_abs.plot(
+            sub["k_mid"], sub["mean"],
+            color=color, linewidth=2.0, marker="o", markersize=4,
+            label=label,
+        )
+        ax_abs.fill_between(
+            sub["k_mid"],
+            sub["mean"] - sub["se"],
+            sub["mean"] + sub["se"],
+            color=color, alpha=0.15,
+        )
+
+    ax_abs.set_xlabel("Network Density (veh/km)", fontsize=12)
+    ax_abs.set_ylabel("Mean Speed (km/h)", fontsize=12)
+    ax_abs.set_title(
+        "Mean Speed by Density Bin per Incident Level\n"
+        "(shading = ±1 standard error)",
+        fontsize=11, fontweight="bold",
+    )
+    ax_abs.legend(fontsize=8, loc="upper right", framealpha=0.92)
+    ax_abs.set_xlim(left=0)
+    ax_abs.set_ylim(bottom=0)
+
+    # ── Panel 2: Speed deficit (%) relative to baseline ──────────────────
+    incident_types = [t for t in ordered_types if t != "baseline"]
+
+    for stype in incident_types:
+        sub = stats[stats["scenario_type"] == stype].copy()
+        if sub.empty:
+            continue
+        merged = sub.merge(baseline, on="k_mid", how="inner")
+        if merged.empty:
+            continue
+        merged["deficit_pct"] = (
+            (merged["baseline_speed"] - merged["mean"]) / merged["baseline_speed"] * 100
+        )
+        color = SCENARIO_COLORS.get(stype, "#999999")
+        label = stype.replace("_", " ").title()
+        ax_pct.plot(
+            merged["k_mid"], merged["deficit_pct"],
+            color=color, linewidth=2.0, marker="s", markersize=4,
+            label=label,
+        )
+
+    ax_pct.axhline(y=0, color="grey", linewidth=0.8, linestyle="--", alpha=0.5)
+    ax_pct.set_xlabel("Network Density (veh/km)", fontsize=12)
+    ax_pct.set_ylabel("Speed Deficit vs Baseline (%)", fontsize=12)
+    ax_pct.set_title(
+        "Incident-Induced Speed Deficit by Density\n"
+        "(positive = slower than baseline at matched density)",
+        fontsize=11, fontweight="bold",
+    )
+    ax_pct.legend(fontsize=8, loc="best", framealpha=0.92)
+    ax_pct.set_xlim(left=0)
+    # Add a light annotation.
+    ax_pct.annotate(
+        "Higher = more degradation",
+        xy=(0.97, 0.97), xycoords="axes fraction",
+        fontsize=8, color="#666", ha="right", va="top",
+        fontstyle="italic",
+    )
+
+    fig.suptitle(
+        "Thessaloniki Network — Density-Binned Speed Deficit Analysis",
+        fontsize=13, fontweight="bold", y=1.01,
+    )
+    plt.tight_layout()
+    path = os.path.join(output_dir, "mfd_degradation_deficit.png")
+    fig.savefig(path, dpi=FIGURE_DPI, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Saved degradation deficit plot → %s", path)
+    return path
+
+
+def plot_mfd_scatter_cov(mfd_data: pd.DataFrame, output_dir: str) -> str:
+    """
+    Plot MFD scatter quantification using Coefficient of Variation (CoV).
+
+    A well-behaved network has low scatter in its MFD — speed at a given density
+    is predictable.  Incidents increase scatter because they create spatially
+    heterogeneous conditions (jammed near the incident, free-flowing elsewhere),
+    which the network-wide average partially masks.
+
+    Two-panel figure:
+      Left  — Speed CoV (σ/μ) per density bin for each scenario type.
+              Higher CoV = less predictable network performance.
+      Right — Speed standard deviation (absolute) per density bin.
+              Separates the "denominator effect" (low speeds → high CoV) from
+              genuine unpredictability increases.
+
+    Args:
+        mfd_data:   DataFrame from extract_mfd_data().
+        output_dir: Directory to save the PNG.
+
+    Returns:
+        Absolute path of the saved PNG, or empty string on failure.
+    """
+    if mfd_data.empty:
+        logger.warning("Cannot plot scatter CoV — no data")
+        return ""
+
+    # ── Density bins (quantile-based) ────────────────────────────────────
+    n_bins = 12
+    mfd_data = mfd_data.copy()
+    mfd_data["density_bin"] = pd.qcut(
+        mfd_data["density_veh_per_km"], q=n_bins, duplicates="drop"
+    )
+
+    # ── Speed statistics per bin × scenario type ─────────────────────────
+    stats = (
+        mfd_data.groupby(["density_bin", "scenario_type"], observed=True)["speed_kmh"]
+        .agg(["mean", "std", "count"])
+        .reset_index()
+    )
+    stats["cov"] = stats["std"] / stats["mean"]
+    stats["k_mid"] = stats["density_bin"].apply(lambda x: x.mid)
+    stats.sort_values("k_mid", inplace=True)
+
+    # Only include bins with enough data for meaningful stats.
+    stats = stats[stats["count"] >= 10]
+
+    ordered_types = [
+        "baseline",
+        "low_incident",
+        "default_incident",
+        "high_incident",
+        "extreme_incident",
+    ]
+
+    fig, (ax_cov, ax_std) = plt.subplots(1, 2, figsize=(18, 7))
+
+    # ── Panel 1: Speed CoV ───────────────────────────────────────────────
+    for stype in ordered_types:
+        sub = stats[stats["scenario_type"] == stype]
+        if sub.empty:
+            continue
+        color = SCENARIO_COLORS.get(stype, "#999999")
+        label = stype.replace("_", " ").title()
+        ax_cov.plot(
+            sub["k_mid"], sub["cov"],
+            color=color, linewidth=2.0, marker="o", markersize=4,
+            label=label,
+        )
+
+    ax_cov.set_xlabel("Network Density (veh/km)", fontsize=12)
+    ax_cov.set_ylabel("Speed CoV (σ / μ)", fontsize=12)
+    ax_cov.set_title(
+        "Speed Coefficient of Variation by Density\n"
+        "(higher = less predictable network performance)",
+        fontsize=11, fontweight="bold",
+    )
+    ax_cov.legend(fontsize=8, loc="best", framealpha=0.92)
+    ax_cov.set_xlim(left=0)
+    ax_cov.set_ylim(bottom=0)
+
+    # ── Panel 2: Speed standard deviation ────────────────────────────────
+    for stype in ordered_types:
+        sub = stats[stats["scenario_type"] == stype]
+        if sub.empty:
+            continue
+        color = SCENARIO_COLORS.get(stype, "#999999")
+        label = stype.replace("_", " ").title()
+        ax_std.plot(
+            sub["k_mid"], sub["std"],
+            color=color, linewidth=2.0, marker="s", markersize=4,
+            label=label,
+        )
+
+    ax_std.set_xlabel("Network Density (veh/km)", fontsize=12)
+    ax_std.set_ylabel("Speed Std Dev (km/h)", fontsize=12)
+    ax_std.set_title(
+        "Speed Standard Deviation by Density\n"
+        "(absolute variability, independent of mean level)",
+        fontsize=11, fontweight="bold",
+    )
+    ax_std.legend(fontsize=8, loc="best", framealpha=0.92)
+    ax_std.set_xlim(left=0)
+    ax_std.set_ylim(bottom=0)
+
+    fig.suptitle(
+        "Thessaloniki Network — MFD Scatter Quantification (Speed Predictability)",
+        fontsize=13, fontweight="bold", y=1.01,
+    )
+    plt.tight_layout()
+    path = os.path.join(output_dir, "mfd_scatter_cov.png")
+    fig.savefig(path, dpi=FIGURE_DPI, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Saved scatter CoV plot → %s", path)
+    return path
+
+
 def plot_speed_comparison(mfd_data: pd.DataFrame, output_dir: str) -> str:
     """Bar chart comparing mean speed across demand levels for baseline vs incident."""
     fig, ax = plt.subplots(figsize=FIGSIZE_WIDE)

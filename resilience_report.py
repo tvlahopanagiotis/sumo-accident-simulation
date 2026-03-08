@@ -328,6 +328,40 @@ def generate_resilience_report(
         )
         html.append("</div>")
 
+    # ── Section 3b: MFD Degradation Analysis ──
+    html.append(
+        "<h3>3b. Incident-Induced Network Degradation</h3>"
+        "<p class='section-note'>"
+        "Non-parametric analysis of how incidents degrade network performance relative to baseline "
+        "at matched density levels, and how they increase speed unpredictability. "
+        "Each point is the mean across all seeds and demand levels within a density quantile bin. "
+        "The Greenshields model averages over these effects — these figures reveal the residual "
+        "non-linear degradation signal."
+        "</p>"
+    )
+    html.append("<div class='image-grid'>")
+    if "mfd_degradation_deficit" in figures:
+        html.append(_img_tag(figures["mfd_degradation_deficit"],
+                             "Density-Binned Speed Deficit"))
+    else:
+        html.append("<p class='missing-img'>[Speed deficit figure not available]</p>")
+    if "mfd_scatter_cov" in figures:
+        html.append(_img_tag(figures["mfd_scatter_cov"],
+                             "MFD Scatter CoV"))
+    else:
+        html.append("<p class='missing-img'>[Scatter CoV figure not available]</p>")
+    html.append("</div>")
+    html.append(
+        "<p style='font-size:0.85em;color:#555;margin-top:4px'>"
+        "<b>Left figure (speed deficit):</b> positive values mean incidents reduce speed vs baseline "
+        "at that density. Ordered incident levels (low → extreme) confirm a monotonic degradation "
+        "hierarchy. "
+        "<b>Right figure (scatter CoV):</b> higher CoV = less predictable speed at a given density. "
+        "Incident scenarios sit above baseline, indicating that collisions introduce spatial "
+        "heterogeneity that the network average cannot fully mask."
+        "</p>"
+    )
+
     # ── Section 4: Network Dynamics ──
     html.append("<h2>4. Network Dynamics</h2>")
     html.append(

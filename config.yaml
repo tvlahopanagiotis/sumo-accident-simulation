@@ -8,7 +8,7 @@
 sumo:
   # Path to the .sumocfg file that references the road network and route files.
   # Use generate_thessaloniki.py (or the other generators) to produce this.
-  config_file: thessaloniki_network_postmetro_50kph/thessaloniki_postmetro_50kph.sumocfg
+  config_file: thessaloniki_network/thessaloniki.sumocfg
 
   # SUMO executable: "sumo" (headless, for batch runs) or "sumo-gui" (graphical).
   binary: sumo
@@ -155,9 +155,9 @@ output:
   # subfolder: results/Thessaloniki_Run1_2026-03-05_14:30/
   output_folder: results/
 
-  # How often (in steps) to record a row in network_metrics.csv.
-  # 60 steps × 5 s/step = every 5 minutes of simulated time.
-  metrics_interval_steps: 60
+  # How often (in simulation seconds) to record a row in network_metrics.csv.
+  # Use 30 s to avoid aliasing with the dominant 90 s signal cycles.
+  metrics_interval_steps: 30
 
   # Save per-vehicle speed/position snapshots alongside the metrics CSV.
   save_vehicle_snapshots: true

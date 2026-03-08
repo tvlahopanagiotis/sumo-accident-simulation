@@ -535,8 +535,10 @@ def run_assessment(args: argparse.Namespace) -> None:
         extract_mfd_data,
         fit_greenshields_model,
         fit_greenshields_per_scenario_type,
+        plot_mfd_degradation_deficit,
         plot_mfd_density_flow,
         plot_mfd_density_speed,
+        plot_mfd_scatter_cov,
         plot_mfd_theoretical,
         score_to_dict,
     )
@@ -781,6 +783,22 @@ def run_assessment(args: argparse.Namespace) -> None:
                 figures["mfd_theoretical"] = p
         except Exception as exc:
             logger.warning("Theoretical MFD figure failed: %s", exc)
+
+        # Density-binned speed deficit (incident-induced degradation).
+        try:
+            p = plot_mfd_degradation_deficit(mfd_data, str(figures_dir))
+            if p:
+                figures["mfd_degradation_deficit"] = p
+        except Exception as exc:
+            logger.warning("MFD degradation deficit figure failed: %s", exc)
+
+        # MFD scatter quantification (CoV — speed predictability by density).
+        try:
+            p = plot_mfd_scatter_cov(mfd_data, str(figures_dir))
+            if p:
+                figures["mfd_scatter_cov"] = p
+        except Exception as exc:
+            logger.warning("MFD scatter CoV figure failed: %s", exc)
 
     # Figure 1: Resilience statistics (AI distribution, accident counts, scatter, categories)
     if len(batch_data["runs"]) >= 3:

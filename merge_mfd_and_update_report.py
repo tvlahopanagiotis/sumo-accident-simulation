@@ -113,6 +113,8 @@ def _build_figures_dict(figures_dir: Path) -> dict[str, str]:
         "mfd_density_flow",
         "mfd_density_speed",
         "mfd_theoretical",
+        "mfd_degradation_deficit",
+        "mfd_scatter_cov",
         "resilience_statistics",
         "network_dynamics",
         "accident_characteristics",
@@ -207,8 +209,10 @@ def main() -> None:
     sys.path.insert(0, str(Path(__file__).parent))
     from mfd_analysis import (
         fit_greenshields_per_scenario_type,
+        plot_mfd_degradation_deficit,
         plot_mfd_density_flow,
         plot_mfd_density_speed,
+        plot_mfd_scatter_cov,
         plot_mfd_theoretical,
     )
 
@@ -219,6 +223,8 @@ def main() -> None:
         (lambda: plot_mfd_density_flow(combined, str(figures_dir)), "mfd_density_flow.png"),
         (lambda: plot_mfd_density_speed(combined, str(figures_dir)), "mfd_density_speed.png"),
         (lambda: plot_mfd_theoretical(combined, str(figures_dir)), "mfd_theoretical.png"),
+        (lambda: plot_mfd_degradation_deficit(combined, str(figures_dir)), "mfd_degradation_deficit.png"),
+        (lambda: plot_mfd_scatter_cov(combined, str(figures_dir)), "mfd_scatter_cov.png"),
     ]:
         try:
             fn()
