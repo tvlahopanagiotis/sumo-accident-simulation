@@ -66,6 +66,7 @@ def generate_resilience_report(
     figures: dict[str, str],
     *,
     claude_analysis: str | None = None,
+    per_type_fits: dict | None = None,
 ) -> str:
     """
     Generate the complete HTML resilience assessment report.
@@ -78,10 +79,18 @@ def generate_resilience_report(
         config:           Base configuration dict.
         figures:          Dict mapping figure name to file path.
         claude_analysis:  Optional AI-generated analysis text (markdown).
+        per_type_fits:    Optional dict from fit_greenshields_per_scenario_type().
+                          If None, loaded from mfd_per_type_fits.json if present.
 
     Returns:
         Path to the generated report.html file.
     """
+    # Load per-type fits from disk if not supplied directly.
+    if per_type_fits is None:
+        _fits_path = os.path.join(output_dir, "mfd_per_type_fits.json")
+        if os.path.exists(_fits_path):
+            with open(_fits_path, encoding="utf-8") as _f:
+                per_type_fits = json.load(_f)
     grade = resilience_score.grade
     grade_color = GRADE_COLORS.get(grade, "#999999")
     score = resilience_score.overall_score
@@ -214,10 +223,83 @@ def generate_resilience_report(
         else:
             html.append(f"<p class='missing-img'>[{key.replace('_', ' ').title()} not available]</p>")
     html.append("</div>")
+
+    # Theoretical MFD figure.
+    html.append(
+        "<h3>3a. Theoretical Greenshields Curves per Incident Level</h3>"
+        "<p class='section-note'>"
+        "Greenshields model fitted separately for each scenario type. "
+        "Solid lines = observed density range; dashed = theoretical extrapolation to jam density. "
+        "Diamond markers indicate each curve's capacity point (k<sub>c</sub>, q<sub>max</sub>). "
+        "Incident scenarios show reduced free-flow speed and capacity relative to baseline, "
+        "quantifying the MFD degradation caused by each disturbance level."
+        "</p>"
+    )
+    if "mfd_theoretical" in figures:
+        html.append(_img_tag(figures["mfd_theoretical"], "Theoretical MFD per Incident Level"))
+    else:
+        html.append("<p class='missing-img'>[Theoretical MFD figure not available]</p>")
+
+    # Per-type fit parameter table.
+    if per_type_fits:
+        _type_order = [
+            "baseline", "low_incident", "default_incident", "high_incident", "extreme_incident"
+        ]
+        _type_labels = {
+            "baseline": "Baseline",
+            "low_incident": "Low Incident",
+            "default_incident": "Default Incident",
+            "high_incident": "High Incident",
+            "extreme_incident": "Extreme Incident",
+        }
+        html.append(
+            "<table style='margin-top:12px;width:100%;border-collapse:collapse;font-size:0.88em'>"
+            "<thead><tr style='background:#2c3e50;color:white'>"
+            "<th style='padding:7px 10px;text-align:left'>Scenario Type</th>"
+            "<th style='padding:7px 10px;text-align:right'>u<sub>f</sub> (km/h)</th>"
+            "<th style='padding:7px 10px;text-align:right'>k<sub>j</sub> (veh/km)</th>"
+            "<th style='padding:7px 10px;text-align:right'>k<sub>c</sub> (veh/km)</th>"
+            "<th style='padding:7px 10px;text-align:right'>q<sub>max</sub> (veh/h)</th>"
+            "<th style='padding:7px 10px;text-align:right'>R²</th>"
+            "<th style='padding:7px 10px;text-align:right'>N points</th>"
+            "</tr></thead><tbody>"
+        )
+        for i, stype in enumerate(_type_order):
+            if stype not in per_type_fits:
+                continue
+            f = per_type_fits[stype]
+            bg = "#f8f9fa" if i % 2 == 0 else "white"
+            label = _type_labels.get(stype, stype)
+            r2_color = "#27ae60" if f["r_squared"] >= 0.7 else (
+                "#f39c12" if f["r_squared"] >= 0.4 else "#e74c3c"
+            )
+            html.append(
+                f"<tr style='background:{bg}'>"
+                f"<td style='padding:6px 10px;font-weight:500'>{label}</td>"
+                f"<td style='padding:6px 10px;text-align:right'>{f['free_flow_speed_kmh']:.2f}</td>"
+                f"<td style='padding:6px 10px;text-align:right'>{f['jam_density_veh_per_km']:.2f}</td>"
+                f"<td style='padding:6px 10px;text-align:right'>{f['critical_density_veh_per_km']:.2f}</td>"
+                f"<td style='padding:6px 10px;text-align:right'>{f['capacity_veh_per_hour']:.1f}</td>"
+                f"<td style='padding:6px 10px;text-align:right;color:{r2_color};font-weight:bold'>"
+                f"{f['r_squared']:.3f}</td>"
+                f"<td style='padding:6px 10px;text-align:right;color:#666'>{f['n_points']:,}</td>"
+                "</tr>"
+            )
+        html.append("</tbody></table>")
+        html.append(
+            "<p style='font-size:0.8em;color:#666;margin-top:6px'>"
+            "R² colour coding: "
+            "<span style='color:#27ae60;font-weight:bold'>≥0.70 good</span> · "
+            "<span style='color:#f39c12;font-weight:bold'>0.40–0.70 moderate</span> · "
+            "<span style='color:#e74c3c;font-weight:bold'>&lt;0.40 poor fit</span>"
+            "</p>"
+        )
+
+    # Overall Greenshields parameters (baseline-only fit).
     if "free_flow_speed_kmh" in (mfd_p := resilience_score.mfd_parameters):
         html.append("<div class='metadata'>")
         html.append(
-            f"  <div class='metadata-row'><span class='metadata-label'>Free-flow speed:</span>"
+            f"  <div class='metadata-row'><span class='metadata-label'>Free-flow speed (baseline):</span>"
             f"<span class='metadata-value'>{mfd_p['free_flow_speed_kmh']:.1f} km/h</span></div>"
         )
         html.append(

@@ -112,6 +112,7 @@ def _build_figures_dict(figures_dir: Path) -> dict[str, str]:
     known = [
         "mfd_density_flow",
         "mfd_density_speed",
+        "mfd_theoretical",
         "resilience_statistics",
         "network_dynamics",
         "accident_characteristics",
@@ -184,8 +185,17 @@ def main() -> None:
     print(f"  Main  : {len(main_mfd):,} rows  |  demand levels: {main_periods}")
     print(f"  Extra : {len(extra_mfd):,} rows  |  demand levels: {extra_periods}")
 
-    # Prepend extra (lower demand) rows so the MFD x-axis is ordered
+    # Remove any rows from main that cover the same demand levels as extra
+    # so the script is safe to run multiple times without double-counting.
+    overlap = set(extra_mfd["period"].unique()) & set(main_mfd["period"].unique())
+    if overlap:
+        print(f"  Removing {len(main_mfd[main_mfd['period'].isin(overlap)]):,} existing rows "
+              f"for overlapping period(s) {sorted(overlap)} from main before merging.")
+        main_mfd = main_mfd[~main_mfd["period"].isin(overlap)]
+
+    # Concatenate (extra first so the density axis is ordered low → high demand).
     combined = pd.concat([extra_mfd, main_mfd], ignore_index=True)
+    combined = combined.sort_values("period").reset_index(drop=True)
     combined.to_csv(main_mfd_path, index=False)
     print(
         f"  Combined: {len(combined):,} rows saved → {main_mfd_path}\n"
@@ -195,28 +205,37 @@ def main() -> None:
     # ── Step 2: Regenerate MFD figures ───────────────────────────────────
     print("\n[2/4] Regenerating MFD figures ...")
     sys.path.insert(0, str(Path(__file__).parent))
-    from mfd_analysis import plot_mfd_density_flow, plot_mfd_density_speed
+    from mfd_analysis import (
+        fit_greenshields_per_scenario_type,
+        plot_mfd_density_flow,
+        plot_mfd_density_speed,
+        plot_mfd_theoretical,
+    )
 
     figures_dir = main_dir / "figures"
     figures_dir.mkdir(exist_ok=True)
 
-    ok_flow = ok_speed = False
-    try:
-        plot_mfd_density_flow(combined, str(figures_dir))
-        print("  ✓  mfd_density_flow.png")
-        ok_flow = True
-    except Exception as exc:
-        print(f"  ✗  mfd_density_flow failed: {exc}")
+    for fn, label in [
+        (lambda: plot_mfd_density_flow(combined, str(figures_dir)), "mfd_density_flow.png"),
+        (lambda: plot_mfd_density_speed(combined, str(figures_dir)), "mfd_density_speed.png"),
+        (lambda: plot_mfd_theoretical(combined, str(figures_dir)), "mfd_theoretical.png"),
+    ]:
+        try:
+            fn()
+            print(f"  ✓  {label}")
+        except Exception as exc:
+            print(f"  ✗  {label} failed: {exc}")
 
+    # Fit per-type Greenshields and save JSON to main dir.
+    per_type_fits: dict | None = None
     try:
-        plot_mfd_density_speed(combined, str(figures_dir))
-        print("  ✓  mfd_density_speed.png")
-        ok_speed = True
+        per_type_fits = fit_greenshields_per_scenario_type(combined)
+        fits_path = main_dir / "mfd_per_type_fits.json"
+        import json as _json
+        fits_path.write_text(_json.dumps(per_type_fits, indent=2), encoding="utf-8")
+        print(f"  ✓  mfd_per_type_fits.json  ({len(per_type_fits)} scenario types)")
     except Exception as exc:
-        print(f"  ✗  mfd_density_speed failed: {exc}")
-
-    if not (ok_flow and ok_speed):
-        print("  WARNING: one or both MFD figures could not be regenerated.")
+        print(f"  ✗  per-type Greenshields fit failed: {exc}")
 
     # ── Step 3: Reconstruct objects from saved JSON ───────────────────────
     print("\n[3/4] Reconstructing assessment objects from saved JSON ...")
@@ -268,6 +287,7 @@ def main() -> None:
         config,
         figures,
         claude_analysis=claude_analysis,
+        per_type_fits=per_type_fits,
     )
     print(f"  ✓  Report → {report_path}")
 

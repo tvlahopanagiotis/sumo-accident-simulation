@@ -534,8 +534,10 @@ def run_assessment(args: argparse.Namespace) -> None:
         compute_weak_points,
         extract_mfd_data,
         fit_greenshields_model,
+        fit_greenshields_per_scenario_type,
         plot_mfd_density_flow,
         plot_mfd_density_speed,
+        plot_mfd_theoretical,
         score_to_dict,
     )
     from parallel_runner import ParallelExecutor  # noqa: PLC0415
@@ -682,8 +684,17 @@ def run_assessment(args: argparse.Namespace) -> None:
         mfd_data.to_csv(mfd_csv_path, index=False)
         logger.info("MFD data saved → %s  (%d rows)", mfd_csv_path, len(mfd_data))
 
-    # Fit Greenshields model.
+    # Fit Greenshields model (overall, baseline-only).
     mfd_params = fit_greenshields_model(mfd_data)
+
+    # Fit Greenshields per scenario type and save.
+    if not mfd_data.empty:
+        per_type_fits = fit_greenshields_per_scenario_type(mfd_data)
+        if per_type_fits:
+            per_type_path = os.path.join(output_dir, "mfd_per_type_fits.json")
+            with open(per_type_path, "w") as f:
+                json.dump(per_type_fits, f, indent=2)
+            logger.info("Per-type MFD fits saved → %s", per_type_path)
 
     # Weak point analysis.
     top_n = ra_cfg.get("top_weak_points", 10)
@@ -762,6 +773,14 @@ def run_assessment(args: argparse.Namespace) -> None:
             figures["mfd_density_speed"] = plot_mfd_density_speed(mfd_data, str(figures_dir))
         except Exception as exc:
             logger.warning("MFD figures failed: %s", exc)
+
+        # Theoretical Greenshields curves per incident level.
+        try:
+            p = plot_mfd_theoretical(mfd_data, str(figures_dir))
+            if p:
+                figures["mfd_theoretical"] = p
+        except Exception as exc:
+            logger.warning("Theoretical MFD figure failed: %s", exc)
 
     # Figure 1: Resilience statistics (AI distribution, accident counts, scatter, categories)
     if len(batch_data["runs"]) >= 3:

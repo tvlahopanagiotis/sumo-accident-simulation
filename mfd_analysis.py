@@ -277,6 +277,74 @@ def fit_greenshields_model(mfd_data: pd.DataFrame) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def fit_greenshields_per_scenario_type(mfd_data: pd.DataFrame) -> dict[str, dict]:
+    """
+    Fit the Greenshields model separately for each scenario_type.
+
+    Uses all data points for that scenario type (not just baseline), so the
+    result captures the *effective* MFD under each disturbance level — i.e.,
+    how incidents at a given rate depress capacity and free-flow speed.
+
+    Returns:
+        Dict mapping scenario_type → parameter dict with keys:
+        free_flow_speed_kmh, jam_density_veh_per_km, critical_density_veh_per_km,
+        capacity_veh_per_hour, r_squared, n_points.
+    """
+    results: dict[str, dict] = {}
+
+    for stype in SCENARIO_COLORS:  # iterate in display order
+        subset = mfd_data[mfd_data["scenario_type"] == stype]
+        if subset.empty:
+            continue
+
+        k = subset["density_veh_per_km"].values
+        v = subset["speed_kmh"].values
+
+        # Require positive density and speed; minimum density threshold avoids
+        # fitting to the near-empty-network tail that biases vf upward.
+        mask = (k > 0.05) & (v > 0)
+        k, v = k[mask], v[mask]
+
+        if len(k) < 10:
+            logger.warning("Too few data points (%d) for Greenshields fit of %s", len(k), stype)
+            continue
+
+        try:
+            p0 = [float(np.max(v)), float(np.max(k) * 2)]
+            bounds = ([0, 0], [200, 500])
+            popt, _ = curve_fit(
+                _greenshields_speed, k, v, p0=p0, bounds=bounds, maxfev=10000
+            )
+            vf, kj = float(popt[0]), float(popt[1])
+        except RuntimeError as exc:
+            logger.warning("Greenshields fit failed for %s: %s", stype, exc)
+            continue
+
+        v_pred = _greenshields_speed(k, vf, kj)
+        ss_res = float(np.sum((v - v_pred) ** 2))
+        ss_tot = float(np.sum((v - np.mean(v)) ** 2))
+        r2 = round(1.0 - ss_res / ss_tot, 4) if ss_tot > 0 else 0.0
+
+        results[stype] = {
+            "free_flow_speed_kmh": round(vf, 2),
+            "jam_density_veh_per_km": round(kj, 2),
+            "critical_density_veh_per_km": round(kj / 2.0, 2),
+            "capacity_veh_per_hour": round(vf * kj / 4.0, 1),
+            "r_squared": r2,
+            "n_points": int(len(k)),
+        }
+        logger.info(
+            "  Greenshields [%s]: vf=%.1f km/h, kj=%.2f veh/km, q_max=%.1f veh/h, R²=%.3f",
+            stype,
+            vf,
+            kj,
+            vf * kj / 4.0,
+            r2,
+        )
+
+    return results
+
+
 def plot_mfd_density_flow(mfd_data: pd.DataFrame, output_dir: str) -> str:
     """Plot Macroscopic Fundamental Diagram: density vs flow."""
     fig, ax = plt.subplots(figsize=FIGSIZE_SQUARE)
@@ -336,6 +404,203 @@ def plot_mfd_density_speed(mfd_data: pd.DataFrame, output_dir: str) -> str:
     fig.savefig(path, dpi=FIGURE_DPI, bbox_inches="tight")
     plt.close(fig)
     logger.info("Saved MFD density-speed plot → %s", path)
+    return path
+
+
+def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
+    """
+    Plot theoretical Greenshields MFD curves fitted per scenario type.
+
+    Two-panel figure:
+      Left  — density vs flow (parabolic q-k curves).
+      Right — density vs speed (linear v-k fits).
+
+    Each scenario_type gets its own Greenshields fit, drawn as a solid curve
+    over the faint scatter of actual data.  Diamond markers indicate each
+    curve's capacity point (k_c, q_max).  Fit statistics (u_f, k_j, q_max,
+    R²) appear in the legend so incident-level capacity degradation is
+    immediately readable.
+
+    Args:
+        mfd_data:   DataFrame from extract_mfd_data() (may span multiple
+                    demand levels — all data is used for fitting).
+        output_dir: Directory to save the PNG.
+
+    Returns:
+        Absolute path of the saved PNG.
+    """
+    fits = fit_greenshields_per_scenario_type(mfd_data)
+    if not fits:
+        logger.warning("No per-type fits available — skipping theoretical MFD plot")
+        return ""
+
+    fig, (ax_qk, ax_vk) = plt.subplots(1, 2, figsize=(18, 7))
+
+    # Global observed density range for shading the "extrapolated" region.
+    k_obs_max = float(mfd_data["density_veh_per_km"].max())
+
+    ordered_types = [
+        "baseline",
+        "low_incident",
+        "default_incident",
+        "high_incident",
+        "extreme_incident",
+    ]
+
+    for stype in ordered_types:
+        if stype not in fits:
+            continue
+
+        color = SCENARIO_COLORS.get(stype, "#999999")
+        fit = fits[stype]
+        vf = fit["free_flow_speed_kmh"]
+        kj = fit["jam_density_veh_per_km"]
+        kc = fit["critical_density_veh_per_km"]
+        qmax = fit["capacity_veh_per_hour"]
+        r2 = fit["r_squared"]
+        label_name = stype.replace("_", " ").title()
+
+        # ── Scatter: actual data (very faint background) ──────────────────
+        subset = mfd_data[mfd_data["scenario_type"] == stype]
+        ax_qk.scatter(
+            subset["density_veh_per_km"],
+            subset["flow_veh_per_hour"],
+            alpha=0.12,
+            s=5,
+            color=color,
+            rasterized=True,
+        )
+        ax_vk.scatter(
+            subset["density_veh_per_km"],
+            subset["speed_kmh"],
+            alpha=0.12,
+            s=5,
+            color=color,
+            rasterized=True,
+        )
+
+        # ── Theoretical curves ────────────────────────────────────────────
+        k_range = np.linspace(0, kj, 300)
+        q_theory = _greenshields_flow(k_range, vf, kj)
+        v_theory = _greenshields_speed(k_range, vf, kj)
+
+        curve_label = (
+            f"{label_name}   "
+            f"$u_f$={vf:.1f} km/h   "
+            f"$k_j$={kj:.1f}   "
+            f"$q_{{max}}$={qmax:.0f} veh/h   "
+            f"$R^2$={r2:.3f}"
+        )
+
+        # Observed portion: solid; extrapolated: dashed.
+        k_obs = k_range[k_range <= k_obs_max]
+        k_ext = k_range[k_range >= k_obs_max]
+
+        ax_qk.plot(
+            k_obs,
+            _greenshields_flow(k_obs, vf, kj),
+            color=color,
+            linewidth=2.2,
+            label=curve_label,
+        )
+        ax_vk.plot(
+            k_obs,
+            _greenshields_speed(k_obs, vf, kj),
+            color=color,
+            linewidth=2.2,
+            label=f"{label_name}   $R^2$={r2:.3f}",
+        )
+        if len(k_ext) > 1:
+            ax_qk.plot(
+                k_ext,
+                _greenshields_flow(k_ext, vf, kj),
+                color=color,
+                linewidth=2.2,
+                linestyle="--",
+                alpha=0.5,
+            )
+            ax_vk.plot(
+                k_ext,
+                _greenshields_speed(k_ext, vf, kj),
+                color=color,
+                linewidth=2.2,
+                linestyle="--",
+                alpha=0.5,
+            )
+
+        # Capacity point diamond.
+        ax_qk.scatter(
+            [kc],
+            [qmax],
+            color=color,
+            s=90,
+            marker="D",
+            zorder=6,
+            edgecolors="white",
+            linewidths=0.8,
+        )
+        # Vertical guide at k_c.
+        ax_qk.axvline(x=kc, color=color, linewidth=0.6, linestyle=":", alpha=0.45)
+
+    # ── Shade extrapolated region ────────────────────────────────────────
+    for ax in (ax_qk, ax_vk):
+        ylim = ax.get_ylim()
+        ax.axvspan(
+            k_obs_max,
+            ax.get_xlim()[1] if ax.get_xlim()[1] > k_obs_max else k_obs_max * 1.5,
+            alpha=0.06,
+            color="grey",
+        )
+
+    # ── Vertical line: observed max density ──────────────────────────────
+    for ax in (ax_qk, ax_vk):
+        ax.axvline(
+            x=k_obs_max,
+            color="grey",
+            linewidth=1.0,
+            linestyle="-.",
+            alpha=0.7,
+            label=f"Observed max density ({k_obs_max:.2f} veh/km)",
+        )
+
+    # ── Formatting ───────────────────────────────────────────────────────
+    ax_qk.set_xlabel("Network Density  (veh/km)", fontsize=12)
+    ax_qk.set_ylabel("Network Flow  (veh/h)", fontsize=12)
+    ax_qk.set_title(
+        "Theoretical Greenshields MFD — Density vs Flow\n"
+        "(solid = observed range  |  dashed = extrapolated  |  [D] = capacity point)",
+        fontsize=11,
+        fontweight="bold",
+    )
+    ax_qk.set_xlim(left=0)
+    ax_qk.set_ylim(bottom=0)
+    ax_qk.legend(fontsize=7.5, loc="upper right", framealpha=0.92, ncol=1)
+
+    ax_vk.set_xlabel("Network Density  (veh/km)", fontsize=12)
+    ax_vk.set_ylabel("Space-Mean Speed  (km/h)", fontsize=12)
+    ax_vk.set_title(
+        "Theoretical Greenshields MFD — Density vs Speed\n"
+        "(linear speed–density relationship per incident level)",
+        fontsize=11,
+        fontweight="bold",
+    )
+    ax_vk.set_xlim(left=0)
+    ax_vk.set_ylim(bottom=0)
+    ax_vk.legend(fontsize=8, loc="upper right", framealpha=0.92)
+
+    fig.suptitle(
+        "Thessaloniki Network — Theoretical MFD per Incident Level  "
+        "(Greenshields Model)",
+        fontsize=13,
+        fontweight="bold",
+        y=1.01,
+    )
+
+    plt.tight_layout()
+    path = os.path.join(output_dir, "mfd_theoretical.png")
+    fig.savefig(path, dpi=FIGURE_DPI, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Saved theoretical MFD plot → %s", path)
     return path
 
 
