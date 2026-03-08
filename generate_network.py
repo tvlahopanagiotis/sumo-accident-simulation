@@ -32,7 +32,6 @@ import subprocess
 import sys
 import textwrap
 
-
 # ---------------------------------------------------------------------------
 # Network geometry
 # ---------------------------------------------------------------------------
@@ -54,6 +53,7 @@ BYPASS_Y = 1540
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def nid(col: str, row: int) -> str:
     """Return the junction ID for column letter + row index, e.g. 'C2'."""
     return f"{col}{row}"
@@ -68,6 +68,7 @@ def eid(src: str, dst: str) -> str:
 # Node generation
 # ---------------------------------------------------------------------------
 
+
 def build_nodes() -> list[dict]:
     """
     Return a list of node dicts with keys: id, x, y, type.
@@ -79,7 +80,7 @@ def build_nodes() -> list[dict]:
     nodes = []
 
     # ── Expressway bypass ────────────────────────────────────────────────────
-    nodes.append({"id": BYPASS_W, "x": 0,    "y": BYPASS_Y, "type": "priority"})
+    nodes.append({"id": BYPASS_W, "x": 0, "y": BYPASS_Y, "type": "priority"})
     nodes.append({"id": BYPASS_E, "x": 1600, "y": BYPASS_Y, "type": "priority"})
 
     # ── Main arterial grid ───────────────────────────────────────────────────
@@ -99,10 +100,10 @@ def build_nodes() -> list[dict]:
 # ---------------------------------------------------------------------------
 
 # Road type identifiers defined in the .typ.xml
-TYPE_EXPRESSWAY  = "expressway"
-TYPE_OUTER_ART   = "arterial_outer"   # perimeter of the grid
-TYPE_INNER_ART   = "arterial_inner"   # inner cross streets
-TYPE_RAMP        = "ramp"             # bypass on/off ramps
+TYPE_EXPRESSWAY = "expressway"
+TYPE_OUTER_ART = "arterial_outer"  # perimeter of the grid
+TYPE_INNER_ART = "arterial_inner"  # inner cross streets
+TYPE_RAMP = "ramp"  # bypass on/off ramps
 
 
 def build_edges() -> list[dict]:
@@ -113,8 +114,8 @@ def build_edges() -> list[dict]:
     """
     edges = []
 
-    col_ids  = [c for c, _ in COLS]
-    row_ids  = [r for r, _ in ROWS]
+    col_ids = [c for c, _ in COLS]
+    row_ids = [r for r, _ in ROWS]
 
     # ── Expressway bypass (E→W and W→E one-way edges) ────────────────────────
     edges.append({"id": "BP_WE", "from": BYPASS_W, "to": BYPASS_E, "type": TYPE_EXPRESSWAY})
@@ -146,16 +147,14 @@ def build_edges() -> list[dict]:
             src = nid(lo_col, row)
             dst = nid(hi_col, row)
 
-            etype = _edge_type_for(lo_col, row, row, axis="horizontal",
-                                   col2=hi_col)
+            etype = _edge_type_for(lo_col, row, row, axis="horizontal", col2=hi_col)
             edges.append({"id": eid(src, dst), "from": src, "to": dst, "type": etype})
             edges.append({"id": eid(dst, src), "from": dst, "to": src, "type": etype})
 
     return edges
 
 
-def _edge_type_for(col: str, row_a: int, row_b: int, axis: str,
-                   col2: str = "") -> str:
+def _edge_type_for(col: str, row_a: int, row_b: int, axis: str, col2: str = "") -> str:
     """Choose road type based on which part of the grid an edge sits in."""
     col_ids = [c for c, _ in COLS]
     row_ids = [r for r, _ in ROWS]
@@ -182,6 +181,7 @@ def _edge_type_for(col: str, row_a: int, row_b: int, axis: str,
 # ---------------------------------------------------------------------------
 # XML writers
 # ---------------------------------------------------------------------------
+
 
 def write_types(path: str):
     xml = textwrap.dedent(f"""\
@@ -214,10 +214,7 @@ def write_types(path: str):
 def write_nodes(path: str, nodes: list[dict]):
     lines = ['<?xml version="1.0" encoding="UTF-8"?>', "<nodes>"]
     for n in nodes:
-        lines.append(
-            f'    <node id="{n["id"]}" x="{n["x"]}" y="{n["y"]}"'
-            f' type="{n["type"]}"/>'
-        )
+        lines.append(f'    <node id="{n["id"]}" x="{n["x"]}" y="{n["y"]}" type="{n["type"]}"/>')
     lines.append("</nodes>")
     _write(path, "\n".join(lines))
 
@@ -226,8 +223,7 @@ def write_edges(path: str, edges: list[dict]):
     lines = ['<?xml version="1.0" encoding="UTF-8"?>', "<edges>"]
     for e in edges:
         lines.append(
-            f'    <edge id="{e["id"]}" from="{e["from"]}" to="{e["to"]}"'
-            f' type="{e["type"]}"/>'
+            f'    <edge id="{e["id"]}" from="{e["from"]}" to="{e["to"]}" type="{e["type"]}"/>'
         )
     lines.append("</edges>")
     _write(path, "\n".join(lines))
@@ -238,35 +234,45 @@ def write_edges(path: str, edges: list[dict]):
 # ---------------------------------------------------------------------------
 
 # Edge IDs that serve as sensible entry/exit points
-ENTRY_SOUTH  = [eid(nid("A", 0), nid("A", 1)),   # A0 → A1  (west side, from south)
-                eid(nid("B", 0), nid("B", 1)),
-                eid(nid("C", 0), nid("C", 1)),
-                eid(nid("D", 0), nid("D", 1)),
-                eid(nid("E", 0), nid("E", 1))]
+ENTRY_SOUTH = [
+    eid(nid("A", 0), nid("A", 1)),  # A0 → A1  (west side, from south)
+    eid(nid("B", 0), nid("B", 1)),
+    eid(nid("C", 0), nid("C", 1)),
+    eid(nid("D", 0), nid("D", 1)),
+    eid(nid("E", 0), nid("E", 1)),
+]
 
-ENTRY_NORTH  = [eid(nid("A", 3), nid("A", 2)),
-                eid(nid("C", 3), nid("C", 2)),
-                eid(nid("E", 3), nid("E", 2))]
+ENTRY_NORTH = [
+    eid(nid("A", 3), nid("A", 2)),
+    eid(nid("C", 3), nid("C", 2)),
+    eid(nid("E", 3), nid("E", 2)),
+]
 
-ENTRY_WEST   = [eid(nid("A", 0), nid("B", 0)),
-                eid(nid("A", 1), nid("B", 1)),
-                eid(nid("A", 2), nid("B", 2)),
-                eid(nid("A", 3), nid("B", 3))]
+ENTRY_WEST = [
+    eid(nid("A", 0), nid("B", 0)),
+    eid(nid("A", 1), nid("B", 1)),
+    eid(nid("A", 2), nid("B", 2)),
+    eid(nid("A", 3), nid("B", 3)),
+]
 
-ENTRY_EAST   = [eid(nid("E", 0), nid("D", 0)),
-                eid(nid("E", 1), nid("D", 1)),
-                eid(nid("E", 2), nid("D", 2)),
-                eid(nid("E", 3), nid("D", 3))]
+ENTRY_EAST = [
+    eid(nid("E", 0), nid("D", 0)),
+    eid(nid("E", 1), nid("D", 1)),
+    eid(nid("E", 2), nid("D", 2)),
+    eid(nid("E", 3), nid("D", 3)),
+]
 
 BYPASS_ENTRY = ["BP_WE", "BP_EW"]
 
-EXIT_NORTH   = [eid(nid("A", 2), nid("A", 3)),
-                eid(nid("C", 2), nid("C", 3)),
-                eid(nid("E", 2), nid("E", 3))]
+EXIT_NORTH = [
+    eid(nid("A", 2), nid("A", 3)),
+    eid(nid("C", 2), nid("C", 3)),
+    eid(nid("E", 2), nid("E", 3)),
+]
 
-EXIT_SOUTH   = ENTRY_NORTH[::-1]   # reverse direction edges
-EXIT_EAST    = [eid(nid("D", r), nid("E", r)) for r in range(4)]
-EXIT_WEST    = [eid(nid("B", r), nid("A", r)) for r in range(4)]
+EXIT_SOUTH = ENTRY_NORTH[::-1]  # reverse direction edges
+EXIT_EAST = [eid(nid("D", r), nid("E", r)) for r in range(4)]
+EXIT_WEST = [eid(nid("B", r), nid("A", r)) for r in range(4)]
 
 
 def write_routes(path: str):
@@ -318,7 +324,7 @@ def write_routes(path: str):
     for e_from in ENTRY_SOUTH + ENTRY_NORTH + ENTRY_WEST + ENTRY_EAST:
         for e_to in EXIT_SOUTH[:1] + EXIT_NORTH[:1] + EXIT_EAST[:1]:
             add_flow(e_from, e_to, 3600, 5400, 60)
-    add_flow("BP_WE", "BP_EW", 3600, 5400, 200)   # bypass recirculation
+    add_flow("BP_WE", "BP_EW", 3600, 5400, 200)  # bypass recirculation
 
     # ── PM peak 5400–7200 s  (heavy outbound) ───────────────────────────────
     for e_from in ENTRY_NORTH:
@@ -358,6 +364,7 @@ def write_routes(path: str):
 # SUMO config
 # ---------------------------------------------------------------------------
 
+
 def write_sumocfg(path: str, net_file: str, rou_file: str):
     xml = textwrap.dedent(f"""\
     <configuration>
@@ -381,19 +388,28 @@ def write_sumocfg(path: str, net_file: str, rou_file: str):
 # netconvert
 # ---------------------------------------------------------------------------
 
+
 def run_netconvert(out_dir: str, nod: str, edg: str, typ: str, net: str):
     cmd = [
         "netconvert",
-        "--node-files",        nod,
-        "--edge-files",        edg,
-        "--type-files",        typ,
-        "--output-file",       net,
-        "--no-warnings",       "true",
-        "--junctions.join",    "false",
-        "--tls.discard-simple","false",
-        "--roundabouts.guess", "false",
+        "--node-files",
+        nod,
+        "--edge-files",
+        edg,
+        "--type-files",
+        typ,
+        "--output-file",
+        net,
+        "--no-warnings",
+        "true",
+        "--junctions.join",
+        "false",
+        "--tls.discard-simple",
+        "false",
+        "--roundabouts.guess",
+        "false",
     ]
-    print(f"\n▶  Running netconvert …")
+    print("\n▶  Running netconvert …")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print("❌  netconvert failed:")
@@ -406,6 +422,7 @@ def run_netconvert(out_dir: str, nod: str, edg: str, typ: str, net: str):
 # Utility
 # ---------------------------------------------------------------------------
 
+
 def _write(path: str, content: str):
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -416,31 +433,29 @@ def update_config_yaml(config_path: str, sumocfg_path: str):
     """Patch the binary and config_file keys in config.yaml."""
     import yaml  # only needed here
 
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
     cfg["sumo"]["config_file"] = os.path.abspath(sumocfg_path)
-    cfg["sumo"]["binary"] = "sumo"   # headless for the runner
+    cfg["sumo"]["binary"] = "sumo"  # headless for the runner
 
     with open(config_path, "w") as f:
         yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
 
-    print(f"\n✅  config.yaml updated → config_file now points to the new network.")
+    print("\n✅  config.yaml updated → config_file now points to the new network.")
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate the Riverside District SUMO network"
-    )
+    parser = argparse.ArgumentParser(description="Generate the Riverside District SUMO network")
     parser.add_argument(
         "--out-dir",
         default=os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "..", "riverside_network"
+            os.path.dirname(os.path.abspath(__file__)), "..", "riverside_network"
         ),
         help="Output folder for network files (default: ../riverside_network/)",
     )
@@ -453,10 +468,10 @@ def main():
 
     out_dir = os.path.abspath(args.out_dir)
     os.makedirs(out_dir, exist_ok=True)
-    print(f"\n{'='*60}")
-    print(f"  Riverside District — Network Generator")
+    print(f"\n{'=' * 60}")
+    print("  Riverside District — Network Generator")
     print(f"  Output → {out_dir}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # File paths
     nod_file = os.path.join(out_dir, "riverside.nod.xml")
@@ -470,7 +485,7 @@ def main():
     nodes = build_nodes()
     edges = build_edges()
 
-    print(f"Network summary:")
+    print("Network summary:")
     print(f"  Junctions : {len(nodes)}")
     print(f"  Edges     : {len(edges)}")
 
@@ -479,27 +494,26 @@ def main():
     write_nodes(nod_file, nodes)
     write_edges(edg_file, edges)
     write_routes(rou_file)
-    write_sumocfg(cfg_file,
-                  net_file=os.path.basename(net_file),
-                  rou_file=os.path.basename(rou_file))
+    write_sumocfg(
+        cfg_file, net_file=os.path.basename(net_file), rou_file=os.path.basename(rou_file)
+    )
 
     # Compile network
     run_netconvert(out_dir, nod_file, edg_file, typ_file, net_file)
 
     # Optionally patch config.yaml
     if args.update_config:
-        config_yaml = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                   "config.yaml")
+        config_yaml = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.yaml")
         if os.path.exists(config_yaml):
             update_config_yaml(config_yaml, cfg_file)
         else:
             print(f"⚠  config.yaml not found at {config_yaml} — skipping update.")
 
-    print(f"\n{'='*60}")
-    print(f"  Done!  Run the simulation with:")
-    print(f"    python runner.py")
+    print(f"\n{'=' * 60}")
+    print("  Done!  Run the simulation with:")
+    print("    python runner.py")
     print(f"  (after updating config.yaml → sumo.config_file: {cfg_file})")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":

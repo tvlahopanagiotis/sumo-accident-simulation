@@ -43,16 +43,19 @@ After optimisation  : 2 batch calls per step + one TraCI call per *unique edge*
                       for the Thessaloniki network — incurred only once.
 """
 
-import sys
-import os
+from __future__ import annotations
+
 import argparse
 import datetime
 import json
 import logging
 import math
+import os
 import platform
 import random
 import statistics
+import sys
+from typing import Any
 
 import yaml
 
@@ -68,20 +71,20 @@ except ImportError:
 # Short alias for TraCI constants (used heavily in the hot loop)
 _tc = traci.constants
 
-from risk_model import RiskModel
-from accident_manager import AccidentManager
-from metrics import MetricsCollector, _t_critical
-
+from accident_manager import AccidentManager  # noqa: E402
+from metrics import MetricsCollector, _t_critical  # noqa: E402
+from risk_model import RiskModel  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 
+
 def setup_logging(output_folder: str, level: int = logging.INFO):
     """Configure console + file logging for the simulation."""
     os.makedirs(output_folder, exist_ok=True)
-    fmt      = "%(asctime)s [%(levelname)-8s] %(name)s — %(message)s"
-    handlers = [
+    fmt = "%(asctime)s [%(levelname)-8s] %(name)s — %(message)s"
+    handlers: list[logging.Handler] = [
         logging.StreamHandler(sys.stdout),
         logging.FileHandler(os.path.join(output_folder, "simulation.log"), mode="w"),
     ]
@@ -95,13 +98,15 @@ logger = logging.getLogger("sas.runner")
 # Config
 # ---------------------------------------------------------------------------
 
-def load_config(config_path: str) -> dict:
+
+def load_config(config_path: str) -> dict[str, Any]:
     """Load and return the YAML configuration file."""
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
+    with open(config_path) as f:
+        result: dict[str, Any] = yaml.safe_load(f)
+        return result
 
 
-def validate_config(config: dict):
+def validate_config(config: dict[str, Any]) -> None:
     """
     Check critical config values before starting SUMO.
     Logs a clear error and exits if anything is invalid.
@@ -117,19 +122,47 @@ def validate_config(config: dict):
         errors.append(f"risk.trigger_threshold must be in (0, 1), got {th}")
 
     acc = config.get("accident", {})
-    mn  = acc.get("min_duration_seconds", 0)
-    mx  = acc.get("max_duration_seconds", 0)
-    if mn >= mx:
+    severity = acc.get("severity", {})
+    if not severity:
         errors.append(
-            f"accident.min_duration_seconds ({mn}) must be < max_duration_seconds ({mx})"
+            "accident.severity must define at least one tier "
+            "(e.g. minor, moderate, major, critical)"
         )
-    rt = acc.get("response_time_seconds", 0)
-    if rt >= mx:
-        errors.append(
-            f"accident.response_time_seconds ({rt}) must be < max_duration_seconds ({mx})"
-        )
+    else:
+        _required_tier_keys = {
+            "weight",
+            "duration_min_s",
+            "duration_max_s",
+            "lane_capacity_fraction",
+            "response_time_s",
+            "secondary_risk_radius_m",
+            "secondary_risk_multiplier",
+        }
+        for tier_name, params in severity.items():
+            if not isinstance(params, dict):
+                errors.append(f"accident.severity.{tier_name} must be a key-value mapping")
+                continue
+            missing = _required_tier_keys - set(params.keys())
+            if missing:
+                errors.append(f"accident.severity.{tier_name} is missing required keys: {missing}")
+                continue  # skip further checks if keys are absent
+            if params.get("weight", 0) <= 0:
+                errors.append(f"accident.severity.{tier_name}.weight must be > 0")
+            cf = params.get("lane_capacity_fraction", -1)
+            if not (0.0 <= cf <= 1.0):
+                errors.append(
+                    f"accident.severity.{tier_name}.lane_capacity_fraction "
+                    f"must be in [0.0, 1.0], got {cf}"
+                )
+            d_min = params.get("duration_min_s", 0)
+            d_max = params.get("duration_max_s", 0)
+            if d_min >= d_max:
+                errors.append(
+                    f"accident.severity.{tier_name}: duration_min_s ({d_min}) "
+                    f"must be < duration_max_s ({d_max})"
+                )
 
-    sumo     = config.get("sumo", {})
+    sumo = config.get("sumo", {})
     cfg_file = sumo.get("config_file", "")
     if not os.path.exists(cfg_file):
         errors.append(f"sumo.config_file not found: {cfg_file}")
@@ -146,7 +179,14 @@ def validate_config(config: dict):
 # Single simulation run
 # ---------------------------------------------------------------------------
 
-def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str]:
+
+def run_once(
+    config: dict,
+    run_seed: int,
+    output_folder: str,
+    traci_port: int | None = None,
+    traci_label: str | None = None,
+) -> tuple[dict, str]:
     """
     Execute one complete simulation run.
 
@@ -154,13 +194,15 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
         config:        Full config dict (sumo / risk / accident / output).
         run_seed:      Random seed for this run.
         output_folder: Directory to write all results into.
+        traci_port:    Optional TCP port for TraCI (for parallel execution).
+        traci_label:   Optional TraCI connection label (for parallel execution).
 
     Returns:
         (summary dict, sumo_version string)
     """
-    sumo_cfg        = config["sumo"]
-    total_steps     = sumo_cfg["total_steps"]
-    step_length     = sumo_cfg.get("step_length", 5)
+    sumo_cfg = config["sumo"]
+    total_steps = sumo_cfg["total_steps"]
+    step_length = sumo_cfg.get("step_length", 5)
     neighbor_radius = config["risk"].get("neighbor_radius_m", 150.0)
 
     random.seed(run_seed)
@@ -168,40 +210,58 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
     # Inject the per-run output folder into a shallow copy of config
     run_config = {**config, "output": {**config["output"], "output_folder": output_folder}}
 
-    risk_model       = RiskModel(config["risk"])
+    risk_model = RiskModel(config["risk"])
     accident_manager = AccidentManager(config["accident"])
-    metrics          = MetricsCollector(run_config, run_config["output"])
+    metrics = MetricsCollector(run_config, run_config["output"])
 
     # Variables to subscribe on every departing vehicle
     # (fetched in bulk via getAllSubscriptionResults each step)
+    # Note: VAR_MAXSPEED (vehicle mechanical max) is intentionally omitted —
+    # speed risk is now normalised against the road's posted limit, which is
+    # fetched once per unique edge via _get_road_speed_limit_cached().
     _VEHICLE_VARS = [
-        _tc.VAR_SPEED,        # current speed  (m/s)
-        _tc.VAR_MAXSPEED,     # vehicle max speed (m/s)
-        _tc.VAR_ROAD_ID,      # edge ID the vehicle is on
-        _tc.VAR_POSITION,     # (x, y) Cartesian position
-        _tc.VAR_LANE_ID,      # lane ID
-        _tc.VAR_LANEPOSITION, # position along the lane (m)
+        _tc.VAR_SPEED,  # current speed  (m/s)
+        _tc.VAR_ROAD_ID,  # edge ID the vehicle is on
+        _tc.VAR_POSITION,  # (x, y) Cartesian position
+        _tc.VAR_LANE_ID,  # lane ID
+        _tc.VAR_LANEPOSITION,  # position along the lane (m)
     ]
 
     # ── Start SUMO ──────────────────────────────────────────────────────
     sumo_cmd = [
         sumo_cfg.get("binary", "sumo"),
-        "-c",                     sumo_cfg["config_file"],
-        "--seed",                 str(run_seed),
-        "--step-length",          str(step_length),
-        "--no-warnings",          "true",
-        "--collision.action",     "none",
-        "--ignore-route-errors",  "true",
-        "--no-step-log",          "true",
-        "--duration-log.disable", "true",
+        "-c",
+        sumo_cfg["config_file"],
+        "--seed",
+        str(run_seed),
+        "--step-length",
+        str(step_length),
+        "--no-warnings",
+        "true",
+        "--collision.action",
+        "none",
+        "--ignore-route-errors",
+        "true",
+        "--no-step-log",
+        "true",
+        "--duration-log.disable",
+        "true",
     ]
     logger.info("Starting SUMO: %s", " ".join(sumo_cmd))
-    traci.start(sumo_cmd)
+    start_kwargs: dict = {}
+    if traci_port is not None:
+        start_kwargs["port"] = traci_port
+    if traci_label is not None:
+        start_kwargs["label"] = traci_label
+    traci.start(sumo_cmd, **start_kwargs)
 
     sumo_version = traci.getVersion()[1]
     logger.info(
         "SUMO %s  |  seed=%d  |  total_steps=%d  |  step_length=%ds",
-        sumo_version, run_seed, total_steps, step_length,
+        sumo_version,
+        run_seed,
+        total_steps,
+        step_length,
     )
     logger.info("=" * 60)
     logger.info("  SAS — %d simulation seconds  (seed %d)", total_steps, run_seed)
@@ -250,15 +310,12 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
 
             # ── Risk evaluation & accident triggering ──────────────────────
             if accident_manager.can_trigger_accident():
-
                 # Build the set of vehicles already blocking a lane
                 accident_vehicle_ids = {
-                    acc.vehicle_id
-                    for acc in accident_manager.active_accidents.values()
+                    acc.vehicle_id for acc in accident_manager.active_accidents.values()
                 }
 
                 for vehicle_id, vdata in all_sub.items():
-
                     # Skip vehicles already involved in an active accident
                     if vehicle_id in accident_vehicle_ids:
                         continue
@@ -282,7 +339,7 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
                     ):
                         accident = accident_manager.trigger_accident(vehicle_id, step)
                         if accident:
-                            break   # one accident trigger per step
+                            break  # one accident trigger per step
 
             # ── Advance accident lifecycles ────────────────────────────────
             prev_active = set(accident_manager.active_accidents.keys())
@@ -291,8 +348,7 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
 
             for acc_id in prev_active - curr_active:
                 resolved = next(
-                    (a for a in accident_manager.resolved_accidents
-                     if a.accident_id == acc_id),
+                    (a for a in accident_manager.resolved_accidents if a.accident_id == acc_id),
                     None,
                 )
                 if resolved:
@@ -302,9 +358,7 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
             if step % metrics.metrics_interval == 0:
                 # Pass pre-fetched subscription data — record_step uses it
                 # instead of re-fetching speeds via individual TraCI calls.
-                metrics.record_step(
-                    step, len(accident_manager.active_accidents), all_sub
-                )
+                metrics.record_step(step, len(accident_manager.active_accidents), all_sub)
 
                 if step % 600 == 0:
                     logger.info(
@@ -327,7 +381,7 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
 
     # Build summary for metadata
     summary: dict = {
-        "steps_run":       step,
+        "steps_run": step,
         "total_accidents": accident_manager._accident_counter,
     }
     ai_file = os.path.join(output_folder, "antifragility_index.json")
@@ -335,10 +389,10 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
         with open(ai_file) as f:
             ai_data = json.load(f)
         summary["antifragility_index"] = ai_data.get("antifragility_index")
-        summary["interpretation"]      = ai_data.get("interpretation", "")
-        summary["n_events_measured"]   = ai_data.get("n_events_measured", 0)
-        summary["ci_95_low"]           = ai_data.get("ci_95_low")
-        summary["ci_95_high"]          = ai_data.get("ci_95_high")
+        summary["interpretation"] = ai_data.get("interpretation", "")
+        summary["n_events_measured"] = ai_data.get("n_events_measured", 0)
+        summary["ci_95_low"] = ai_data.get("ci_95_low")
+        summary["ci_95_high"] = ai_data.get("ci_95_high")
 
     logger.info(
         "Run complete — %d steps, %d accidents, AI=%s",
@@ -346,12 +400,40 @@ def run_once(config: dict, run_seed: int, output_folder: str) -> tuple[dict, str
         accident_manager._accident_counter,
         summary.get("antifragility_index", "N/A"),
     )
+
+    # ── Generate visualizations ───────────────────────────────────────────
+    if config["output"].get("save_accident_heatmap", False):
+        try:
+            from visualize import (
+                generate_html_report,
+                plot_accident_heatmap,
+                plot_before_after_speeds,
+                plot_network_metrics,
+                plot_severity_distribution,
+            )
+
+            metrics_csv = os.path.join(output_folder, "network_metrics.csv")
+            accidents_json = os.path.join(output_folder, "accident_reports.json")
+
+            plot_network_metrics(metrics_csv, output_folder, run_id=str(run_seed))
+            plot_severity_distribution(accidents_json, output_folder, run_id=str(run_seed))
+            plot_before_after_speeds(
+                accidents_json, metrics_csv, output_folder, run_id=str(run_seed)
+            )
+            plot_accident_heatmap(accidents_json, output_folder, run_id=str(run_seed))
+            generate_html_report(output_folder, run_id=str(run_seed), config=config)
+
+            logger.info("Visualizations generated → %s/", output_folder)
+        except Exception as exc:
+            logger.warning("Failed to generate visualizations: %s", exc)
+
     return summary, sumo_version
 
 
 # ---------------------------------------------------------------------------
 # Metadata export
 # ---------------------------------------------------------------------------
+
 
 def write_metadata(
     output_folder: str,
@@ -361,15 +443,15 @@ def write_metadata(
     sumo_version: str,
 ):
     """Write a metadata.json alongside every run's results."""
-    ts = datetime.datetime.utcnow()
+    ts = datetime.datetime.now(datetime.timezone.utc)
     metadata = {
-        "run_id":         f"run_{run_seed:04d}_{ts.strftime('%Y%m%d_%H%M%S')}",
-        "timestamp_utc":  ts.isoformat() + "Z",
-        "seed":           run_seed,
-        "sumo_version":   sumo_version,
+        "run_id": f"run_{run_seed:04d}_{ts.strftime('%Y%m%d_%H%M%S')}",
+        "timestamp_utc": ts.isoformat(),
+        "seed": run_seed,
+        "sumo_version": sumo_version,
         "python_version": platform.python_version(),
-        "config":         config,
-        "summary":        summary,
+        "config": config,
+        "summary": summary,
     }
     path = os.path.join(output_folder, "metadata.json")
     with open(path, "w") as f:
@@ -381,30 +463,32 @@ def write_metadata(
 # Multi-run aggregation
 # ---------------------------------------------------------------------------
 
-def aggregate_runs(run_summaries: list[dict]) -> dict:
+
+def aggregate_runs(run_summaries: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Compute aggregate statistics (mean, std, 95% CI) over N simulation runs.
 
     Returns a dict suitable for serialising to aggregate_summary.json.
     """
-    ai_values  = [r["antifragility_index"] for r in run_summaries
-                  if r.get("antifragility_index") is not None]
+    ai_values = [
+        r["antifragility_index"] for r in run_summaries if r.get("antifragility_index") is not None
+    ]
     acc_counts = [r["total_accidents"] for r in run_summaries]
 
     agg: dict = {
-        "n_runs":        len(run_summaries),
+        "n_runs": len(run_summaries),
         "accident_mean": round(statistics.mean(acc_counts), 2),
-        "accident_std":  round(statistics.stdev(acc_counts), 2) if len(acc_counts) > 1 else None,
+        "accident_std": round(statistics.stdev(acc_counts), 2) if len(acc_counts) > 1 else None,
     }
 
     if ai_values:
         agg["ai_mean"] = round(statistics.mean(ai_values), 4)
         if len(ai_values) >= 2:
-            std    = statistics.stdev(ai_values)
-            n      = len(ai_values)
+            std = statistics.stdev(ai_values)
+            n = len(ai_values)
             margin = _t_critical(n) * std / math.sqrt(n)
-            agg["ai_std"]        = round(std, 4)
-            agg["ai_ci_95_low"]  = round(agg["ai_mean"] - margin, 4)
+            agg["ai_std"] = round(std, 4)
+            agg["ai_ci_95_low"] = round(agg["ai_mean"] - margin, 4)
             agg["ai_ci_95_high"] = round(agg["ai_mean"] + margin, 4)
         else:
             agg["note"] = "CI requires ≥2 runs with valid AI values."
@@ -416,38 +500,144 @@ def aggregate_runs(run_summaries: list[dict]) -> dict:
 # Main
 # ---------------------------------------------------------------------------
 
-def main():
+# ---------------------------------------------------------------------------
+# Output folder naming
+# ---------------------------------------------------------------------------
+
+
+def _generate_output_folder_name(
+    base_path: str,
+    network_name_from_config: str,
+    run_number: int = 1,
+    is_batch: bool = False,
+) -> str:
+    """
+    Generate a coherent output folder name with network name, run number, and timestamp.
+
+    Args:
+        base_path: Base output directory (from config.yaml)
+        network_name_from_config: Path to network config file, e.g., '/path/to/thessaloniki.sumocfg'
+        run_number: Run number (1, 2, 3, ...) for single-run naming
+        is_batch: If True, generate batch folder name instead
+
+    Returns:
+        Full path to output folder
+    """
+    # Extract network name from config path
+    config_filename = os.path.basename(network_name_from_config)
+    network_name = os.path.splitext(config_filename)[0].capitalize()
+
+    # Generate timestamp
+    now = datetime.datetime.now(datetime.timezone.utc)
+    timestamp = now.strftime("%Y-%m-%d_%H:%M")
+
+    # Generate folder name
+    if is_batch:
+        folder_name = f"{network_name}_Batch_{timestamp}"
+    else:
+        folder_name = f"{network_name}_Run{run_number}_{timestamp}"
+
+    return os.path.join(base_path, folder_name)
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(
-        description="SUMO Accident Simulation (SAS) — probabilistic accident modelling"
+        prog="runner.py",
+        description=(
+            "SAS — SUMO Accident Simulation\n"
+            "Probabilistic traffic accident simulator with Antifragility Index measurement.\n"
+            "\n"
+            "Triggers accidents stochastically based on vehicle speed, speed variance,\n"
+            "and road density (Nilsson Power Model). Measures how the network recovers\n"
+            "using the Antifragility Index (AI > 0 = improved, AI ≈ 0 = resilient,\n"
+            "AI < 0 = degraded)."
+        ),
+        epilog=(
+            "examples:\n"
+            "  python runner.py                              # single run, default config\n"
+            "  python runner.py --runs 10                   # 10 runs, aggregate statistics\n"
+            "  python runner.py --config experiments/high_risk.yaml --runs 5\n"
+            "  python runner.py --log-level DEBUG           # verbose output\n"
+            "\n"
+            "output files (written to output_folder in config.yaml):\n"
+            "  network_metrics.csv        step-by-step speed, throughput, accidents\n"
+            "  accident_reports.json      per-accident impact (queue length, duration)\n"
+            "  antifragility_index.json   AI score + 95%% confidence interval\n"
+            "  metadata.json              full config + summary for reproducibility\n"
+            "\n"
+            "config:\n"
+            "  Edit config.yaml to change the network, accident rate, severity\n"
+            "  distribution, and output settings. Every parameter is documented inline.\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--config", default="config.yaml",
-        help="Path to YAML config file (default: config.yaml)",
+        "--config",
+        default="config.yaml",
+        metavar="FILE",
+        help=("path to YAML configuration file (default: config.yaml in the current directory)"),
     )
     parser.add_argument(
-        "--runs", type=int, default=1,
-        help="Number of independent runs with consecutive seeds (default: 1)",
+        "--runs",
+        type=int,
+        default=1,
+        metavar="N",
+        help=(
+            "number of independent simulation runs to execute, each with a "
+            "different random seed (seed, seed+1, …, seed+N-1). "
+            "Results are aggregated into aggregate/aggregate_summary.json. "
+            "(default: 1)"
+        ),
     )
     parser.add_argument(
-        "--log-level", default="INFO",
+        "--log-level",
+        default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help="Logging verbosity (default: INFO)",
+        help=(
+            "logging verbosity: DEBUG shows every risk score and TraCI call; "
+            "INFO shows step summaries and accident events; "
+            "WARNING shows only errors; "
+            "(default: INFO)"
+        ),
     )
     args = parser.parse_args()
 
-    config      = load_config(args.config)
-    base_output = config["output"]["output_folder"]
-    base_seed   = config["sumo"].get("seed", 42)
+    config = load_config(args.config)
+    base_output_path = config["output"]["output_folder"]  # base directory
+    base_seed = config["sumo"].get("seed", 42)
 
-    setup_logging(base_output, level=getattr(logging, args.log_level))
+    # Generate output folder name with timestamp and run/batch info
+    if args.runs == 1:
+        # Single run: Network_Run1_YYYY-MM-DD_HH:MM
+        output_folder = _generate_output_folder_name(
+            base_output_path,
+            config["sumo"]["config_file"],
+            run_number=1,
+            is_batch=False,
+        )
+    else:
+        # Multi-run batch: Network_Batch_YYYY-MM-DD_HH:MM
+        output_folder = _generate_output_folder_name(
+            base_output_path,
+            config["sumo"]["config_file"],
+            run_number=1,  # not used for batch
+            is_batch=True,
+        )
+
+    setup_logging(output_folder, level=getattr(logging, args.log_level))
     logger.info("Config: %s", os.path.abspath(args.config))
 
     validate_config(config)
 
     # ── Single run ────────────────────────────────────────────────────────
     if args.runs == 1:
-        summary, sumo_version = run_once(config, base_seed, base_output)
-        write_metadata(base_output, config, base_seed, summary, sumo_version)
+        summary, sumo_version = run_once(config, base_seed, output_folder)
+        write_metadata(output_folder, config, base_seed, summary, sumo_version)
         logger.info(
             "\n  Antifragility Index : %s\n"
             "  95%% CI             : [%s, %s]\n"
@@ -462,14 +652,16 @@ def main():
     # ── Multi-run batch ───────────────────────────────────────────────────
     logger.info(
         "Starting %d-run batch (seeds %d … %d)",
-        args.runs, base_seed, base_seed + args.runs - 1,
+        args.runs,
+        base_seed,
+        base_seed + args.runs - 1,
     )
     all_summaries = []
-    sumo_version  = "unknown"
+    sumo_version = "unknown"
 
     for i in range(args.runs):
-        seed       = base_seed + i
-        run_folder = os.path.join(base_output, f"run_{seed:04d}")
+        seed = base_seed + i
+        run_folder = os.path.join(output_folder, f"run_{seed:04d}")
         logger.info("── Run %d / %d  (seed %d) ──", i + 1, args.runs, seed)
 
         summary, sumo_version = run_once(config, seed, run_folder)
@@ -477,8 +669,8 @@ def main():
         all_summaries.append(summary)
 
     # Aggregate and save
-    agg        = aggregate_runs(all_summaries)
-    agg_folder = os.path.join(base_output, "aggregate")
+    agg = aggregate_runs(all_summaries)
+    agg_folder = os.path.join(output_folder, "aggregate")
     os.makedirs(agg_folder, exist_ok=True)
 
     agg_path = os.path.join(agg_folder, "aggregate_summary.json")
@@ -490,13 +682,26 @@ def main():
         "  Accidents        : %.1f ± %.1f\n"
         "  AI mean          : %s  (95%%CI [%s, %s])\n"
         "  Aggregate report : %s\n%s",
-        "=" * 60, args.runs,
-        agg.get("accident_mean", 0), agg.get("accident_std") or 0,
+        "=" * 60,
+        args.runs,
+        agg.get("accident_mean", 0),
+        agg.get("accident_std") or 0,
         agg.get("ai_mean", "N/A"),
-        agg.get("ai_ci_95_low", "—"), agg.get("ai_ci_95_high", "—"),
+        agg.get("ai_ci_95_low", "—"),
+        agg.get("ai_ci_95_high", "—"),
         agg_path,
         "=" * 60,
     )
+
+    # ── Generate batch-level visualizations ─────────────────────────────────
+    if config["output"].get("save_accident_heatmap", False):
+        try:
+            from visualize import visualize_batch_results
+
+            visualize_batch_results(output_folder, all_summaries)
+            logger.info("Batch visualization saved → %s/batch_ai_distribution.png", output_folder)
+        except Exception as exc:
+            logger.warning("Failed to generate batch visualization: %s", exc)
 
 
 if __name__ == "__main__":

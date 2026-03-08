@@ -1,69 +1,90 @@
 # SUMO Accident Simulation — Antifragility Research Branch
 
-> **Branch:** `antifragility` — research study built on top of the core simulator
-> **Core simulator (`main`):** accident simulator + Antifragility Index output;
-> see its [README](../../tree/main) for the standalone tool documentation
->
-> **Author:** Theocharis Vlachopanagiotis — [Rhoé](https://www.rhoe.fr) / AntifragiCity Project
+[![CI](https://github.com/tvlahopanagiotis/sumo-accident-simulation/actions/workflows/ci.yml/badge.svg)](https://github.com/tvlahopanagiotis/sumo-accident-simulation/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-**What this branch adds over `main`:**
-`experiment_sweep.py` + `visualise_sweep.py` + `visualise_batch.py` — tools to
-run hundreds of simulations across a traffic-load × accident-probability parameter
-grid and produce publication-ready figures from the results.
+A scientifically-calibrated, probabilistic traffic accident simulator built on top of
+[SUMO (Eclipse Simulation of Urban MObility)](https://sumo.dlr.de/).
 
-The `main` branch computes an Antifragility Index for any single run as a standard
-output metric. This branch answers the deeper question: *how does that index change
-as load and accident frequency vary, and where is the network failure boundary?*
+SUMO is a powerful open-source traffic simulator, but it has no native concept of
+accidents — vehicles are designed to avoid collisions. **SAS adds the missing layer:**
+a multi-component risk model triggers accidents probabilistically, manages their full
+lifecycle (blockage → emergency response → clearance → full recovery), and measures
+how the network responds, including computing an **Antifragility Index** that
+quantifies whether the network adapts and improves after repeated disruptions.
 
-This research is conducted at **Rhoé** as part of the **AntifragiCity Project**,
-which is building a full urban-mobility resilience framework: disruption ontology →
-mobility triage → long-term resilience recommendations → one-click SUMO assessment API.
+> **Two branches, one codebase**
+> - `main` — standalone accident simulator; production code only (this README)
+> - `antifragility` — adds `experiment_sweep.py` + three visualisation scripts for
+>   systematically studying how the AI changes across hundreds of parameter
+>   combinations; see its own README for details
 
 ---
 
-## What Is Antifragility in Traffic?
+## Context: AntifragiCity Project
 
-A **fragile** network degrades under accidents and takes a long time to recover.
-A **resilient** network recovers to its baseline.
-An **antifragile** network exploits disruptions — drivers learn faster routes,
-platoons dissolve, natural filtering of over-loaded corridors occurs — and ends
-up performing *better* after the disruption than before it.
+SAS is the **scenario-testing and measurement engine** for the
+[AntifragiCity](https://antifragicity.eu)
+project, which aims to:
+
+1. Build an **ontology** of endemic and black-swan disruptions and their effects on
+   urban mobility (accidents, weather events, demand surges, infrastructure failures, …)
+2. Define **mobility triage** — a suite of short-term interventions that minimise
+   the immediate impact of each disruption type
+3. Propose **long-term solutions** that increase network resilience and, where
+   possible, introduce antifragility
+4. Deliver all of the above as a **SUMO API / Python package** with one-click
+   resilience assessment, weak-point identification, and scenario testing
+
+SAS currently covers goal 4 for one disruption type (traffic accidents). The
+**Antifragility Index** computed at the end of each run is a standard output
+metric — it answers *"how did this network respond to the disruptions in this
+run?"* The `antifragility` branch adds the research tooling to study that
+question systematically across a load × accident-probability parameter grid.
+
+---
+
+## Key Features
+
+| Feature | Detail |
+|---------|--------|
+| **Four severity tiers** | MINOR / MODERATE / MAJOR / CRITICAL, weighted from NHTSA KABCO injury-classification data (62 / 28 / 8 / 2 %) |
+| **Nilsson Power Model** | Speed risk ∝ (v / v_road_limit)^k — uses the road's posted speed limit, not the vehicle's mechanical maximum |
+| **Speed-variance risk** | Captures rear-end risk from differential braking events |
+| **Density risk** | Bell-curve model peaking at configurable jam-density fraction |
+| **Road-type multipliers** | Highway, arterial, local, intersection — derived from SUMO speed limits |
+| **Three-phase lifecycle** | ACTIVE → CLEARING (linear capacity ramp) → RESOLVED |
+| **Antifragility Index** | Pre/post-disruption speed ratio, computed per event with bootstrapped 95 % CI |
+| **Batch runs** | `--runs N` launches N independent seeds; aggregate statistics exported automatically |
+| **Zero hot-loop TraCI calls** | BatchSubscription architecture: 2 TraCI calls/step vs ~15 000 before optimisation |
 
 We measure this with the **Antifragility Index (AI)**:
 
 ```
-AI = (mean_speed_post_accident − mean_speed_pre_accident) / mean_speed_pre_accident
-```
-
-Computed per accident event (over configurable pre/post windows) and averaged
-with a 95 % bootstrapped confidence interval across all events in a run:
-
-| AI | Regime |
-|----|--------|
-| > +0.05 | **Antifragile** — performance improved post-disruption |
-| −0.05 to +0.05 | **Resilient** — returned to baseline |
-| −0.20 to −0.05 | **Fragile** — lingering degradation |
-| < −0.20 | **Brittle** — severe, lasting damage |
-
----
-
-## Repository Structure
-
-```
-.
-├── runner.py               Core simulation loop (from main)
-├── risk_model.py           Probabilistic risk model (from main)
-├── accident_manager.py     Accident lifecycle manager (from main)
-├── metrics.py              Scientific output collector (from main)
-├── config.yaml             Simulation configuration
-│
-├── experiment_sweep.py     ← Parameter sweep across traffic load × accident prob
-├── visualise_sweep.py      ← Academic-style figures from sweep results
-├── visualise_batch.py      ← Multi-run aggregate dashboards
-│
-└── results/                Output (generated, not committed)
-    ├── sweep_results.csv   Sweep grid output (period × prob × seed)
-    └── run_*/              Per-run output folders
+config.yaml                ← single control file; every parameter documented inline
+     │
+     ▼
+runner.py                  ← orchestrates the simulation loop
+     │
+     ├── risk_model.py     ← probabilistic risk calculator (per vehicle, per step)
+     │       ├── 1. Speed risk        Nilsson Power Model: (v/v_limit)^k
+     │       ├── 2. Speed-variance    differential braking proxy
+     │       ├── 3. Density risk      Gaussian bell curve around peak density
+     │       └── 4. Road-type mult.   highway / arterial / local / intersection
+     │
+     ├── accident_manager.py  ← accident lifecycle
+     │       ├── Severity sampling    weighted draw: MINOR 62% MODERATE 28%
+     │       │                        MAJOR 8%  CRITICAL 2%
+     │       ├── ACTIVE phase         vehicle frozen, lane speed reduced
+     │       ├── CLEARING phase       linear speed ramp after response time
+     │       └── RESOLVED phase       full lane recovery, vehicle released
+     │
+     └── metrics.py        ← scientific output
+             ├── network_metrics.csv        step-by-step network state
+             ├── vehicle_snapshots.csv      per-vehicle speed/position records
+             ├── accident_reports.json      per-accident impact summary
+             └── antifragility_index.json   AI with 95 % CI
 ```
 
 ---
@@ -82,216 +103,388 @@ brew install sumo
 sudo apt-get install sumo sumo-tools sumo-doc
 ```
 
-**Windows:** https://sumo.dlr.de/docs/Downloads.php
+**Windows:** download the installer from https://sumo.dlr.de/docs/Downloads.php
+
+Verify:
+```bash
+sumo --version
+```
 
 ### 2 — Set SUMO_HOME
 
+**macOS / Linux** — add to `~/.bashrc` or `~/.zshrc`:
 ```bash
-# Add to ~/.bashrc or ~/.zshrc
 export SUMO_HOME="/opt/homebrew/share/sumo"   # macOS Homebrew
 # export SUMO_HOME="/usr/share/sumo"          # Linux
 export PYTHONPATH="$SUMO_HOME/tools:$PYTHONPATH"
 source ~/.bashrc
 ```
+Then `source ~/.bashrc`.
+
+**Windows** — add to System Environment Variables:
+```
+SUMO_HOME = C:\Program Files (x86)\Eclipse\Sumo
+PYTHONPATH = %SUMO_HOME%\tools
+```
 
 ### 3 — Python dependencies
 
 ```bash
-pip install pyyaml matplotlib numpy
+# Install all dependencies (from pyproject.toml)
+pip install .
+
+# Or for development (includes pytest, mypy, ruff)
+pip install -e ".[dev]"
 ```
+
+> **Note:** `traci` ships with SUMO — no separate pip install needed once `PYTHONPATH` is set.
 
 ---
 
-## Running the Core Simulation
+## Quick Start
 
-### Single run
+> **Prerequisites:** complete the [Installation](#installation) steps first
+> (install SUMO, set `SUMO_HOME`).
+
+```bash
+git clone https://github.com/tvlahopanagiotis/sumo-accident-simulation.git
+cd sumo-accident-simulation
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
+### Single run (uses seed from config.yaml)
 ```bash
 python runner.py
 ```
 
-### Batch of independent runs (seeds base_seed … base_seed + N − 1)
+### Multiple independent runs (different seeds, results aggregated)
 ```bash
 python runner.py --runs 10
 ```
 
-### Custom config
+### Custom config file
 ```bash
-python runner.py --config experiments/high_load.yaml --runs 5
+python runner.py --config config_thessaloniki_postmetro_50kph.yaml
 ```
 
-Point `config.yaml → sumo.config_file` at your `.sumocfg` before running.
+### Visual run (opens SUMO GUI)
+In `config.yaml` set `sumo.binary: sumo-gui`, then run as normal.
 
 ---
 
-## The Parameter Sweep Experiment
+## Repository Layout (Simple Mental Model)
 
-`experiment_sweep.py` runs a full factorial grid across two key dimensions:
+- Root Python files (`runner.py`, `risk_model.py`, etc.): simulation engine code.
+- `config.yaml`: default simulation configuration.
+- `thessaloniki_network_postmetro_50kph/`: Thessaloniki network variant for new runs.
+- `thessaloniki_govgr/`: downloaded govgr data and generated targets.
+- `results/`: simulation outputs.
+- `.worktrees/`: separate checkouts for separate branches (hidden in Finder).
 
-| Axis | Values (default) | Meaning |
-|------|-----------------|---------|
-| **Vehicle insertion period (s)** | 5.0, 3.0, 2.0, 1.5, 1.0, 0.75, 0.5 | Controls traffic load (demand) |
-| **Accident base probability** | 0, 5e-5, 1.5e-4, 5e-4, 1e-3 | Controls accident frequency |
-| **Seeds per cell** | 2 | For variance estimation |
+If Finder looks inconsistent, read `docs/WORKTREES.md`.
 
-Total grid: 7 × 5 × 2 = **70 simulation runs**.
+---
 
-### Converting insertion period to demand
+## Bundled Networks
 
-```
-vehicles_per_hour  ≈  3600 / period_s
-```
+Three network generators ship with SAS. Each downloads or builds the required
+SUMO files and can auto-patch `config.yaml` so `runner.py` is ready to go
+immediately:
 
-| Period (s) | Load (veh/h) | Regime |
-|------------|-------------|--------|
-| 5.0 | 720 | Light |
-| 3.0 | 1200 | Moderate |
-| 2.0 | 1800 | Heavy |
-| 1.5 | 2400 | Near-capacity |
-| 1.0 | 3600 | At-capacity |
-| 0.75 | 4800 | Over-capacity |
-| 0.5 | 7200 | Severe overload |
+| Script | Network | Scale | Simultaneous vehicles |
+|--------|---------|-------|-----------------------|
+| `generate_thessaloniki.py` | Thessaloniki city centre (real OSM) | Urban, ~7 km² | ~300–500 |
+| `generate_sioux_falls.py` | Sioux Falls benchmark (synthetic) | 24-node grid | ~150 |
+| `generate_network.py` | Riverside District (synthetic) | Small urban | ~80 |
 
-### Running the sweep
+### Thessaloniki — real city, recommended for full-city runs
+
+Downloads OSM data from OpenStreetMap, converts it with SUMO's `netconvert`,
+and generates randomised vehicle routes:
 
 ```bash
-python experiment_sweep.py
+python generate_thessaloniki.py --update-config
+python runner.py
 ```
 
-Results are written row-by-row to `sweep_results.csv` as each cell completes,
-so the sweep is safely resumable after interruption.
+`--update-config` patches `config.yaml` automatically. Add `--gui` to also
+open SUMO's graphical interface while the simulation runs.
 
-**Optional arguments:**
 ```bash
-python experiment_sweep.py \
-    --periods 5.0 3.0 2.0 1.5 1.0 \
-    --probs   0 5e-5 1.5e-4 5e-4 \
-    --seeds   3 \
-    --out     my_sweep.csv
+# all options
+python generate_thessaloniki.py --help
+
+# re-run without re-downloading the OSM file
+python generate_thessaloniki.py --update-config --skip-download
+
+# denser traffic (lower period → more vehicles inserted per second)
+python generate_thessaloniki.py --update-config --period 0.5
 ```
 
-### Sweep output schema (`sweep_results.csv`)
+### Sioux Falls — classic benchmark
+
+Classic 24-node transport benchmark. Useful for reproducing published results
+and quick experiments (~30 s to generate):
+
+```bash
+python generate_sioux_falls.py --update-config
+python runner.py
+```
+
+### Riverside District — small synthetic network
+
+Fastest to generate; ideal for development and testing the pipeline end-to-end:
+
+```bash
+python generate_network.py --update-config
+python runner.py
+```
+
+---
+
+## Configuration
+
+`config.yaml` is the single control point. Every parameter is documented inline.
+The most important settings for a new user:
+
+```yaml
+sumo:
+  config_file: /path/to/your/network.sumocfg   # ← only mandatory change
+  total_steps: 7200    # simulated seconds (7200 = 2 hours)
+  seed: 42
+
+risk:
+  # Global accident-rate scaler. Scales with simultaneous vehicle count.
+  # See the calibration table below for per-network recommendations.
+  # Rough targets for ~150 simultaneous vehicles (Sioux Falls baseline):
+  #   ~2  accidents / 2 h → 5.0e-05
+  #   ~5  accidents / 2 h → 1.5e-04   ← Sioux Falls default
+  #   ~15 accidents / 2 h → 5.0e-04
+  base_probability: 1.5e-04
+
+  # Nilsson Power Model exponent:
+  #   2.0 = property-damage-only  ← default
+  #   3.0 = injury crashes
+  #   4.0 = fatal crashes
+  speed_exponent: 2.0
+
+accident:
+  max_concurrent_accidents: 2
+
+  severity:
+    minor:      { weight: 62, duration_min_s: 120,  duration_max_s: 900,   lane_capacity_fraction: 0.70, ... }
+    moderate:   { weight: 28, duration_min_s: 900,  duration_max_s: 2700,  lane_capacity_fraction: 0.40, ... }
+    major:      { weight:  8, duration_min_s: 2700, duration_max_s: 7200,  lane_capacity_fraction: 0.10, ... }
+    critical:   { weight:  2, duration_min_s: 3600, duration_max_s: 18000, lane_capacity_fraction: 0.00, ... }
+```
+
+See `config.yaml` for the full parameter reference with inline explanations.
+
+### Calibrating `base_probability` for your network
+
+`base_probability` is the most important tuning knob. It scales with the
+**number of simultaneous vehicles**, not the total trip count. Use these
+tested values as a starting point for a target of ~5 accidents per 2-hour run:
+
+| Network | Simultaneous vehicles | Recommended `base_probability` |
+|---------|-----------------------|-------------------------------|
+| Riverside District | ~80 | `2.0e-04` |
+| Sioux Falls | ~150 | `1.5e-04` |
+| Thessaloniki city centre | ~500 | `5.0e-05` |
+| Large city (~2 000 vehicles) | ~2 000 | `1.5e-05` |
+
+**Rule of thumb:** if you double the simultaneous vehicle count, halve
+`base_probability`. Run with `--log-level INFO`, watch the accident count in
+the terminal, and adjust until you see your target rate.
+
+---
+
+## Output Files
+
+All output is written to `results/` (configurable via `output.output_folder`).
+
+### `network_metrics.csv`
+
+Step-by-step network state:
 
 | Column | Meaning |
 |--------|---------|
-| `period` | Vehicle insertion period (s) |
-| `prob` | Accident base probability |
-| `seed` | Random seed used |
-| `n_accidents` | Total accidents triggered |
-| `mean_speed_kmh` | Mean network speed (km/h) |
-| `mean_speed_ratio` | Speed relative to free-flow baseline |
-| `ai` | Antifragility Index (mean across events) |
-| `ci_low`, `ci_high` | 95 % confidence interval on AI |
-| `n_events_measured` | Number of events used for AI |
+| `step` | Simulation time (seconds) |
+| `mean_speed_ms` | Mean vehicle speed (m/s) |
+| `mean_speed_kmh` | Mean vehicle speed (km/h) |
+| `throughput_per_hour` | Vehicles completing trips per hour |
+| `mean_delay_seconds` | Delay vs free-flow baseline |
+| `active_accidents` | Number of accidents currently active |
+| `speed_ratio` | 1.0 = free-flow; < 1.0 = degraded |
+
+### `accident_reports.json`
+
+One entry per accident, e.g.:
+```json
+{
+  "accident_id": "ACC_0003",
+  "severity": "MODERATE",
+  "trigger_step": 1820,
+  "resolved_step": 3240,
+  "duration_s": 1420,
+  "lane_capacity_fraction": 0.40,
+  "location": { "edge_id": "21", "lane_id": "21_0", "x": 1842.3, "y": 967.1 },
+  "impact": { "peak_queue_length": 18, "vehicles_affected_count": 31 }
+}
+```
+
+### `antifragility_index.json`
+
+```json
+{
+  "antifragility_index": 0.041,
+  "interpretation": "ANTIFRAGILE — network performance improved post-disruption",
+  "ci_95_low": 0.012,
+  "ci_95_high": 0.070,
+  "n_events_measured": 6
+}
+```
+
+| AI value | Interpretation |
+|----------|---------------|
+| > +0.05 | **Antifragile** — network adapted and improved after disruptions |
+| −0.05 to +0.05 | **Resilient** — returned to baseline |
+| −0.20 to −0.05 | **Fragile** — lingering degradation |
+| < −0.20 | **Brittle** — severe lasting damage |
+
+### `metadata.json`
+
+Machine-readable record of every config parameter and summary statistic, suitable
+for reproducibility auditing and experiment tracking.
 
 ---
 
-## Visualising Results
+## The Risk Model
 
-### Sweep figures (four panels)
+### Composite risk score
+
+```
+risk_score  =  speed_weight      × speed_risk
+            +  variance_weight   × variance_risk
+            +  density_weight    × density_risk
+
+final_risk  =  clamp(risk_score × road_type_multiplier, 0, 1)
+```
+
+Default weights sum to 1.0 (0.40 + 0.30 + 0.30).
+
+### 1. Speed risk — Nilsson Power Model
+
+Risk scales as a power law of the speed ratio relative to the **road posted speed
+limit** (not the vehicle's mechanical maximum):
+
+```
+speed_risk = (v / v_road_limit) ^ speed_exponent
+```
+
+This implements Nilsson (1981), confirmed by Elvik (2009):
+
+| Exponent | Crash type |
+|----------|-----------|
+| 2.0 | Property-damage-only (default) |
+| 3.0 | Injury crashes |
+| 4.0 | Fatal crashes |
+
+Using the road speed limit (fetched once per unique edge via TraCI and cached)
+means that a vehicle doing 50 km/h on a 50 km/h road scores the same regardless
+of whether it is a bus (max 80) or a sports car (max 250).
+
+### 2. Speed-variance risk
+
+```
+variance_risk = |v_ego − mean(v_neighbours)| / speed_variance_threshold
+```
+
+Captures rear-end collision risk from differential braking. Saturates to 1.0 at
+`speed_variance_threshold_ms` (default 5 m/s ≈ 18 km/h differential).
+Neighbours are collected within `neighbor_radius_m` (default 150 m).
+
+### 3. Density risk
+
+Bell-curve shaped, peaking at `peak_density_vehicles_per_km`:
+
+```
+density_risk = exp( −(density − peak_density)² / (2 σ²) )   where σ = peak_density × 0.5
+```
+
+Risk is highest at medium-high density — the most accident-prone regime.
+
+### 4. Road type multiplier
+
+Derived from the edge's speed limit (standard proxy for road functional class):
+
+| Speed limit | Road type | Default multiplier |
+|-------------|-----------|-------------------|
+| ≥ 90 km/h | Highway | 1.5 |
+| ≥ 50 km/h | Arterial | 1.0 (reference) |
+| < 50 km/h | Local | 0.6 |
+| Junction edge | Intersection | 2.0 |
+
+### Triggering
+
+An accident fires only if two conditions are both met:
+1. `final_risk > trigger_threshold` (default 0.35) — noise gate
+2. A random draw succeeds with probability
+   `base_probability × (1 + excess_risk × 10) × secondary_multiplier`
+
+The secondary multiplier is > 1.0 when the vehicle is within the secondary-risk
+radius of an existing active accident (rubbernecking / debris zone).
+
+---
+
+## The Severity Model
+
+Each accident is randomly assigned a severity tier at trigger time using
+`random.choices()` with the configured weights:
+
+| Tier | Weight | Freq. | Capacity remaining | Response time | Basis |
+|------|--------|-------|--------------------|--------------|-------|
+| MINOR | 62 | ≈ 62 % | 70 % | 5 min | PDO — Property Damage Only |
+| MODERATE | 28 | ≈ 28 % | 40 % | 10 min | Non-incapacitating injury |
+| MAJOR | 8 | ≈ 8 % | 10 % | 20 min | Incapacitating injury |
+| CRITICAL | 2 | ≈ 2 % | 0 % | 30 min | Fatal — forensic scene |
+
+Weights are calibrated to NHTSA Traffic Safety Facts 2022 (KABCO classification).
+
+Duration is drawn from a **log-normal distribution** clipped to each tier's
+`[duration_min_s, duration_max_s]` range, with the geometric mean as the
+log-normal mean and σ = 0.5. This gives a realistic right-skewed distribution —
+most incidents clear quickly, rare ones take far longer.
+
+After `response_time_s` seconds, the scene transitions to CLEARING and lane
+speed ramps back linearly to the original limit over the remaining duration.
+
+---
+
+## Reproducing Results
+
+Each run is seeded (`--seed` in config or `--runs N` increments from the base
+seed). `metadata.json` records the full config alongside the summary statistics,
+so any run can be exactly reproduced given the same SUMO version.
 
 ```bash
-python visualise_sweep.py sweep_results.csv
+# Re-run a specific seed
+python runner.py --config results/run_0047/metadata.json  # not yet implemented
+python runner.py                                           # use config.yaml seed
 ```
-
-Produces four publication-ready figures in the same directory as the CSV:
-
-| Figure | Content |
-|--------|---------|
-| `fig1_speed_vs_load.pdf` | Mean network speed vs traffic load, one curve per accident probability |
-| `fig2_ai_vs_load.pdf` | Antifragility Index vs load with ±1 SE shaded bands and 95 % CI bars |
-| `fig3_heatmaps.pdf` | 2-D heatmaps: speed and AI over the full (load × prob) grid |
-| `fig4_phase_diagram.pdf` | Phase diagram (antifragile / resilient / fragile / brittle zones) with baseline strip |
-
-All figures use the **Wong (2011) colourblind-safe palette** and IEEE/Nature
-style (white background, explicit markers, no glow, dashed grid).
-
-### Batch run dashboard (single probability, multiple seeds)
-
-```bash
-python visualise_batch.py results/
-```
-
-Produces aggregate speed, throughput, and AI time-series plots with shaded ±1 SD bands.
-
----
-
-## Key Findings — Sioux Falls Network
-
-The Sioux Falls benchmark network (24 nodes, 76 directed links) was used for all
-experiments (LeBlanc 1975; Bar-Gera 2009).
-
-### Network failure point
-
-| Traffic load | Mean speed | Speed ratio | Regime |
-|-------------|-----------|-------------|--------|
-| 720 veh/h (period 5 s) | ≈ 33.9 km/h | 1.00 | Free-flow baseline |
-| 1200 veh/h (period 3 s) | ≈ 32.1 km/h | 0.95 | Stable |
-| 1800 veh/h (period 2 s) | ≈ 29.4 km/h | 0.87 | Moderate congestion |
-| 2400 veh/h (period 1.5 s) | ≈ 27.0 km/h | 0.80 | High congestion |
-| 3600 veh/h (period 1.0 s) | ≈ 22.0 km/h | 0.65 | **Failure boundary** |
-
-The network crosses the **30 % degradation threshold** (speed ratio ≈ 0.70) at
-approximately 3 600 veh/h — consistent with the macroscopic fundamental diagram
-(MFD) capacity breakdown point for the Sioux Falls topology.
-
-### Antifragility regime
-
-- At **low to moderate load** (≤ 1 800 veh/h), the network exhibits **antifragile or
-  resilient** behaviour: AI > 0 for most accident probability levels, indicating that
-  disruptions prompt re-routing that reduces overall congestion.
-- At **near-capacity load** (≥ 2 400 veh/h), the network transitions to **fragile**:
-  re-routing options are exhausted, and accidents cause persistent degradation.
-- **Accident probability** has a secondary effect: AI decreases monotonically with
-  increasing base_probability at all load levels, consistent with a saturation model
-  where too-frequent disruptions prevent full recovery between events.
-
----
-
-## Theoretical Background
-
-### Antifragility (Taleb 2012)
-
-Taleb defines antifragility as the property of systems that benefit from volatility,
-stressors, or disorder. In traffic, this manifests as drivers finding better routes
-after an accident clears, or platoon dissolution reducing vehicle clustering.
-
-### Nilsson Power Model (1981)
-
-Speed risk in the accident triggering model follows:
-
-```
-accident_rate  ∝  (v / v_road_limit) ^ k
-```
-
-where `k = 2` for property-damage-only, `k = 3` for injury, and `k = 4` for fatal
-crashes. Confirmed empirically by Elvik (2009) across 98 datasets.
-
-### KABCO Severity Classification (NHTSA)
-
-Accident severity tiers are weighted from the NHTSA 2022 KABCO classification:
-
-| KABCO class | SAS tier | Weight |
-|-------------|----------|--------|
-| PDO (property damage only) | MINOR | 62 % |
-| C (possible injury) | MODERATE | 28 % |
-| A (incapacitating injury) | MAJOR | 8 % |
-| K (fatal) | CRITICAL | 2 % |
 
 ---
 
 ## References
 
-- Taleb, N.N. (2012). *Antifragile: Things That Gain from Disorder.* Random House.
 - Nilsson, G. (1981). *The Effects of Speed Limits on Traffic Accidents in Sweden.*
   VTI Rapport 68. Swedish Road and Traffic Research Institute.
 - Elvik, R. (2009). The Power Model of the Relationship Between Speed and Road
   Safety. *TØI Report 1034/2009.* Institute of Transport Economics, Oslo.
 - NHTSA (2022). *Traffic Safety Facts 2022.* DOT HS 813 560.
-- LeBlanc, L.J. (1975). An Algorithm for the Discrete Network Design Problem.
-  *Transportation Science*, 9(3), 183–199.
-- Bar-Gera, H. (2009). Sioux Falls transportation network dataset.
-  https://github.com/bstabler/TransportationNetworks
-- Wong, B. (2011). Points of view: Color blindness. *Nature Methods*, 8(6), 441.
+  National Highway Traffic Safety Administration.
 - Lopez, P.A., et al. (2018). Microscopic Traffic Simulation using SUMO.
   *IEEE ITSC 2018.* https://doi.org/10.1109/ITSC.2018.8569938
 
@@ -299,27 +492,66 @@ Accident severity tiers are weighted from the NHTSA 2022 KABCO classification:
 
 ## Citation
 
-If you use this work in academic or professional publications, please cite:
+If you use SAS in academic or professional work, please cite:
 
 ```bibtex
 @software{vlachopanagiotis2026sas,
   author      = {Vlachopanagiotis, Theocharis},
   title       = {{SUMO Accident Simulation (SAS)}: A Probabilistic Traffic
-                 Accident Extension for {SUMO} with Antifragility Analysis},
+                 Accident Extension for {SUMO}},
   year        = {2026},
   institution = {Rho\'{e} / AntifragiCity Project},
   url         = {https://github.com/tvlahopanagiotis/sumo-accident-simulation},
-  note        = {Branch: antifragility. Implements Nilsson (1981) Power Model,
-                 NHTSA KABCO severity tiers, and a network antifragility index}
+  note        = {Implements the Nilsson (1981) Power Model with four-tier
+                 NHTSA-calibrated severity classification}
 }
+```
+
+---
+
+## Development
+
+### Setup
+
+```bash
+git clone https://github.com/tvlahopanagiotis/sumo-accident-simulation.git
+cd sumo-accident-simulation
+pip install -e ".[dev]"
+```
+
+### Running tests
+
+The test suite contains **55 unit tests** across four modules. All unit tests
+run without SUMO installed (TraCI is mocked at the session level in
+`tests/conftest.py`):
+
+```bash
+# All unit tests (no SUMO required)
+pytest tests/ -v
+
+# With coverage report
+pytest tests/ --cov=. --cov-report=term-missing
+
+# Integration tests (requires a running SUMO installation)
+pytest tests/ -m integration
+```
+
+### Code quality
+
+```bash
+# Linting
+ruff check .
+
+# Type checking
+mypy runner.py risk_model.py accident_manager.py metrics.py
 ```
 
 ---
 
 ## Roadmap
 
-- [ ] Merge antifragility analysis into a standalone Python package
-- [ ] Multi-city replication (Anaheim, Chicago, Barcelona networks)
-- [ ] Weather-conditioned risk multipliers (rain, ice, fog)
-- [ ] Adaptive signal control response to detected accidents
-- [ ] Formal MFD calibration pipeline per network
+- [ ] Weather overlay (wet/icy road multipliers configurable per step)
+- [ ] Multi-vehicle pile-up propagation model
+- [ ] Variable demand profiles (AM/PM peak, school runs)
+- [ ] REST API for live scenario injection
+- [ ] Direct integration with SUMO's `--device.rerouting.probability`
