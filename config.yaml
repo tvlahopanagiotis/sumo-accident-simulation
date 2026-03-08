@@ -7,8 +7,9 @@
 
 sumo:
   # Path to the .sumocfg file that references the road network and route files.
-  # Use generate_thessaloniki.py (or the other generators) to produce this.
-  config_file: thessaloniki_network/thessaloniki.sumocfg
+  # The bundled Sioux Falls network works out of the box — no setup needed.
+  # Switch to another network by changing this path (see other branches).
+  config_file: sioux_falls_network/sioux_falls.sumocfg
 
   # SUMO executable: "sumo" (headless, for batch runs) or "sumo-gui" (graphical).
   binary: sumo

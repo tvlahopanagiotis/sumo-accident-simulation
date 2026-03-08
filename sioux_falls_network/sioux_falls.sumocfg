@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+<configuration>
+    <input>
+        <net-file value="sioux_falls.net.xml"/>
+        <route-files value="sioux_falls.rou.xml"/>
+    </input>
+    <time>
+        <begin value="0"/>
+        <end value="7200"/>
+    </time>
+</configuration>

@@ -9,11 +9,16 @@ seattle_bundle/crash_data/sdot_collisions_all_years.geojson
 seattle_bundle/source/20_us_cities.zip
 
 # ── Large generated network files ───────────────────────────────────
-# The Thessaloniki network is auto-generated; don't version binary blobs
+# City networks are auto-generated; don't version large binary blobs.
+# Exception: the bundled Sioux Falls example is pre-built and committed
+# so collaborators can run `python runner.py` immediately after install.
 *.osm
 *.net.xml
 *.rou.xml
 *.sumocfg
+!sioux_falls_network/*.net.xml
+!sioux_falls_network/*.rou.xml
+!sioux_falls_network/*.sumocfg
 
 # ── Python ──────────────────────────────────────────────────────────
 __pycache__/
