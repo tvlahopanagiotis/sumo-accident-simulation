@@ -252,16 +252,25 @@ def generate_resilience_report(
             "high_incident": "High Incident",
             "extreme_incident": "Extreme Incident",
         }
+        # Network lane-km from fits metadata.
+        _net_km = per_type_fits.get("_network_lane_km", {}).get("value")
+        if _net_km:
+            html.append(
+                f"<p style='font-size:0.85em;color:#555;margin-top:10px'>"
+                f"Network lane-km (estimated): <b>{_net_km:.0f} km</b>  &mdash;  "
+                f"Q<sub>max</sub> = q<sub>max/km</sub> &times; L</p>"
+            )
         html.append(
-            "<table style='margin-top:12px;width:100%;border-collapse:collapse;font-size:0.88em'>"
+            "<table style='margin-top:8px;width:100%;border-collapse:collapse;font-size:0.88em'>"
             "<thead><tr style='background:#2c3e50;color:white'>"
             "<th style='padding:7px 10px;text-align:left'>Scenario Type</th>"
             "<th style='padding:7px 10px;text-align:right'>u<sub>f</sub> (km/h)</th>"
             "<th style='padding:7px 10px;text-align:right'>k<sub>j</sub> (veh/km)</th>"
             "<th style='padding:7px 10px;text-align:right'>k<sub>c</sub> (veh/km)</th>"
-            "<th style='padding:7px 10px;text-align:right'>q<sub>max</sub> (veh/h)</th>"
-            "<th style='padding:7px 10px;text-align:right'>R²</th>"
-            "<th style='padding:7px 10px;text-align:right'>N points</th>"
+            "<th style='padding:7px 10px;text-align:right'>q<sub>max/km</sub></th>"
+            "<th style='padding:7px 10px;text-align:right'>Q<sub>max</sub> (veh/h)</th>"
+            "<th style='padding:7px 10px;text-align:right'>R&sup2;</th>"
+            "<th style='padding:7px 10px;text-align:right'>N</th>"
             "</tr></thead><tbody>"
         )
         for i, stype in enumerate(_type_order):
@@ -273,13 +282,16 @@ def generate_resilience_report(
             r2_color = "#27ae60" if f["r_squared"] >= 0.7 else (
                 "#f39c12" if f["r_squared"] >= 0.4 else "#e74c3c"
             )
+            q_per_km = f.get("capacity_per_km_veh_per_hour", f.get("capacity_veh_per_hour", 0))
+            q_total = f.get("capacity_total_veh_per_hour", q_per_km * (_net_km or 1))
             html.append(
                 f"<tr style='background:{bg}'>"
                 f"<td style='padding:6px 10px;font-weight:500'>{label}</td>"
                 f"<td style='padding:6px 10px;text-align:right'>{f['free_flow_speed_kmh']:.2f}</td>"
                 f"<td style='padding:6px 10px;text-align:right'>{f['jam_density_veh_per_km']:.2f}</td>"
                 f"<td style='padding:6px 10px;text-align:right'>{f['critical_density_veh_per_km']:.2f}</td>"
-                f"<td style='padding:6px 10px;text-align:right'>{f['capacity_veh_per_hour']:.1f}</td>"
+                f"<td style='padding:6px 10px;text-align:right'>{q_per_km:.1f}</td>"
+                f"<td style='padding:6px 10px;text-align:right;font-weight:bold'>{q_total:,.0f}</td>"
                 f"<td style='padding:6px 10px;text-align:right;color:{r2_color};font-weight:bold'>"
                 f"{f['r_squared']:.3f}</td>"
                 f"<td style='padding:6px 10px;text-align:right;color:#666'>{f['n_points']:,}</td>"

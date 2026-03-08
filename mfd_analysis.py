@@ -277,6 +277,28 @@ def fit_greenshields_model(mfd_data: pd.DataFrame) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _estimate_network_lane_km(mfd_data: pd.DataFrame) -> float:
+    """
+    Estimate network lane-km from the relationship between total flow and
+    per-km flow (density × speed).
+
+    The data's ``flow_veh_per_hour`` column is **total** network throughput,
+    while Greenshields ``q = k × v`` is per-km flow.  The ratio is the
+    effective network lane-km.
+
+    Returns:
+        Estimated network lane-km (median ratio).
+    """
+    valid = mfd_data[
+        (mfd_data["density_veh_per_km"] > 0.1) & (mfd_data["speed_kmh"] > 0.5)
+    ].copy()
+    if valid.empty:
+        return 1.0
+    q_per_km = valid["density_veh_per_km"] * valid["speed_kmh"]
+    ratio = valid["flow_veh_per_hour"] / q_per_km
+    return float(ratio.median())
+
+
 def fit_greenshields_per_scenario_type(mfd_data: pd.DataFrame) -> dict[str, dict]:
     """
     Fit the Greenshields model separately for each scenario_type.
@@ -286,11 +308,15 @@ def fit_greenshields_per_scenario_type(mfd_data: pd.DataFrame) -> dict[str, dict
     how incidents at a given rate depress capacity and free-flow speed.
 
     Returns:
-        Dict mapping scenario_type → parameter dict with keys:
-        free_flow_speed_kmh, jam_density_veh_per_km, critical_density_veh_per_km,
-        capacity_veh_per_hour, r_squared, n_points.
+        Dict with top-level key ``network_lane_km`` and per-scenario-type
+        entries, each containing: free_flow_speed_kmh, jam_density_veh_per_km,
+        critical_density_veh_per_km, capacity_per_km_veh_per_hour,
+        capacity_total_veh_per_hour, r_squared, n_points.
     """
-    results: dict[str, dict] = {}
+    network_lane_km = _estimate_network_lane_km(mfd_data)
+    logger.info("  Estimated network lane-km: %.1f km", network_lane_km)
+
+    results: dict[str, dict] = {"_network_lane_km": {"value": round(network_lane_km, 1)}}
 
     for stype in SCENARIO_COLORS:  # iterate in display order
         subset = mfd_data[mfd_data["scenario_type"] == stype]
@@ -325,20 +351,26 @@ def fit_greenshields_per_scenario_type(mfd_data: pd.DataFrame) -> dict[str, dict
         ss_tot = float(np.sum((v - np.mean(v)) ** 2))
         r2 = round(1.0 - ss_res / ss_tot, 4) if ss_tot > 0 else 0.0
 
+        q_max_per_km = vf * kj / 4.0
+        q_max_total = q_max_per_km * network_lane_km
+
         results[stype] = {
             "free_flow_speed_kmh": round(vf, 2),
             "jam_density_veh_per_km": round(kj, 2),
             "critical_density_veh_per_km": round(kj / 2.0, 2),
-            "capacity_veh_per_hour": round(vf * kj / 4.0, 1),
+            "capacity_per_km_veh_per_hour": round(q_max_per_km, 1),
+            "capacity_total_veh_per_hour": round(q_max_total, 0),
             "r_squared": r2,
             "n_points": int(len(k)),
         }
         logger.info(
-            "  Greenshields [%s]: vf=%.1f km/h, kj=%.2f veh/km, q_max=%.1f veh/h, R²=%.3f",
+            "  Greenshields [%s]: vf=%.1f km/h, kj=%.2f veh/km, "
+            "q_max=%.0f veh/h (%.1f/km), R²=%.3f",
             stype,
             vf,
             kj,
-            vf * kj / 4.0,
+            q_max_total,
+            q_max_per_km,
             r2,
         )
 
@@ -412,14 +444,23 @@ def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
     Plot theoretical Greenshields MFD curves fitted per scenario type.
 
     Two-panel figure:
-      Left  — density vs flow (parabolic q-k curves).
+      Left  — density vs flow (parabolic q-k curves, scaled to total network
+              flow using the estimated network lane-km).
       Right — density vs speed (linear v-k fits).
 
     Each scenario_type gets its own Greenshields fit, drawn as a solid curve
     over the faint scatter of actual data.  Diamond markers indicate each
-    curve's capacity point (k_c, q_max).  Fit statistics (u_f, k_j, q_max,
+    curve's capacity point (k_c, Q_max).  Fit statistics (u_f, k_j, Q_max,
     R²) appear in the legend so incident-level capacity degradation is
     immediately readable.
+
+    Note on flow units
+    ------------------
+    The Greenshields model is fitted on speed vs density (v-k), giving a
+    per-km flow ``q = v × k``.  The data column ``flow_veh_per_hour`` is
+    **total** network throughput.  The theoretical curves are therefore
+    scaled by ``network_lane_km`` (estimated from the data) so they overlay
+    correctly on the scatter.
 
     Args:
         mfd_data:   DataFrame from extract_mfd_data() (may span multiple
@@ -433,6 +474,9 @@ def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
     if not fits:
         logger.warning("No per-type fits available — skipping theoretical MFD plot")
         return ""
+
+    # Scale factor: per-km flow → total network flow.
+    L = fits.get("_network_lane_km", {}).get("value", _estimate_network_lane_km(mfd_data))
 
     fig, (ax_qk, ax_vk) = plt.subplots(1, 2, figsize=(18, 7))
 
@@ -456,7 +500,7 @@ def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
         vf = fit["free_flow_speed_kmh"]
         kj = fit["jam_density_veh_per_km"]
         kc = fit["critical_density_veh_per_km"]
-        qmax = fit["capacity_veh_per_hour"]
+        qmax_total = fit["capacity_total_veh_per_hour"]
         r2 = fit["r_squared"]
         label_name = stype.replace("_", " ").title()
 
@@ -481,14 +525,15 @@ def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
 
         # ── Theoretical curves ────────────────────────────────────────────
         k_range = np.linspace(0, kj, 300)
-        q_theory = _greenshields_flow(k_range, vf, kj)
+        # Flow scaled to total network throughput (× network_lane_km).
+        q_theory_total = _greenshields_flow(k_range, vf, kj) * L
         v_theory = _greenshields_speed(k_range, vf, kj)
 
         curve_label = (
             f"{label_name}   "
             f"$u_f$={vf:.1f} km/h   "
             f"$k_j$={kj:.1f}   "
-            f"$q_{{max}}$={qmax:.0f} veh/h   "
+            f"$Q_{{max}}$={qmax_total:,.0f} veh/h   "
             f"$R^2$={r2:.3f}"
         )
 
@@ -498,7 +543,7 @@ def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
 
         ax_qk.plot(
             k_obs,
-            _greenshields_flow(k_obs, vf, kj),
+            _greenshields_flow(k_obs, vf, kj) * L,
             color=color,
             linewidth=2.2,
             label=curve_label,
@@ -513,7 +558,7 @@ def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
         if len(k_ext) > 1:
             ax_qk.plot(
                 k_ext,
-                _greenshields_flow(k_ext, vf, kj),
+                _greenshields_flow(k_ext, vf, kj) * L,
                 color=color,
                 linewidth=2.2,
                 linestyle="--",
@@ -528,10 +573,10 @@ def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
                 alpha=0.5,
             )
 
-        # Capacity point diamond.
+        # Capacity point diamond (at total flow scale).
         ax_qk.scatter(
             [kc],
-            [qmax],
+            [qmax_total],
             color=color,
             s=90,
             marker="D",
@@ -544,7 +589,6 @@ def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
 
     # ── Shade extrapolated region ────────────────────────────────────────
     for ax in (ax_qk, ax_vk):
-        ylim = ax.get_ylim()
         ax.axvspan(
             k_obs_max,
             ax.get_xlim()[1] if ax.get_xlim()[1] > k_obs_max else k_obs_max * 1.5,
@@ -565,10 +609,10 @@ def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
 
     # ── Formatting ───────────────────────────────────────────────────────
     ax_qk.set_xlabel("Network Density  (veh/km)", fontsize=12)
-    ax_qk.set_ylabel("Network Flow  (veh/h)", fontsize=12)
+    ax_qk.set_ylabel("Total Network Flow  (veh/h)", fontsize=12)
     ax_qk.set_title(
         "Theoretical Greenshields MFD — Density vs Flow\n"
-        "(solid = observed range  |  dashed = extrapolated  |  [D] = capacity point)",
+        f"(scaled to network lane-km = {L:.0f} km  |  dashed = extrapolated)",
         fontsize=11,
         fontweight="bold",
     )
@@ -580,7 +624,7 @@ def plot_mfd_theoretical(mfd_data: pd.DataFrame, output_dir: str) -> str:
     ax_vk.set_ylabel("Space-Mean Speed  (km/h)", fontsize=12)
     ax_vk.set_title(
         "Theoretical Greenshields MFD — Density vs Speed\n"
-        "(linear speed–density relationship per incident level)",
+        "(linear speed-density relationship per incident level)",
         fontsize=11,
         fontweight="bold",
     )
