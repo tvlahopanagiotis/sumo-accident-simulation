@@ -14,9 +14,9 @@ name: CI
 
 on:
   push:
-    branches: [main, antifragility]
+    branches: [main]
   pull_request:
-    branches: [main, antifragility]
+    branches: [main]
 
 jobs:
 
