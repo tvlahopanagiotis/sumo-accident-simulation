@@ -404,7 +404,7 @@ def run_once(
     # ── Generate visualizations ───────────────────────────────────────────
     if config["output"].get("save_accident_heatmap", False):
         try:
-            from visualize import (
+            from visualize import (  # type: ignore[import-not-found]
                 generate_html_report,
                 plot_accident_heatmap,
                 plot_before_after_speeds,
@@ -696,7 +696,7 @@ def main() -> None:
     # ── Generate batch-level visualizations ─────────────────────────────────
     if config["output"].get("save_accident_heatmap", False):
         try:
-            from visualize import visualize_batch_results
+            from visualize import visualize_batch_results  # type: ignore[import-not-found]
 
             visualize_batch_results(output_folder, all_summaries)
             logger.info("Batch visualization saved → %s/batch_ai_distribution.png", output_folder)
