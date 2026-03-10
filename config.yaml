@@ -11,8 +11,9 @@ sumo:
   config_file: thessaloniki_network/thessaloniki.sumocfg
 
   # SUMO executable: "sumo" (headless, for batch runs) or "sumo-gui" (graphical).
-  binary: sumo
-
+  # If you want to run this from an IDE that doesn't have SUMO in its PATH, provide the full path to the executable: $SUMO_HOME/bin/sumo
+  #binary: sumo
+  binary: /Library/Frameworks/EclipseSUMO.framework/Versions/Current/EclipseSUMO/share/sumo/bin/sumo
   # Total simulation duration in steps.  With step_length=5 s, 7200 steps = 2 h.
   total_steps: 7200
 
