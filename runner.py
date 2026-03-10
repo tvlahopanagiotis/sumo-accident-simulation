@@ -528,7 +528,7 @@ def _generate_output_folder_name(
     network_name = os.path.splitext(config_filename)[0].capitalize()
 
     # Generate timestamp
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now()
     timestamp = now.strftime("%Y-%m-%d_%H:%M")
 
     # Generate folder name
