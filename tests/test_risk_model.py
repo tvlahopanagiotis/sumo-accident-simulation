@@ -61,7 +61,7 @@ class TestSpeedRisk:
 
         vdata = _make_vdata(speed=road_limit)
         # No neighbours, no density => only speed contributes
-        score = model.get_risk_score_fast("v0", vdata, {})
+        score = model.get_risk_score("v0", vdata, {})
         # speed_risk = (13.9 / 13.9)^2 = 1.0
         # composite  = 0.40 * 1.0 + 0.30 * 0.0 + 0.30 * density_risk
         # density_risk for edge not in cache = 0 density => exp(-peak^2/(2*sigma^2))
@@ -76,7 +76,7 @@ class TestSpeedRisk:
         model = _make_model(risk_config, road_limit=road_limit)
 
         vdata = _make_vdata(speed=10.0)  # 50% of limit
-        score = model.get_risk_score_fast("v0", vdata, {})
+        score = model.get_risk_score("v0", vdata, {})
         # speed_risk = (10/20)^2 = 0.25
         # composite includes density_risk at density=0
         speed_component = 0.40 * 0.25
@@ -88,7 +88,7 @@ class TestSpeedRisk:
         model = _make_model(risk_config, road_limit=13.9)
 
         vdata = _make_vdata(speed=0.0)
-        score = model.get_risk_score_fast("v0", vdata, {})
+        score = model.get_risk_score("v0", vdata, {})
         # speed_risk = 0^2 = 0
         # Only density_risk contributes (small amount from density=0 curve)
         assert score < 0.20  # dominated by near-zero components
@@ -101,8 +101,8 @@ class TestSpeedRisk:
         vdata_at_limit = _make_vdata(speed=road_limit)
         vdata_above = _make_vdata(speed=road_limit * 2.0)
 
-        score_at_limit = model.get_risk_score_fast("v0", vdata_at_limit, {})
-        score_above = model.get_risk_score_fast("v0", vdata_above, {})
+        score_at_limit = model.get_risk_score("v0", vdata_at_limit, {})
+        score_above = model.get_risk_score("v0", vdata_above, {})
 
         # Both should be equal because speed is clamped to 1.0
         assert abs(score_at_limit - score_above) < 1e-9
@@ -111,7 +111,7 @@ class TestSpeedRisk:
         """SUMO INVALID_DOUBLE_VALUE (negative) => risk = 0.0."""
         model = _make_model(risk_config)
         vdata = _make_vdata(speed=-1073741824.0)  # SUMO sentinel value
-        score = model.get_risk_score_fast("v0", vdata, {})
+        score = model.get_risk_score("v0", vdata, {})
         assert score == 0.0
 
 
@@ -127,11 +127,11 @@ class TestVarianceRisk:
         """No neighbours => variance_risk = 0.0."""
         model = _make_model(risk_config, road_limit=13.9)
         vdata = _make_vdata(speed=13.9)
-        score_no_neighbors = model.get_risk_score_fast("v0", vdata, {})
+        score_no_neighbors = model.get_risk_score("v0", vdata, {})
 
         # Add neighbours at the SAME speed => variance_risk still = 0
         neighbors_same = {"n1": 13.9, "n2": 13.9}
-        score_same = model.get_risk_score_fast("v0", vdata, neighbors_same)
+        score_same = model.get_risk_score("v0", vdata, neighbors_same)
 
         # Scores should be equal — zero variance in both cases
         assert abs(score_no_neighbors - score_same) < 1e-9
@@ -144,10 +144,10 @@ class TestVarianceRisk:
         # Vehicle at 13.9, neighbours at 0.0 => diff = 13.9, threshold = 5.0
         # variance_risk = min(13.9 / 5.0, 1.0) = 1.0
         neighbors_slow = {"n1": 0.0, "n2": 0.0}
-        score_high_var = model.get_risk_score_fast("v0", vdata, neighbors_slow)
+        score_high_var = model.get_risk_score("v0", vdata, neighbors_slow)
 
         # Compare with no-variance case
-        score_no_var = model.get_risk_score_fast("v0", vdata, {"n1": 13.9})
+        score_no_var = model.get_risk_score("v0", vdata, {"n1": 13.9})
         assert score_high_var > score_no_var
 
     def test_variance_risk_same_speed(self, risk_config):
@@ -156,10 +156,10 @@ class TestVarianceRisk:
         vdata = _make_vdata(speed=10.0)
         neighbors = {"n1": 10.0, "n2": 10.0, "n3": 10.0}
 
-        score = model.get_risk_score_fast("v0", vdata, neighbors)
+        score = model.get_risk_score("v0", vdata, neighbors)
 
         # Recompute without neighbours to verify variance added nothing
-        score_alone = model.get_risk_score_fast("v0", vdata, {})
+        score_alone = model.get_risk_score("v0", vdata, {})
         assert abs(score - score_alone) < 1e-9
 
 
@@ -214,7 +214,7 @@ class TestCompositeRisk:
 
         vdata = _make_vdata(speed=13.9)
         neighbors = {"n1": 5.0, "n2": 7.0}
-        score = model.get_risk_score_fast("v0", vdata, neighbors)
+        score = model.get_risk_score("v0", vdata, neighbors)
 
         assert 0.0 <= score <= 1.0
 
@@ -222,7 +222,7 @@ class TestCompositeRisk:
         """If edge_id is empty string, get_risk_score_fast returns 0.0."""
         model = _make_model(risk_config)
         vdata = _make_vdata(speed=10.0, edge_id="")
-        assert model.get_risk_score_fast("v0", vdata, {}) == 0.0
+        assert model.get_risk_score("v0", vdata, {}) == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +239,7 @@ class TestTrigger:
         model = _make_model(risk_config, road_limit=13.9)
         vdata = _make_vdata(speed=1.0)  # very slow => low risk
 
-        results = [model.should_trigger_accident_fast("v0", vdata, {}) for _ in range(1000)]
+        results = [model.should_trigger_accident("v0", vdata, {}) for _ in range(1000)]
         assert not any(results), "Should never trigger when risk < threshold"
 
     def test_trigger_above_threshold_can_fire(self, risk_config):
@@ -255,7 +255,7 @@ class TestTrigger:
         neighbors = {"n1": 0.0}  # high variance
 
         random.seed(42)
-        results = [model.should_trigger_accident_fast("v0", vdata, neighbors) for _ in range(100)]
+        results = [model.should_trigger_accident("v0", vdata, neighbors) for _ in range(100)]
         assert any(results), "Should trigger at least once with high probability"
 
 
