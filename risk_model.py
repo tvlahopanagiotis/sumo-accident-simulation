@@ -113,7 +113,7 @@ class RiskModel:
             if length_km > 0:
                 self._edge_density_cache[eid] = count / length_km
 
-    def get_risk_score_fast(
+    def get_risk_score(
         self,
         vehicle_id: str,
         vdata: dict,
@@ -176,7 +176,7 @@ class RiskModel:
 
         return float(composite)
 
-    def should_trigger_accident_fast(
+    def should_trigger_accident(
         self,
         vehicle_id: str,
         vdata: dict,
@@ -196,97 +196,9 @@ class RiskModel:
         Returns:
             True if an accident is triggered, False otherwise.
         """
-        risk_score = self.get_risk_score_fast(vehicle_id, vdata, neighbor_speeds)
+        risk_score = self.get_risk_score(vehicle_id, vdata, neighbor_speeds)
 
         # Only roll the dice if risk exceeds the threshold
-        if risk_score < self.trigger_threshold:
-            return False
-
-        excess_risk = risk_score - self.trigger_threshold
-        effective_prob = self.base_probability * (1 + excess_risk * 10) * secondary_multiplier
-        return random.random() < effective_prob
-
-    # ------------------------------------------------------------------
-    # Legacy API  (individual TraCI calls — kept for debugging)
-    # ------------------------------------------------------------------
-
-    def get_risk_score(self, vehicle_id: str, neighbor_ids: list[str]) -> float:
-        """
-        Compute a risk score (0.0 to 1.0) for a given vehicle.
-
-        Args:
-            vehicle_id:   The SUMO vehicle ID to evaluate.
-            neighbor_ids: List of vehicle IDs within proximity (same edge).
-
-        Returns:
-            A float between 0.0 and 1.0 representing composite risk.
-        """
-        try:
-            speed = traci.vehicle.getSpeed(vehicle_id)  # m/s
-            edge_id: str = str(traci.vehicle.getRoadID(vehicle_id))
-        except traci.exceptions.TraCIException as exc:
-            logger.debug("Cannot fetch data for vehicle %s (likely departed): %s", vehicle_id, exc)
-            return 0.0
-
-        # --- 1. Speed Risk (Nilsson Power Model) ---
-        # Use the road's posted speed limit, not the vehicle's mechanical max.
-        road_limit = self._get_road_speed_limit_cached(edge_id)
-        normalised_speed = min(speed / road_limit, 1.0) if road_limit > 0 else 0.0
-        speed_risk = normalised_speed**self.speed_exponent
-
-        # --- 2. Speed Variance Risk ---
-        neighbor_speeds = []
-        for nid in neighbor_ids:
-            if nid != vehicle_id:
-                try:
-                    neighbor_speeds.append(traci.vehicle.getSpeed(nid))
-                except traci.exceptions.TraCIException:
-                    continue
-
-        if neighbor_speeds:
-            mean_neighbor_speed = sum(neighbor_speeds) / len(neighbor_speeds)
-            speed_diff = abs(speed - mean_neighbor_speed)
-            variance_risk = min(speed_diff / max(self.speed_variance_threshold, 0.1), 1.0)
-        else:
-            variance_risk = 0.0
-
-        # --- 3. Density Risk ---
-        density = self._get_edge_density(edge_id)
-        density_risk = self._density_risk_curve(density)
-
-        # --- 4. Composite Score (weighted sum) ---
-        composite = (
-            self.speed_weight * speed_risk
-            + self.speed_variance_weight * variance_risk
-            + self.density_weight * density_risk
-        )
-        composite = max(0.0, min(1.0, composite))
-
-        # --- 5. Road Type Multiplier ---
-        road_multiplier = self._get_road_multiplier(edge_id)
-        composite = min(composite * road_multiplier, 1.0)
-
-        return float(composite)
-
-    def should_trigger_accident(
-        self,
-        vehicle_id: str,
-        neighbor_ids: list,
-        secondary_multiplier: float = 1.0,
-    ) -> bool:
-        """
-        Decide whether an accident occurs this timestep for the given vehicle.
-
-        Args:
-            vehicle_id:           The vehicle to evaluate.
-            neighbor_ids:         Nearby vehicles on the same edge.
-            secondary_multiplier: Elevated risk if near an existing accident.
-
-        Returns:
-            True if an accident is triggered, False otherwise.
-        """
-        risk_score = self.get_risk_score(vehicle_id, neighbor_ids)
-
         if risk_score < self.trigger_threshold:
             return False
 
