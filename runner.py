@@ -334,7 +334,7 @@ def run_once(
                     }
 
                     # Evaluate risk using pre-fetched data — zero TraCI calls
-                    if risk_model.should_trigger_accident_fast(
+                    if risk_model.should_trigger_accident(
                         vehicle_id, vdata, neighbor_speeds, secondary_mult
                     ):
                         accident = accident_manager.trigger_accident(vehicle_id, step)
