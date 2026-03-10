@@ -8,7 +8,7 @@
 sumo:
   # Path to the .sumocfg file that references the road network and route files.
   # Use generate_thessaloniki.py (or the other generators) to produce this.
-  config_file: thessaloniki_network_postmetro_50kph/thessaloniki_postmetro_50kph.sumocfg
+  config_file: thessaloniki_network/thessaloniki.sumocfg
 
   # SUMO executable: "sumo" (headless, for batch runs) or "sumo-gui" (graphical).
   binary: sumo
