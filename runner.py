@@ -334,7 +334,7 @@ def run_once(
                     }
 
                     # Evaluate risk using pre-fetched data — zero TraCI calls
-                    if risk_model.should_trigger_accident_fast(
+                    if risk_model.should_trigger_accident(
                         vehicle_id, vdata, neighbor_speeds, secondary_mult
                     ):
                         accident = accident_manager.trigger_accident(vehicle_id, step)
@@ -528,7 +528,7 @@ def _generate_output_folder_name(
     network_name = os.path.splitext(config_filename)[0].capitalize()
 
     # Generate timestamp
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now()
     timestamp = now.strftime("%Y-%m-%d_%H:%M")
 
     # Generate folder name
