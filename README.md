@@ -14,15 +14,14 @@ lifecycle (blockage → emergency response → clearance → full recovery), and
 how the network responds, including computing an **Antifragility Index** that
 quantifies whether the network adapts and improves after repeated disruptions.
 
-> **Branch guide**
->
-> | Branch | Contents | Start here if… |
-> |---|---|---|
-> | `main` | Core accident simulator engine | You want to plug SAS into your own network |
-> | `antifragility` | + Analysis tools, MFD, batch assessment, Sioux Falls example | You want resilience analysis or HTML reports |
-> | `thessaloniki` | + Thessaloniki generators & govgr calibration toolchain | You're working on the AntifragiCity Thessaloniki case |
-> | `seattle` | + Seattle generator & real-world validation | You're working on the Seattle case study |
-> | `unified-integration` ← **you are here** | Combined research + Thessaloniki + Seattle tooling | You want one branch with all supported workflows and datasets |
+This branch is the all-in-one integration branch. It combines:
+
+- the core simulator from `main`
+- the research / antifragility tooling from `antifragility`
+- the Thessaloniki generation and govgr workflow from `thessaloniki`
+- the Seattle generation and validation assets from `seattle`
+
+If you want one branch with all supported workflows and datasets, this is the right branch.
 
 ---
 
@@ -63,34 +62,32 @@ calibration tooling.
 | **Antifragility Index** | Pre/post-disruption speed ratio, computed per event with bootstrapped 95 % CI |
 | **Batch runs** | `--runs N` launches N independent seeds; aggregate statistics exported automatically |
 | **Zero hot-loop TraCI calls** | BatchSubscription architecture: 2 TraCI calls/step vs ~15 000 before optimisation |
+| **Live Python dashboard** | Headless Matplotlib dashboard with live network-load map, active/resolved accident markers, and in-run PNG refresh |
+| **Generic OSM downloader** | `download_osm_place.py` downloads raw `.osm` extracts for Seattle or other cities using Nominatim + Overpass |
 
-We measure this with the **Antifragility Index (AI)**:
+## Architecture
 
-```
-config.yaml                ← single control file; every parameter documented inline
+```text
+config.yaml / config.seattle.yaml / other configs
      │
      ▼
-runner.py                  ← orchestrates the simulation loop
+runner.py
      │
-     ├── risk_model.py     ← probabilistic risk calculator (per vehicle, per step)
-     │       ├── 1. Speed risk        Nilsson Power Model: (v/v_limit)^k
-     │       ├── 2. Speed-variance    differential braking proxy
-     │       ├── 3. Density risk      Gaussian bell curve around peak density
-     │       └── 4. Road-type mult.   highway / arterial / local / intersection
-     │
-     ├── accident_manager.py  ← accident lifecycle
-     │       ├── Severity sampling    weighted draw: MINOR 62% MODERATE 28%
-     │       │                        MAJOR 8%  CRITICAL 2%
-     │       ├── ACTIVE phase         vehicle frozen, lane speed reduced
-     │       ├── CLEARING phase       linear speed ramp after response time
-     │       └── RESOLVED phase       full lane recovery, vehicle released
-     │
-     └── metrics.py        ← scientific output
-             ├── network_metrics.csv        step-by-step network state
-             ├── vehicle_snapshots.csv      per-vehicle speed/position records
-             ├── accident_reports.json      per-accident impact summary
-             └── antifragility_index.json   AI with 95 % CI
+     ├── risk_model.py         probabilistic accident trigger model
+     ├── accident_manager.py   accident lifecycle and lane-capacity effects
+     ├── metrics.py            network snapshots, accident reports, AI
+     ├── visualize.py          PNG plots, HTML report, live dashboard
+     └── parallel_runner.py    multi-process execution for large scenario batches
 ```
+
+Main outputs per run:
+
+- `network_metrics.csv`: network state over time
+- `accident_reports.json`: resolved accident summaries
+- `antifragility_index.json`: AI plus confidence interval
+- `metrics_timeseries.png`, `accident_heatmap.png`, other plots
+- `report.html`: self-contained HTML summary
+- `live_progress.png`: continuously refreshed when live progress is enabled
 
 ---
 
@@ -125,6 +122,17 @@ export PYTHONPATH="$SUMO_HOME/tools:$PYTHONPATH"
 source ~/.bashrc
 ```
 Then `source ~/.bashrc`.
+
+**macOS official SUMO installer** also works. In that case use:
+
+```bash
+export SUMO_HOME="/Library/Frameworks/EclipseSUMO.framework/Versions/Current/EclipseSUMO/share/sumo"
+export PATH="$SUMO_HOME/bin:$PATH"
+export PYTHONPATH="$SUMO_HOME/tools:$PYTHONPATH"
+```
+
+The generators in this branch also tolerate `SUMO_HOME` being set one level higher
+at the installer/framework root and normalize it automatically.
 
 **Windows** — add to System Environment Variables:
 ```
@@ -187,20 +195,40 @@ python runner.py --live-progress
 ```
 
 During a single run, SAS will try to open a Matplotlib dashboard and will also
-refresh `live_progress.png` inside the current result folder. The dashboard now
-includes a live network map colored by per-edge vehicle load. If you want that
-map refreshed at every SUMO step, set `output.live_progress_refresh_steps` equal
-to `sumo.step_length` (for the default config, `5`). Multi-run batches still use
-terminal progress only.
+refresh `live_progress.png` inside the current result folder.
+
+The live dashboard shows:
+
+- a network-load map on the left
+- active accidents as severity-colored markers
+- resolved accidents as muted historical markers
+- active vehicles currently on the network
+- mean network speed
+- completed-trips throughput
+- concurrent active accidents
+
+Important semantics:
+
+- `Active vehicles on network` means vehicles currently present in the simulation at each timestamp. It is not the number of newly inserted vehicles.
+- `Mean network speed` is the average speed across all active vehicles at that timestamp.
+- `Completed trips rate` is throughput, scaled to vehicles/hour.
+- On the left map, darker / hotter edge colors mean more vehicles currently occupying that edge.
+- Accident markers stay visible after resolution so you can compare persistent congestion with past incident locations.
+
+If you want the live map refreshed at every SUMO step, set
+`output.live_progress_refresh_steps` equal to `sumo.step_length`
+(for the default configs, `5`). Multi-run batches still use terminal progress only.
 
 ---
 
 ## Repository Layout (Simple Mental Model)
 
 - Root Python files (`runner.py`, `risk_model.py`, etc.): simulation engine code.
-- `config.yaml`: default simulation configuration.
-- `thessaloniki_network_postmetro_50kph/`: Thessaloniki network variant for new runs.
+- `config.yaml`: default configuration.
+- `config.seattle.yaml`: Seattle-specific configuration.
+- `thessaloniki_network/`, `seattle_network/`, `sioux_falls_network/`: generated or bundled network folders.
 - `thessaloniki_govgr/`: downloaded govgr data and generated targets.
+- `seattle_bundle/`: Seattle OD / network / validation bundle.
 - `results/`: simulation outputs.
 - `.worktrees/`: separate checkouts for separate branches (hidden in Finder).
 
@@ -208,19 +236,50 @@ If Finder looks inconsistent, read `docs/WORKTREES.md`.
 
 ---
 
-## Bundled Networks
+## City And Network Workflows
 
-Three network generators ship with SAS. Each downloads or builds the required
-SUMO files and can auto-patch `config.yaml` so `runner.py` is ready to go
-immediately:
+This branch contains multiple workflows. Use the one that matches your case:
 
 | Script | Network | Scale | Simultaneous vehicles |
 |--------|---------|-------|-----------------------|
 | `generate_thessaloniki.py` | Thessaloniki city centre (real OSM) | Urban, ~7 km² | ~300–500 |
+| `generate_seattle.py` | Seattle network from bundled OD data + OSM | Large urban | varies by OD scaling |
 | `generate_sioux_falls.py` | Sioux Falls benchmark (synthetic) | 24-node grid | ~150 |
 | `generate_network.py` | Riverside District (synthetic) | Small urban | ~80 |
 
-### Thessaloniki — real city, recommended for full-city runs
+### Generic OSM downloader for any city
+
+If you need a raw `.osm` extract for a city, use:
+
+```bash
+python download_osm_place.py --place "Seattle, Washington, USA" --out /path/to/Seattle.osm
+```
+
+This script:
+
+- resolves the place with Nominatim
+- downloads OSM XML with Overpass
+- writes a reusable `.osm` file for SUMO generation
+- works for other cities, not only Seattle
+
+Example for another city:
+
+```bash
+python download_osm_place.py --place "Athens, Greece" --out athens_network/athens.osm
+```
+
+Useful options:
+
+```bash
+python download_osm_place.py --place "Athens, Greece" --out athens.osm --pad-km 1.5
+python download_osm_place.py --place "Patras, Greece" --out patras.osm --all-features
+```
+
+Use `--pad-km` if the default administrative bounding box is too tight for your
+simulation area. Use `--all-features` if you want the full raw OSM content in
+the bounding box rather than the lighter road-focused export.
+
+### Thessaloniki — real city workflow
 
 Downloads OSM data from OpenStreetMap, converts it with SUMO's `netconvert`,
 and generates randomised vehicle routes:
@@ -242,6 +301,41 @@ python generate_thessaloniki.py --update-config --skip-download
 
 # denser traffic (lower period → more vehicles inserted per second)
 python generate_thessaloniki.py --update-config --period 0.5
+```
+
+### Seattle — bundled OD workflow
+
+Seattle uses two ingredients:
+
+- a raw OSM extract for the road network
+- the bundled Seattle OD / node / link files already present in `seattle_bundle/`
+
+Step 1: download the missing OSM extract:
+
+```bash
+python download_osm_place.py \
+  --place "Seattle, Washington, USA" \
+  --out seattle_bundle/traffic_dataset/02_Seattle/01_Input_data/Seattle.osm
+```
+
+Step 2: generate the SUMO network and OD-driven routes:
+
+```bash
+python generate_seattle.py --update-config --config config.seattle.yaml
+```
+
+Step 3: run the simulation:
+
+```bash
+python runner.py --config config.seattle.yaml
+```
+
+Useful Seattle variants:
+
+```bash
+python generate_seattle.py --demand-source od --od-scale 0.02
+python generate_seattle.py --demand-source random --period 1.5
+python generate_seattle.py --skip-network --demand-source od
 ```
 
 ### Sioux Falls — classic benchmark
@@ -267,8 +361,9 @@ python runner.py
 
 ## Configuration
 
-`config.yaml` is the single control point. Every parameter is documented inline.
-The most important settings for a new user:
+The config file you run with (`config.yaml`, `config.seattle.yaml`, or another
+variant) is the control point for a simulation. Every parameter is documented
+inline. The most important settings for a new user:
 
 ```yaml
 sumo:
@@ -301,7 +396,7 @@ accident:
     critical:   { weight:  2, duration_min_s: 3600, duration_max_s: 18000, lane_capacity_fraction: 0.00, ... }
 ```
 
-See `config.yaml` for the full parameter reference with inline explanations.
+See `config.yaml` and `config.seattle.yaml` for the full parameter references with inline explanations.
 
 ### Calibrating `base_probability` for your network
 
@@ -314,6 +409,7 @@ tested values as a starting point for a target of ~5 accidents per 2-hour run:
 | Riverside District | ~80 | `2.0e-04` |
 | Sioux Falls | ~150 | `1.5e-04` |
 | Thessaloniki city centre | ~500 | `5.0e-05` |
+| Seattle (large urban case) | ~2 000 | `8.0e-06` |
 | Large city (~2 000 vehicles) | ~2 000 | `1.5e-05` |
 
 **Rule of thumb:** if you double the simultaneous vehicle count, halve
@@ -332,7 +428,8 @@ Step-by-step network state:
 
 | Column | Meaning |
 |--------|---------|
-| `step` | Simulation time (seconds) |
+| `timestamp_seconds` | Simulation time (seconds) |
+| `vehicle_count` | Active vehicles currently present on the network |
 | `mean_speed_ms` | Mean vehicle speed (m/s) |
 | `mean_speed_kmh` | Mean vehicle speed (km/h) |
 | `throughput_per_hour` | Vehicles completing trips per hour |
@@ -379,6 +476,29 @@ One entry per accident, e.g.:
 
 Machine-readable record of every config parameter and summary statistic, suitable
 for reproducibility auditing and experiment tracking.
+
+### `live_progress.png`
+
+Continuously refreshed snapshot of the live dashboard for headless runs.
+
+- Left panel: road network colored by vehicles currently on each edge.
+- Accident overlay: active accidents use severity colors; resolved accidents stay on the map as muted historical markers.
+- Right panels: active vehicles, mean network speed, throughput, and concurrent active accidents.
+
+This file is useful when SUMO GUI is unavailable or unstable, especially on
+Apple Silicon macOS setups.
+
+### `report.html`
+
+Self-contained HTML summary of a completed run. It includes:
+
+- run metadata and configuration summary
+- antifragility index with interpretation and confidence interval
+- a short "How To Read This Report" guide
+- captions explaining each generated figure
+
+The HTML report is intended to be readable without opening the raw CSV / JSON
+files first.
 
 ---
 

@@ -25,6 +25,8 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
+from sumo_paths import find_random_trips_path, find_typemap_path, resolve_sumo_home
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OSM = os.path.join(
     ROOT_DIR,
@@ -52,12 +54,9 @@ DEFAULT_NODE = os.path.join(
 )
 DEFAULT_OUT_DIR = os.path.join(ROOT_DIR, "seattle_network")
 
-SUMO_HOME = os.environ.get(
-    "SUMO_HOME",
-    "/opt/homebrew/Cellar/sumo/1.20.0/share/sumo",
-)
-TYPEMAP = os.path.join(SUMO_HOME, "data", "typemap", "osmNetconvert.typ.xml")
-RANDOM_TRIPS = os.path.join(SUMO_HOME, "tools", "randomTrips.py")
+SUMO_HOME = resolve_sumo_home()
+TYPEMAP = find_typemap_path(SUMO_HOME)
+RANDOM_TRIPS = find_random_trips_path(SUMO_HOME)
 
 
 def _run(cmd: list[str], desc: str = "") -> subprocess.CompletedProcess:
@@ -94,6 +93,7 @@ def _import_sumolib():
     except Exception as exc:
         print("❌  Failed to import sumolib from SUMO tools.")
         print(f"    Expected tools dir: {tools_dir}")
+        print(f"    Resolved SUMO_HOME: {SUMO_HOME or '(empty)'}")
         print(f"    Error: {exc}")
         sys.exit(1)
     return sumolib
@@ -102,7 +102,8 @@ def _import_sumolib():
 def build_network(osm_path: str, net_path: str, typemap: str) -> None:
     if not os.path.exists(typemap):
         print(f"❌  SUMO typemap not found: {typemap}")
-        print("    Set SUMO_HOME correctly.")
+        print(f"    Resolved SUMO_HOME: {SUMO_HOME or '(empty)'}")
+        print("    Set SUMO_HOME to the SUMO share directory or installer root.")
         sys.exit(1)
 
     _run(
@@ -146,7 +147,8 @@ def _count_trips(rou_path: str) -> int:
 def generate_routes_random(net_path: str, rou_path: str, period: float, end_seconds: int) -> None:
     if not os.path.exists(RANDOM_TRIPS):
         print(f"❌  randomTrips.py not found: {RANDOM_TRIPS}")
-        print("    Set SUMO_HOME correctly.")
+        print(f"    Resolved SUMO_HOME: {SUMO_HOME or '(empty)'}")
+        print("    Set SUMO_HOME to the SUMO share directory or installer root.")
         sys.exit(1)
 
     _run(
@@ -489,7 +491,12 @@ def main() -> None:
 
     if not os.path.exists(args.osm_file):
         print(f"❌  OSM file not found: {args.osm_file}")
-        print("    Make sure seattle_bundle has been downloaded.")
+        print("    The bundled Seattle traffic dataset does not include the raw OSM extract.")
+        print("    Download one with:")
+        print(
+            '    python download_osm_place.py --place "Seattle, Washington, USA" '
+            f'--out "{args.osm_file}"'
+        )
         sys.exit(1)
     if args.demand_source == "od":
         if not os.path.exists(args.od_file):

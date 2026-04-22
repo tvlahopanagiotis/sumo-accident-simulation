@@ -37,6 +37,7 @@ import time
 import xml.etree.ElementTree as ET
 
 import requests
+from sumo_paths import find_random_trips_path, find_typemap_path, resolve_sumo_home
 
 # ---------------------------------------------------------------------------
 # Network bounding box — Thessaloniki city centre
@@ -46,12 +47,9 @@ import requests
 # This covers roughly: waterfront → Ano Poli (N), Neapoli (E), Kalamaria (SE)
 BBOX = (40.610, 22.925, 40.660, 22.995)
 
-SUMO_HOME = os.environ.get(
-    "SUMO_HOME",
-    "/opt/homebrew/Cellar/sumo/1.20.0/share/sumo",
-)
-TYPEMAP = os.path.join(SUMO_HOME, "data", "typemap", "osmNetconvert.typ.xml")
-RANDOM_TRIPS = os.path.join(SUMO_HOME, "tools", "randomTrips.py")
+SUMO_HOME = resolve_sumo_home()
+TYPEMAP = find_typemap_path(SUMO_HOME)
+RANDOM_TRIPS = find_random_trips_path(SUMO_HOME)
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +140,7 @@ def build_network(osm_path: str, net_path: str, typemap: str) -> None:
     """
     if not os.path.exists(typemap):
         print(f"⚠   typemap not found at {typemap}")
+        print(f"    Resolved SUMO_HOME: {SUMO_HOME or '(empty)'}")
         print("    Set SUMO_HOME correctly or install SUMO.")
         sys.exit(1)
 
@@ -193,6 +192,7 @@ def generate_routes(net_path: str, rou_path: str, period: float) -> None:
     """
     if not os.path.exists(RANDOM_TRIPS):
         print(f"❌  randomTrips.py not found at {RANDOM_TRIPS}")
+        print(f"    Resolved SUMO_HOME: {SUMO_HOME or '(empty)'}")
         print("    Set SUMO_HOME correctly.")
         sys.exit(1)
 
