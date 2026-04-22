@@ -1,4 +1,4 @@
-# SUMO Accident Simulation (SAS)
+# SUMO Accident Simulation — Unified Integration Branch
 
 [![CI](https://github.com/tvlahopanagiotis/sumo-accident-simulation/actions/workflows/ci.yml/badge.svg)](https://github.com/tvlahopanagiotis/sumo-accident-simulation/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
@@ -20,8 +20,9 @@ quantifies whether the network adapts and improves after repeated disruptions.
 > |---|---|---|
 > | `main` | Core accident simulator engine | You want to plug SAS into your own network |
 > | `antifragility` | + Analysis tools, MFD, batch assessment, Sioux Falls example | You want resilience analysis or HTML reports |
-> | `thessaloniki` ← **you are here** | + Thessaloniki generators & govgr calibration toolchain | You're working on the AntifragiCity Thessaloniki case |
+> | `thessaloniki` | + Thessaloniki generators & govgr calibration toolchain | You're working on the AntifragiCity Thessaloniki case |
 > | `seattle` | + Seattle generator & real-world validation | You're working on the Seattle case study |
+> | `unified-integration` ← **you are here** | Combined research tooling + Thessaloniki tooling | You want one branch with both analysis and Thessaloniki workflows |
 
 ---
 
@@ -43,8 +44,9 @@ project, which aims to:
 SAS currently covers goal 4 for one disruption type (traffic accidents). The
 **Antifragility Index** computed at the end of each run is a standard output
 metric — it answers *"how did this network respond to the disruptions in this
-run?"* The `antifragility` branch adds the research tooling to study that
-question systematically across a load × accident-probability parameter grid.
+run?"* This unified branch includes both the antifragility research tooling
+for systematic scenario analysis and the Thessaloniki-specific generation and
+calibration tooling.
 
 ---
 
@@ -62,9 +64,7 @@ question systematically across a load × accident-probability parameter grid.
 | **Batch runs** | `--runs N` launches N independent seeds; aggregate statistics exported automatically |
 | **Zero hot-loop TraCI calls** | BatchSubscription architecture: 2 TraCI calls/step vs ~15 000 before optimisation |
 
----
-
-## System Architecture
+We measure this with the **Antifragility Index (AI)**:
 
 ```
 config.yaml                ← single control file; every parameter documented inline
@@ -122,6 +122,7 @@ sumo --version
 export SUMO_HOME="/opt/homebrew/share/sumo"   # macOS Homebrew
 # export SUMO_HOME="/usr/share/sumo"          # Linux
 export PYTHONPATH="$SUMO_HOME/tools:$PYTHONPATH"
+source ~/.bashrc
 ```
 Then `source ~/.bashrc`.
 
