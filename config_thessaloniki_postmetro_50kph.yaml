@@ -172,6 +172,14 @@ output:
   # Requires: pip install . (pulls in matplotlib + seaborn).
   save_accident_heatmap: true
 
+  # Show a live Matplotlib dashboard during a single headless `python runner.py`
+  # run. Useful on Apple Silicon when `sumo-gui` is unreliable. The dashboard
+  # also refreshes live_progress.png in the current run folder.
+  live_progress: true
+
+  # Simulation seconds between dashboard refreshes.
+  live_progress_refresh_steps: 300
+
   # Seconds of metrics history captured immediately before each accident trigger.
   # Used for the before/after speed comparison plots and AI computation.
   pre_window_seconds: 300    # 5 min

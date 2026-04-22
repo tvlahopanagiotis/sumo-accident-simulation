@@ -176,6 +176,22 @@ python runner.py --config config_thessaloniki_postmetro_50kph.yaml
 ### Visual run (opens SUMO GUI)
 In `config.yaml` set `sumo.binary: sumo-gui`, then run as normal.
 
+### Headless run with Python live progress
+For Apple Silicon or any setup where `sumo-gui` is unreliable, keep
+`sumo.binary: sumo` and either set `output.live_progress: true` in `config.yaml`
+or run:
+
+```bash
+python runner.py --live-progress
+```
+
+During a single run, SAS will try to open a Matplotlib dashboard and will also
+refresh `live_progress.png` inside the current result folder. The dashboard now
+includes a live network map colored by per-edge vehicle load. If you want that
+map refreshed at every SUMO step, set `output.live_progress_refresh_steps` equal
+to `sumo.step_length` (for the default config, `5`). Multi-run batches still use
+terminal progress only.
+
 ---
 
 ## Repository Layout (Simple Mental Model)

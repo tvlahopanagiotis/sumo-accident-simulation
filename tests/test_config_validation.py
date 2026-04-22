@@ -181,3 +181,15 @@ class TestSumoConfigValidation:
         config["sumo"]["config_file"] = "/nonexistent/path/network.sumocfg"
         with pytest.raises(SystemExit):
             validate_config(config)
+
+
+class TestLiveProgressValidation:
+    """Tests for output.live_progress_refresh_steps validation."""
+
+    @patch("os.path.exists", return_value=True)
+    def test_nonpositive_live_refresh_exits(self, mock_exists):
+        """live_progress_refresh_steps must be positive when configured."""
+        config = _valid_config()
+        config["output"]["live_progress_refresh_steps"] = 0
+        with pytest.raises(SystemExit):
+            validate_config(config)

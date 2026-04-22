@@ -55,6 +55,7 @@ import platform
 import random
 import statistics
 import sys
+from collections import Counter
 from typing import Any
 
 import yaml
@@ -92,6 +93,20 @@ def setup_logging(output_folder: str, level: int = logging.INFO):
 
 
 logger = logging.getLogger("sas.runner")
+
+
+def _serialize_accidents(accidents: list[Any]) -> list[dict[str, Any]]:
+    """Convert Accident objects into lightweight plotting records."""
+    return [
+        {
+            "accident_id": acc.accident_id,
+            "x": float(acc.x),
+            "y": float(acc.y),
+            "severity": str(acc.severity),
+            "phase": str(acc.phase),
+        }
+        for acc in accidents
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +182,19 @@ def validate_config(config: dict[str, Any]) -> None:
     if not os.path.exists(cfg_file):
         errors.append(f"sumo.config_file not found: {cfg_file}")
 
+    output = config.get("output", {})
+    live_refresh = output.get("live_progress_refresh_steps")
+    if live_refresh is not None:
+        try:
+            live_refresh_value = int(live_refresh)
+        except (TypeError, ValueError):
+            errors.append(
+                "output.live_progress_refresh_steps must be a positive integer when provided"
+            )
+        else:
+            if live_refresh_value <= 0:
+                errors.append("output.live_progress_refresh_steps must be > 0")
+
     if errors:
         for e in errors:
             logging.error("Config validation failed: %s", e)
@@ -186,6 +214,7 @@ def run_once(
     output_folder: str,
     traci_port: int | None = None,
     traci_label: str | None = None,
+    enable_live_progress: bool = False,
 ) -> tuple[dict, str]:
     """
     Execute one complete simulation run.
@@ -196,6 +225,9 @@ def run_once(
         output_folder: Directory to write all results into.
         traci_port:    Optional TCP port for TraCI (for parallel execution).
         traci_label:   Optional TraCI connection label (for parallel execution).
+        enable_live_progress:
+                      If True, show a live Matplotlib dashboard and keep
+                      refreshing output_folder/live_progress.png during the run.
 
     Returns:
         (summary dict, sumo_version string)
@@ -213,6 +245,27 @@ def run_once(
     risk_model = RiskModel(config["risk"])
     accident_manager = AccidentManager(config["accident"])
     metrics = MetricsCollector(run_config, run_config["output"])
+    live_progress = None
+
+    if enable_live_progress:
+        try:
+            from visualize import LiveProgressDashboard, resolve_net_file
+
+            refresh_steps = int(
+                config["output"].get("live_progress_refresh_steps", metrics.metrics_interval)
+            )
+            live_progress = LiveProgressDashboard(
+                output_dir=output_folder,
+                total_steps=total_steps,
+                refresh_interval_steps=refresh_steps,
+                net_xml_path=resolve_net_file(sumocfg_path=sumo_cfg["config_file"]),
+            )
+            logger.info(
+                "Live progress dashboard enabled → %s",
+                os.path.join(output_folder, "live_progress.png"),
+            )
+        except Exception as exc:
+            logger.warning("Failed to start live progress dashboard: %s", exc)
 
     # Variables to subscribe on every departing vehicle
     # (fetched in bulk via getAllSubscriptionResults each step)
@@ -268,6 +321,7 @@ def run_once(
     logger.info("=" * 60)
 
     step = 0
+    last_edge_vehicle_counts: dict[str, int] = {}
 
     try:
         while step < total_steps:
@@ -308,6 +362,17 @@ def run_once(
             # Pre-compute edge densities from subscription data (no TraCI calls)
             risk_model.prepare_step(all_sub)
 
+            edge_vehicle_counts: Counter[str] | None = None
+            if live_progress is not None:
+                edge_vehicle_counts = Counter(
+                    str(vdata[_tc.VAR_ROAD_ID])
+                    for vdata in all_sub.values()
+                    if _tc.VAR_ROAD_ID in vdata
+                    and str(vdata[_tc.VAR_ROAD_ID])
+                    and not str(vdata[_tc.VAR_ROAD_ID]).startswith(":")
+                )
+                last_edge_vehicle_counts = dict(edge_vehicle_counts)
+
             # ── Risk evaluation & accident triggering ──────────────────────
             if accident_manager.can_trigger_accident():
                 # Build the set of vehicles already blocking a lane
@@ -345,6 +410,10 @@ def run_once(
             prev_active = set(accident_manager.active_accidents.keys())
             accident_manager.update(step)
             curr_active = set(accident_manager.active_accidents.keys())
+            active_accident_points = _serialize_accidents(list(accident_manager.active_accidents.values()))
+            resolved_accident_points = _serialize_accidents(
+                list(accident_manager.resolved_accidents)
+            )
 
             for acc_id in prev_active - curr_active:
                 resolved = next(
@@ -359,6 +428,17 @@ def run_once(
                 # Pass pre-fetched subscription data — record_step uses it
                 # instead of re-fetching speeds via individual TraCI calls.
                 metrics.record_step(step, len(accident_manager.active_accidents), all_sub)
+                if live_progress is not None:
+                    live_progress.update(
+                        metrics.snapshots,
+                        current_step=step,
+                        active_accident_count=len(accident_manager.active_accidents),
+                        resolved_accidents=len(accident_manager.resolved_accidents),
+                        total_accidents=accident_manager._accident_counter,
+                        edge_vehicle_counts=edge_vehicle_counts,
+                        accident_points=active_accident_points,
+                        resolved_accident_points=resolved_accident_points,
+                    )
 
                 if step % 600 == 0:
                     logger.info(
@@ -368,6 +448,17 @@ def run_once(
                         len(accident_manager.resolved_accidents),
                         len(all_sub),
                     )
+            elif live_progress is not None:
+                live_progress.update(
+                    metrics.snapshots,
+                    current_step=step,
+                    active_accident_count=len(accident_manager.active_accidents),
+                    resolved_accidents=len(accident_manager.resolved_accidents),
+                    total_accidents=accident_manager._accident_counter,
+                    edge_vehicle_counts=edge_vehicle_counts,
+                    accident_points=active_accident_points,
+                    resolved_accident_points=resolved_accident_points,
+                )
 
     except KeyboardInterrupt:
         logger.warning("Simulation interrupted by user at step %d.", step)
@@ -378,6 +469,25 @@ def run_once(
 
     # ── Export results ────────────────────────────────────────────────────
     metrics.export_all()
+
+    if live_progress is not None:
+        try:
+            live_progress.update(
+                metrics.snapshots,
+                current_step=step,
+                active_accident_count=len(accident_manager.active_accidents),
+                resolved_accidents=len(accident_manager.resolved_accidents),
+                total_accidents=accident_manager._accident_counter,
+                edge_vehicle_counts=last_edge_vehicle_counts,
+                accident_points=_serialize_accidents(list(accident_manager.active_accidents.values())),
+                resolved_accident_points=_serialize_accidents(
+                    list(accident_manager.resolved_accidents)
+                ),
+                force=True,
+            )
+            live_progress.close()
+        except Exception as exc:
+            logger.warning("Failed to refresh live progress dashboard: %s", exc)
 
     # Build summary for metadata
     summary: dict = {
@@ -605,11 +715,22 @@ def main() -> None:
             "(default: INFO)"
         ),
     )
+    parser.add_argument(
+        "--live-progress",
+        action="store_true",
+        help=(
+            "show a live Matplotlib dashboard during a single headless run and "
+            "refresh live_progress.png in the output folder"
+        ),
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
     base_output_path = config["output"]["output_folder"]  # base directory
     base_seed = config["sumo"].get("seed", 42)
+    live_progress_enabled = bool(config.get("output", {}).get("live_progress", False))
+    if args.live_progress:
+        live_progress_enabled = True
 
     # Generate output folder name with timestamp and run/batch info
     if args.runs == 1:
@@ -636,7 +757,12 @@ def main() -> None:
 
     # ── Single run ────────────────────────────────────────────────────────
     if args.runs == 1:
-        summary, sumo_version = run_once(config, base_seed, output_folder)
+        summary, sumo_version = run_once(
+            config,
+            base_seed,
+            output_folder,
+            enable_live_progress=live_progress_enabled,
+        )
         write_metadata(output_folder, config, base_seed, summary, sumo_version)
         logger.info(
             "\n  Antifragility Index : %s\n"
@@ -650,6 +776,11 @@ def main() -> None:
         return
 
     # ── Multi-run batch ───────────────────────────────────────────────────
+    if live_progress_enabled:
+        logger.warning(
+            "Live progress dashboard is only supported for single runs; ignoring it for --runs %d.",
+            args.runs,
+        )
     logger.info(
         "Starting %d-run batch (seeds %d … %d)",
         args.runs,

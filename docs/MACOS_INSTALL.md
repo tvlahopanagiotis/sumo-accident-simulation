@@ -231,6 +231,30 @@ python runner.py --config config.yaml
 
 This path was validated and works reliably.
 
+If you still want visual feedback while running headless, enable the Python-side
+dashboard instead of relying on `sumo-gui`:
+
+```yaml
+sumo:
+  binary: sumo
+
+output:
+  live_progress: true
+  live_progress_refresh_steps: 300
+```
+
+Or launch it ad hoc:
+
+```bash
+python runner.py --config config.yaml --live-progress
+```
+
+This updates `live_progress.png` in the run output folder and, when the local
+Matplotlib backend supports it, opens a live window with occupancy, speed,
+throughput, active-accident charts, and a live network-load map. To refresh the
+map every SUMO step, set `output.live_progress_refresh_steps` to the same value
+as `sumo.step_length`.
+
 ## Troubleshooting
 
 ### `traci` import fails
