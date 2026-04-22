@@ -22,7 +22,7 @@ quantifies whether the network adapts and improves after repeated disruptions.
 > | `antifragility` | + Analysis tools, MFD, batch assessment, Sioux Falls example | You want resilience analysis or HTML reports |
 > | `thessaloniki` | + Thessaloniki generators & govgr calibration toolchain | You're working on the AntifragiCity Thessaloniki case |
 > | `seattle` | + Seattle generator & real-world validation | You're working on the Seattle case study |
-> | `unified-integration` ← **you are here** | Combined research tooling + Thessaloniki tooling | You want one branch with both analysis and Thessaloniki workflows |
+> | `unified-integration` ← **you are here** | Combined research + Thessaloniki + Seattle tooling | You want one branch with all supported workflows and datasets |
 
 ---
 
