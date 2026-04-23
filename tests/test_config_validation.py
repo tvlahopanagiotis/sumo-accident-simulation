@@ -1,7 +1,7 @@
 """
 tests/test_config_validation.py
 ===============================
-Tests for validate_config from runner.py.
+Tests for validate_config from sas.simulation.runner.
 
 All tests use the mock traci injected by conftest.py.
 os.path.exists is also mocked where needed so tests do not depend on the
@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-from runner import validate_config
+from sas.simulation.runner import validate_config
 
 # ---------------------------------------------------------------------------
 # Helpers

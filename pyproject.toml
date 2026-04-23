@@ -61,17 +61,30 @@ dev = [
 ]
 
 [tool.setuptools]
-py-modules = [
-    "runner", "risk_model", "accident_manager", "metrics", "visualize",
-    "resilience_assessment", "parallel_runner", "scenario_generator",
-    "mfd_analysis", "resilience_report", "govgr_downloader", "govgr_targets",
-]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sas = ["py.typed"]
 
 [project.scripts]
-sas = "runner:main"
-sas-assess = "resilience_assessment:main"
-sas-fetch-govgr = "govgr_downloader:main"
-sas-build-govgr-targets = "govgr_targets:main"
+sas = "sas.simulation.runner:main"
+sas-assess = "sas.analysis.resilience_assessment:main"
+sas-fetch-govgr = "sas.integrations.govgr_downloader:main"
+sas-build-govgr-targets = "sas.integrations.govgr_targets:main"
+sas-fetch-osm = "sas.integrations.download_osm_place:main"
+sas-analyse-batch = "sas.analysis.analyse_batch:main"
+sas-generate-thessaloniki = "sas.generators.generate_thessaloniki:main"
+sas-generate-seattle = "sas.generators.generate_seattle:main"
+sas-generate-sioux-falls = "sas.generators.generate_sioux_falls:main"
+sas-generate-riverside = "sas.generators.generate_network:main"
+sas-compare-seattle-real = "sas.tools.compare_seattle_real:main"
+sas-sweep = "sas.tools.experiment_sweep:main"
+sas-visualise-sweep = "sas.tools.visualise_sweep:main"
+sas-merge-report = "sas.tools.merge_mfd_and_update_report:main"
 
 [project.urls]
 Homepage = "https://github.com/tvlahopanagiotis/sumo-accident-simulation"
@@ -103,11 +116,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = [
-    "runner", "risk_model", "accident_manager", "metrics", "visualize",
-    "resilience_assessment", "parallel_runner", "scenario_generator",
-    "mfd_analysis", "resilience_report", "govgr_downloader", "govgr_targets",
-]
+known-first-party = ["sas"]
 
 
 # ── Mypy (type checker) ─────────────────────────────────────────────────────

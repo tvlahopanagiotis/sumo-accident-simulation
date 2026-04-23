@@ -1,12 +1,10 @@
 # ── Simulation outputs ───────────────────────────────────────────────
 results/
-thessaloniki_govgr/downloads/
-thessaloniki_govgr/targets/
 
 # ── Large Seattle dataset files (>100 MB, exceed GitHub limit) ───────
-seattle_bundle/crash_data/sdot_collisions_all_years.csv
-seattle_bundle/crash_data/sdot_collisions_all_years.geojson
-seattle_bundle/source/20_us_cities.zip
+data/cities/seattle/bundle/crash_data/sdot_collisions_all_years.csv
+data/cities/seattle/bundle/crash_data/sdot_collisions_all_years.geojson
+data/cities/seattle/bundle/source/20_us_cities.zip
 
 # ── Large generated network files ───────────────────────────────────
 # The Thessaloniki network is auto-generated; don't version binary blobs
@@ -14,6 +12,23 @@ seattle_bundle/source/20_us_cities.zip
 *.net.xml
 *.rou.xml
 *.sumocfg
+
+# But keep the curated/checked-in assets under data/ versioned.
+!data/
+!data/**/
+!data/**/*.osm
+!data/**/*.net.xml
+!data/**/*.rou.xml
+!data/**/*.sumocfg
+
+# Re-ignore Seattle assets that are too large for normal Git history.
+data/cities/seattle/bundle/traffic_dataset/02_Seattle/01_Input_data/Seattle.osm
+data/cities/seattle/network/seattle.osm
+data/cities/seattle/network/seattle.net.xml
+
+# Runtime-only downloaded/derived data should still stay untracked.
+data/cities/thessaloniki/govgr/downloads/
+data/cities/thessaloniki/govgr/targets/
 
 # ── Python ──────────────────────────────────────────────────────────
 __pycache__/

@@ -27,19 +27,19 @@ brew install sumo
 Default config:
 
 ```bash
-python runner.py
+sas
 ```
 
 Post-metro Thessaloniki network with all `>90 km/h` links capped to `50 km/h`:
 
 ```bash
-python runner.py --config config_thessaloniki_postmetro_50kph.yaml
+sas --config configs/thessaloniki/postmetro_50kph.yaml
 ```
 
 Batch run:
 
 ```bash
-python runner.py --config config_thessaloniki_postmetro_50kph.yaml --runs 10
+sas --config configs/thessaloniki/postmetro_50kph.yaml --runs 10
 ```
 
 ## 4. Download govgr data
@@ -47,65 +47,65 @@ python runner.py --config config_thessaloniki_postmetro_50kph.yaml --runs 10
 Realtime:
 
 ```bash
-python govgr_downloader.py \
+sas-fetch-govgr \
   --source realtime \
   --dataset all \
-  --output-dir thessaloniki_govgr/downloads/realtime_latest
+  --output-dir data/cities/thessaloniki/govgr/downloads/realtime_latest
 ```
 
 Historical 2025:
 
 ```bash
-python govgr_downloader.py \
+sas-fetch-govgr \
   --source historical \
   --dataset speed \
   --historical-pattern _2025 \
-  --output-dir thessaloniki_govgr/downloads/historical_2025
+  --output-dir data/cities/thessaloniki/govgr/downloads/historical_2025
 
-python govgr_downloader.py \
+sas-fetch-govgr \
   --source historical \
   --dataset travel_times \
   --historical-pattern _2025 \
-  --output-dir thessaloniki_govgr/downloads/historical_2025
+  --output-dir data/cities/thessaloniki/govgr/downloads/historical_2025
 ```
 
 Historical 2026:
 
 ```bash
-python govgr_downloader.py \
+sas-fetch-govgr \
   --source historical \
   --dataset speed \
   --historical-pattern _2026 \
-  --output-dir thessaloniki_govgr/downloads/historical_2026
+  --output-dir data/cities/thessaloniki/govgr/downloads/historical_2026
 
-python govgr_downloader.py \
+sas-fetch-govgr \
   --source historical \
   --dataset travel_times \
   --historical-pattern _2026 \
-  --output-dir thessaloniki_govgr/downloads/historical_2026
+  --output-dir data/cities/thessaloniki/govgr/downloads/historical_2026
 ```
 
 ## 5. Build calibration/validation targets
 
 ```bash
-python govgr_targets.py \
-  --downloads-root thessaloniki_govgr/downloads \
+sas-build-govgr-targets \
+  --downloads-root data/cities/thessaloniki/govgr/downloads \
   --calibration-year 2025 \
   --validation-year 2026 \
-  --output-dir thessaloniki_govgr/targets/post_metro_2025_2026
+  --output-dir data/cities/thessaloniki/govgr/targets/post_metro_2025_2026
 ```
 
 Outputs go to:
 
-`thessaloniki_govgr/targets/post_metro_2025_2026/`
+`data/cities/thessaloniki/govgr/targets/post_metro_2025_2026/`
 
 ## 6. What to share with colleagues
 
 Share these folders/files for reproducible analysis:
 
-- `config.yaml` (or another config used in the run)
-- `thessaloniki_network_postmetro_50kph/` (network used)
-- `thessaloniki_govgr/targets/post_metro_2025_2026/` (calibration targets)
+- `configs/thessaloniki/postmetro_50kph.yaml` (or another config used in the run)
+- `data/cities/thessaloniki/network/` (network used)
+- `data/cities/thessaloniki/govgr/targets/post_metro_2025_2026/` (calibration targets)
 - `results/` run folders with timestamps
 
 ## Optional shortcut commands

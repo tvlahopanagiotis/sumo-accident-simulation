@@ -38,10 +38,11 @@ sys.modules["traci"] = mock_traci
 sys.modules["traci.constants"] = mock_traci.constants
 sys.modules["traci.exceptions"] = mock_traci.exceptions
 
-# Ensure the project root is on sys.path so `from risk_model import ...` works
+# Ensure the src tree is on sys.path so `from sas... import ...` works.
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
+_src_root = os.path.join(_project_root, "src")
+if _src_root not in sys.path:
+    sys.path.insert(0, _src_root)
 
 
 # ---------------------------------------------------------------------------

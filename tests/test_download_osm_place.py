@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from download_osm_place import _build_overpass_query, _default_output_path, _expand_bbox, _slugify
+from sas.integrations.download_osm_place import _build_overpass_query, _default_output_path, _expand_bbox, _slugify
 
 
 def test_slugify_place_name() -> None:

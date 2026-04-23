@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sumo_paths import find_random_trips_path, find_typemap_path, resolve_sumo_home
+from sas.simulation.sumo_paths import find_random_trips_path, find_typemap_path, resolve_sumo_home
 
 
 def test_resolve_sumo_home_keeps_share_path() -> None:

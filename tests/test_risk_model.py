@@ -11,7 +11,7 @@ import random
 
 import traci  # This is the mock injected by conftest.py
 
-from risk_model import RiskModel
+from sas.core.risk_model import RiskModel
 
 # Shorthand for the mock constants
 _tc = traci.constants

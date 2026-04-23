@@ -4,13 +4,13 @@ VENV ?= .venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-CONFIG ?= config.yaml
+CONFIG ?= configs/thessaloniki/default.yaml
 RUNS ?= 10
 
-DOWNLOADS_ROOT ?= thessaloniki_govgr/downloads
+DOWNLOADS_ROOT ?= data/cities/thessaloniki/govgr/downloads
 CALIBRATION_YEAR ?= 2025
 VALIDATION_YEAR ?= 2026
-TARGETS_DIR ?= thessaloniki_govgr/targets/post_metro_2025_2026
+TARGETS_DIR ?= data/cities/thessaloniki/govgr/targets/post_metro_2025_2026
 
 .PHONY: help venv install install-dev run run-batch run-postmetro50 assess \
 	fetch-realtime fetch-historical-2025 fetch-historical-2026 build-targets \
@@ -21,7 +21,7 @@ help:
 	@echo ""
 	@echo "  make install                 Create .venv and install package"
 	@echo "  make install-dev             Install package + dev tools"
-	@echo "  make run                     Run one simulation (CONFIG=config.yaml)"
+	@echo "  make run                     Run one simulation (CONFIG=configs/thessaloniki/default.yaml)"
 	@echo "  make run-batch RUNS=10       Run batch simulations"
 	@echo "  make run-postmetro50         Run using 50 km/h-capped Thessaloniki network"
 	@echo "  make assess                  Run resilience assessment"
@@ -41,30 +41,30 @@ install-dev: venv
 	$(PIP) install -e ".[dev]"
 
 run:
-	$(PYTHON) runner.py --config $(CONFIG)
+	$(PYTHON) -m sas.simulation.runner --config $(CONFIG)
 
 run-batch:
-	$(PYTHON) runner.py --config $(CONFIG) --runs $(RUNS)
+	$(PYTHON) -m sas.simulation.runner --config $(CONFIG) --runs $(RUNS)
 
 run-postmetro50:
-	$(PYTHON) runner.py --config config_thessaloniki_postmetro_50kph.yaml
+	$(PYTHON) -m sas.simulation.runner --config configs/thessaloniki/postmetro_50kph.yaml
 
 assess:
-	$(PYTHON) resilience_assessment.py --config $(CONFIG)
+	$(PYTHON) -m sas.analysis.resilience_assessment --config $(CONFIG)
 
 fetch-realtime:
-	$(PYTHON) govgr_downloader.py --source realtime --dataset all --output-dir $(DOWNLOADS_ROOT)/realtime_latest
+	$(PYTHON) -m sas.integrations.govgr_downloader --source realtime --dataset all --output-dir $(DOWNLOADS_ROOT)/realtime_latest
 
 fetch-historical-2025:
-	$(PYTHON) govgr_downloader.py --source historical --dataset speed --historical-pattern _2025 --output-dir $(DOWNLOADS_ROOT)/historical_2025
-	$(PYTHON) govgr_downloader.py --source historical --dataset travel_times --historical-pattern _2025 --output-dir $(DOWNLOADS_ROOT)/historical_2025
+	$(PYTHON) -m sas.integrations.govgr_downloader --source historical --dataset speed --historical-pattern _2025 --output-dir $(DOWNLOADS_ROOT)/historical_2025
+	$(PYTHON) -m sas.integrations.govgr_downloader --source historical --dataset travel_times --historical-pattern _2025 --output-dir $(DOWNLOADS_ROOT)/historical_2025
 
 fetch-historical-2026:
-	$(PYTHON) govgr_downloader.py --source historical --dataset speed --historical-pattern _2026 --output-dir $(DOWNLOADS_ROOT)/historical_2026
-	$(PYTHON) govgr_downloader.py --source historical --dataset travel_times --historical-pattern _2026 --output-dir $(DOWNLOADS_ROOT)/historical_2026
+	$(PYTHON) -m sas.integrations.govgr_downloader --source historical --dataset speed --historical-pattern _2026 --output-dir $(DOWNLOADS_ROOT)/historical_2026
+	$(PYTHON) -m sas.integrations.govgr_downloader --source historical --dataset travel_times --historical-pattern _2026 --output-dir $(DOWNLOADS_ROOT)/historical_2026
 
 build-targets:
-	$(PYTHON) govgr_targets.py \
+	$(PYTHON) -m sas.integrations.govgr_targets \
 		--downloads-root $(DOWNLOADS_ROOT) \
 		--calibration-year $(CALIBRATION_YEAR) \
 		--validation-year $(VALIDATION_YEAR) \

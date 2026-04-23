@@ -7,7 +7,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-from visualize import LiveProgressDashboard, resolve_net_file
+from sas.visualization.visualize import LiveProgressDashboard, resolve_net_file
 
 
 def _snapshot(

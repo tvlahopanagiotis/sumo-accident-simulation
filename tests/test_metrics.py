@@ -11,7 +11,7 @@ import os
 
 import traci  # mock from conftest.py
 
-from metrics import MetricsCollector, _t_critical
+from sas.core.metrics import MetricsCollector, _t_critical
 
 _tc = traci.constants
 

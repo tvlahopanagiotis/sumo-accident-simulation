@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from govgr_downloader import DATASETS, _clean_dataframe, _extract_archive, _parse_ftp_url
+from sas.integrations.govgr_downloader import DATASETS, _clean_dataframe, _extract_archive, _parse_ftp_url
 
 
 def test_parse_ftp_url() -> None:

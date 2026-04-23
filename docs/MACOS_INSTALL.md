@@ -138,7 +138,7 @@ Run:
 ```bash
 python -c "import traci, sumolib; print(traci.__version__); print(sumolib.__file__)"
 python -c "import yaml, pandas, numpy, matplotlib, seaborn, scipy, requests; print('python deps ok')"
-python runner.py --help
+sas --help
 ```
 
 Expected result:
@@ -146,17 +146,17 @@ Expected result:
 - `traci` imports successfully
 - `sumolib` imports successfully
 - the standard Python dependencies import successfully
-- `runner.py --help` prints usage information without import errors
+- `sas --help` prints usage information without import errors
 
 ## 9. First project run
 
 Run the default configuration:
 
 ```bash
-python runner.py --config config.yaml
+sas --config configs/thessaloniki/default.yaml
 ```
 
-If `config.yaml` sets:
+If `configs/thessaloniki/default.yaml` sets:
 
 ```yaml
 sumo:
@@ -188,7 +188,7 @@ export SUMO_HOME="/Library/Frameworks/EclipseSUMO.framework/Versions/Current/Ecl
 With that in place, this should work:
 
 ```bash
-python generate_thessaloniki.py --help
+sas-generate-thessaloniki --help
 ```
 
 ## Apple Silicon note
@@ -226,7 +226,7 @@ sumo:
 Then run:
 
 ```bash
-python runner.py --config config.yaml
+sas --config configs/thessaloniki/default.yaml
 ```
 
 This path was validated and works reliably.
@@ -246,7 +246,7 @@ output:
 Or launch it ad hoc:
 
 ```bash
-python runner.py --config config.yaml --live-progress
+sas --config configs/thessaloniki/default.yaml --live-progress
 ```
 
 This updates `live_progress.png` in the run output folder and, when the local

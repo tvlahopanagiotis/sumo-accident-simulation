@@ -40,7 +40,7 @@ jobs:
         run: ruff format --check .
 
       - name: Mypy
-        run: mypy runner.py risk_model.py accident_manager.py metrics.py
+        run: mypy src/sas
 
   test:
     name: Tests (Python ${{ matrix.python-version }})

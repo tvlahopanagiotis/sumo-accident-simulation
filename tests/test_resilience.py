@@ -19,7 +19,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from mfd_analysis import (
+from sas.analysis.mfd_analysis import (
     EdgeVulnerability,
     ResilienceScore,
     _greenshields_speed,
@@ -31,8 +31,8 @@ from mfd_analysis import (
     interpret_resilience_score,
     score_to_dict,
 )
-from parallel_runner import ParallelExecutor
-from scenario_generator import (
+from sas.simulation.parallel_runner import ParallelExecutor
+from sas.analysis.scenario_generator import (
     DEFAULT_DEMAND_LEVELS,
     DEFAULT_INCIDENT_CONFIGS,
     QUICK_DEMAND_LEVELS,
@@ -444,7 +444,7 @@ class TestResilienceReport:
 
     def test_report_generation(self, tmp_path):
         """Report generates valid HTML with expected sections."""
-        from resilience_report import generate_resilience_report
+        from sas.analysis.resilience_report import generate_resilience_report
 
         figures_dir = tmp_path / "figures"
         figures_dir.mkdir()

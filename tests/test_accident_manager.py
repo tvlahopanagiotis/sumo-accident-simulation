@@ -13,7 +13,7 @@ from collections import Counter
 import pytest
 import traci  # mock from conftest.py
 
-from accident_manager import Accident, AccidentManager
+from sas.core.accident_manager import Accident, AccidentManager
 
 # ---------------------------------------------------------------------------
 # Helpers
