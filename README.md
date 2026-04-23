@@ -16,8 +16,8 @@ The repository is organized around a package-first layout:
 - city and benchmark assets in `data/`
 - outputs in `results/`
 
-For the canonical repo map, see [docs/STRUCTURE.md](/Users/kgrizos/Documents/GitHub/sumo-accident-simulation/docs/STRUCTURE.md).
-For the full documentation index, see [docs/README.md](/Users/kgrizos/Documents/GitHub/sumo-accident-simulation/docs/README.md).
+For the canonical repo map, see [docs/STRUCTURE.md](docs/STRUCTURE.md).
+For the full documentation index, see [docs/README.md](docs/README.md).
 
 ## Core Capabilities
 
@@ -198,13 +198,13 @@ sas
 
 ## Docs
 
-- [docs/README.md](/Users/kgrizos/Documents/GitHub/sumo-accident-simulation/docs/README.md): documentation index
-- [docs/STRUCTURE.md](/Users/kgrizos/Documents/GitHub/sumo-accident-simulation/docs/STRUCTURE.md): canonical repository layout
-- [docs/REFERENCE.md](/Users/kgrizos/Documents/GitHub/sumo-accident-simulation/docs/REFERENCE.md): outputs, risk model, severity model, development notes
-- [docs/THESSALONIKI_OPERATOR_GUIDE.md](/Users/kgrizos/Documents/GitHub/sumo-accident-simulation/docs/THESSALONIKI_OPERATOR_GUIDE.md): Thessaloniki workflow
-- [docs/MACOS_INSTALL.md](/Users/kgrizos/Documents/GitHub/sumo-accident-simulation/docs/MACOS_INSTALL.md): macOS setup
-- [docs/SEATTLE_DATA.md](/Users/kgrizos/Documents/GitHub/sumo-accident-simulation/docs/SEATTLE_DATA.md): Seattle bundle and network notes
-- [docs/CHANGELOG.md](/Users/kgrizos/Documents/GitHub/sumo-accident-simulation/docs/CHANGELOG.md): changelog
+- [docs/README.md](docs/README.md): documentation index
+- [docs/STRUCTURE.md](docs/STRUCTURE.md): canonical repository layout
+- [docs/REFERENCE.md](docs/REFERENCE.md): outputs, risk model, severity model, development notes
+- [docs/THESSALONIKI_OPERATOR_GUIDE.md](docs/THESSALONIKI_OPERATOR_GUIDE.md): Thessaloniki workflow
+- [docs/MACOS_INSTALL.md](docs/MACOS_INSTALL.md): macOS setup
+- [docs/SEATTLE_DATA.md](docs/SEATTLE_DATA.md): Seattle bundle and network notes
+- [docs/CHANGELOG.md](docs/CHANGELOG.md): changelog
 
 ## GUI Direction
 

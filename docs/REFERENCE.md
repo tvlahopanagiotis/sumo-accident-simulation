@@ -123,7 +123,7 @@ pip install -e ".[dev]"
 
 ```bash
 pytest tests/ -v
-pytest tests/ --cov=. --cov-report=term-missing
+pytest tests/ --cov=src/sas --cov-report=term-missing
 pytest tests/ -m integration
 ```
 

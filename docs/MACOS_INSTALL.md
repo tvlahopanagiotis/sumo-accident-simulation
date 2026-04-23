@@ -21,6 +21,7 @@ Validated environment:
 - macOS on Apple Silicon
 - XQuartz `2.8.5`
 - SUMO `1.26.0`
+- Python `3.12`
 - Conda environment: `vEnvAC`
 
 ## 1. Install XQuartz
@@ -110,7 +111,7 @@ If `xterm` does not open, stop here and fix XQuartz before proceeding.
 This project was validated with a Conda environment named `vEnvAC`:
 
 ```bash
-conda create -n vEnvAC python=3.14
+conda create -n vEnvAC python=3.12
 conda activate vEnvAC
 python -m pip install --upgrade pip setuptools wheel
 ```

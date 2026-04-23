@@ -5,8 +5,11 @@ This is the shortest practical workflow for transport-engineering use.
 ## 1. Open the correct folder
 
 ```bash
-cd <repo-root>/.worktrees/main-clean
+cd <repo-root>
 ```
+
+If you use git worktrees, replace `<repo-root>` with the specific worktree you
+intend to run from.
 
 ## 2. First-time setup
 

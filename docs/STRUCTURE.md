@@ -17,6 +17,9 @@ change so it always matches the current on-disk layout.
 
 ```text
 .
+├── .github/
+│   └── workflows/
+├── .worktrees/
 ├── configs/
 │   ├── seattle/
 │   │   └── default.yaml
@@ -57,6 +60,10 @@ change so it always matches the current on-disk layout.
 ├── README.md
 └── pyproject.toml
 ```
+
+Hidden helper directories are shown because they exist in the repository today,
+but `.worktrees/` is optional local workflow state rather than required project
+source.
 
 ## Directory Responsibilities
 
@@ -109,6 +116,11 @@ predictable.
 Generated run outputs only. Nothing under `results/` should be treated as a
 source input to the package unless explicitly documented.
 
+### `docs/`
+
+Project documentation lives here. The only markdown file kept at the repository
+root is `README.md`; all other long-form docs belong under `docs/`.
+
 ## How To Run
 
 After `pip install -e .`:
@@ -131,6 +143,7 @@ After `pip install -e .`:
 ## Structure Notes
 
 - There are no root-level Python compatibility wrappers anymore.
+- The only root-level markdown file is `README.md`.
 - If a new city is added, prefer `data/cities/<city>/...` and
   `configs/<city>/...`.
 - If a new benchmark is added, prefer `data/benchmarks/<name>/...`.
