@@ -167,6 +167,10 @@ def build_command(workflow_id: str, payload: dict[str, Any]) -> list[str]:
         _append_arg(command, "--place", _value(payload, "place"))
         _append_arg(command, "--out", _value(payload, "out"))
         _append_arg(command, "--pad-km", _value(payload, "pad_km"))
+        _append_arg(command, "--south", _value(payload, "south"))
+        _append_arg(command, "--west", _value(payload, "west"))
+        _append_arg(command, "--north", _value(payload, "north"))
+        _append_arg(command, "--east", _value(payload, "east"))
         if _value(payload, "all_features", False):
             command.append("--all-features")
         _append_arg(command, "--nominatim-url", _value(payload, "nominatim_url"))
@@ -279,7 +283,7 @@ def predict_output_dir(workflow_id: str, payload: dict[str, Any]) -> str | None:
 WORKFLOW_SPECS: dict[str, WorkflowSpec] = {
     "simulation.run": WorkflowSpec(
         id="simulation.run",
-        category="Simulation",
+        category="Simulations",
         title="Run Simulation",
         description="Run a single SAS simulation or a multi-run batch from a YAML config.",
         module="sas.simulation.runner",
@@ -293,7 +297,7 @@ WORKFLOW_SPECS: dict[str, WorkflowSpec] = {
     ),
     "assessment.run": WorkflowSpec(
         id="assessment.run",
-        category="Simulation",
+        category="Simulations",
         title="Run Resilience Assessment",
         description="Execute the one-click resilience assessment workflow and generate report outputs.",
         module="sas.analysis.resilience_assessment",
@@ -387,6 +391,10 @@ WORKFLOW_SPECS: dict[str, WorkflowSpec] = {
             WorkflowField("place", "Place", type="text", required=True, placeholder="Seattle, Washington, USA"),
             WorkflowField("out", "Output File", type="text", placeholder="data/cities/seattle/.../Seattle.osm"),
             WorkflowField("pad_km", "Padding (km)", type="number", default=0),
+            WorkflowField("south", "South", type="number"),
+            WorkflowField("west", "West", type="number"),
+            WorkflowField("north", "North", type="number"),
+            WorkflowField("east", "East", type="number"),
             WorkflowField("all_features", "All Features", type="boolean", default=False),
             WorkflowField("nominatim_url", "Nominatim URL", type="text"),
             WorkflowField("overpass_url", "Overpass URL", type="text"),
@@ -398,7 +406,7 @@ WORKFLOW_SPECS: dict[str, WorkflowSpec] = {
         id="integration.govgr_download",
         category="Data & Integrations",
         title="Download gov.gr Data",
-        description="Download realtime and/or historical Thessaloniki gov.gr datasets.",
+        description="Download realtime and/or historical Thessaloniki traffic datasets from the IMET/CERTH feeds used in the current Greek integration.",
         module="sas.integrations.govgr_downloader",
         progress_mode="indeterminate",
         fields=[
@@ -423,7 +431,7 @@ WORKFLOW_SPECS: dict[str, WorkflowSpec] = {
         id="integration.govgr_targets",
         category="Data & Integrations",
         title="Build gov.gr Targets",
-        description="Build calibration and validation target tables from gov.gr downloads.",
+        description="Build calibration and validation target tables from downloaded Thessaloniki gov.gr traffic feeds.",
         module="sas.integrations.govgr_targets",
         progress_mode="indeterminate",
         fields=[

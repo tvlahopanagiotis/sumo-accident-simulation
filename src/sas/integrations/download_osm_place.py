@@ -183,6 +183,10 @@ def main() -> None:
         default=0.0,
         help="Expand the resolved place bounding box by this many km on each side.",
     )
+    parser.add_argument("--south", type=float, default=None, help="Optional south latitude override.")
+    parser.add_argument("--west", type=float, default=None, help="Optional west longitude override.")
+    parser.add_argument("--north", type=float, default=None, help="Optional north latitude override.")
+    parser.add_argument("--east", type=float, default=None, help="Optional east longitude override.")
     parser.add_argument(
         "--all-features",
         action="store_true",
@@ -213,21 +217,31 @@ def main() -> None:
     out_path = Path(args.out) if args.out else _default_output_path(args.place)
 
     try:
-        print(f"Resolving place via Nominatim: {args.place}")
-        place_info = _resolve_place(
-            place=args.place,
-            nominatim_url=args.nominatim_url,
-            user_agent=args.user_agent,
-            email=args.email,
-        )
+        if None not in {args.south, args.west, args.north, args.east}:
+            display_name = args.place
+            south, west, north, east = (
+                float(args.south),
+                float(args.west),
+                float(args.north),
+                float(args.east),
+            )
+            print(f"Using explicit bounding box overrides for: {display_name}")
+        else:
+            print(f"Resolving place via Nominatim: {args.place}")
+            place_info = _resolve_place(
+                place=args.place,
+                nominatim_url=args.nominatim_url,
+                user_agent=args.user_agent,
+                email=args.email,
+            )
 
-        display_name = str(place_info.get("display_name", args.place))
-        south, north, west, east = (
-            float(place_info["boundingbox"][0]),
-            float(place_info["boundingbox"][1]),
-            float(place_info["boundingbox"][2]),
-            float(place_info["boundingbox"][3]),
-        )
+            display_name = str(place_info.get("display_name", args.place))
+            south, north, west, east = (
+                float(place_info["boundingbox"][0]),
+                float(place_info["boundingbox"][1]),
+                float(place_info["boundingbox"][2]),
+                float(place_info["boundingbox"][3]),
+            )
         south, west, north, east = _expand_bbox(south, west, north, east, args.pad_km)
 
         print(f"  Matched: {display_name}")
@@ -235,8 +249,9 @@ def main() -> None:
         if args.pad_km > 0:
             print(f"  Padding applied: {args.pad_km:.2f} km")
 
-        # Stay under the public Nominatim usage limit of 1 request/second.
-        time.sleep(1.0)
+        if None in {args.south, args.west, args.north, args.east}:
+            # Stay under the public Nominatim usage limit of 1 request/second.
+            time.sleep(1.0)
 
         query = _build_overpass_query(
             south=south,

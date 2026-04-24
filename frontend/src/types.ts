@@ -58,10 +58,61 @@ export type TreeNode = {
 
 export type Branding = {
   name: string;
-  project: string;
   colors: Record<string, string>;
   logo_path: string;
   favicon_path: string;
-  font_note: string;
+  eu_logo_path: string;
+  project_url: string;
+  footer_disclaimer: string;
+  copyright: string;
 };
 
+export type LocationSearchResult = {
+  display_name: string;
+  lat: number;
+  lon: number;
+  boundingbox: [number, number, number, number];
+  country_code: string;
+  country?: string;
+  city?: string;
+  state?: string;
+  osm_type?: string;
+  osm_id?: number;
+  class?: string;
+  type?: string;
+  geojson?: Record<string, unknown> | null;
+};
+
+export type ResultRunSummary = {
+  run_root: string;
+  metadata: Record<string, unknown>;
+  summary: Record<string, unknown>;
+  config_snapshot: Record<string, unknown>;
+  metrics: {
+    series: Record<string, number[]>;
+    stats: Record<string, number>;
+  };
+  accidents: {
+    count: number;
+    by_severity: Record<string, number>;
+    max_duration_seconds: number;
+    max_queue_length_vehicles: number;
+    max_vehicles_affected: number;
+    items: Array<Record<string, unknown>>;
+  } | null;
+  antifragility: {
+    antifragility_index: number | null;
+    n_events_measured: number | null;
+    total_accidents: number | null;
+    std_dev: number | null;
+    ci_95_low: number | null;
+    ci_95_high: number | null;
+    interpretation: string | null;
+    per_event: Array<Record<string, unknown>>;
+  } | null;
+  artifacts: {
+    report_path: string | null;
+    image_paths: string[];
+    raw_files: string[];
+  };
+};

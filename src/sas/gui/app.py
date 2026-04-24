@@ -13,6 +13,8 @@ import yaml
 
 from ..app.config import CONFIGS_DIR, PROJECT_ROOT, load_config_raw, prepare_runtime_config, resolve_config_path, save_config, validate_config
 from .jobs import job_manager
+from .locations import search_locations
+from .results import build_run_summary
 from .workflows import WORKFLOW_SPECS
 
 
@@ -25,6 +27,15 @@ class ConfigPayload(BaseModel):
 class ValidationPayload(BaseModel):
     config: dict[str, Any] | None = None
     raw_yaml: str | None = None
+
+
+class ConfigCreatePayload(BaseModel):
+    path: str
+    source_path: str | None = None
+
+
+class ConfigDeletePayload(BaseModel):
+    path: str
 
 
 class JobCreatePayload(BaseModel):
@@ -56,12 +67,38 @@ def _resolve_safe_path(path: str) -> Path:
     allowed_roots = [
         PROJECT_ROOT / "results",
         PROJECT_ROOT / "configs",
+        PROJECT_ROOT / "docs",
         PROJECT_ROOT / "data",
         PROJECT_ROOT / "frontend" / "public" / "branding",
     ]
+    allowed_file = (PROJECT_ROOT / "README.md").resolve()
+    if target == allowed_file:
+        return target
     if not any(root.resolve() in target.parents or target == root.resolve() for root in allowed_roots):
         raise HTTPException(status_code=403, detail="Path is outside allowed roots")
     return target
+
+
+def _normalize_config_target(path: str) -> str:
+    raw = Path(path)
+    if raw.is_absolute():
+        raise HTTPException(status_code=400, detail="Config path must be repository-relative")
+    target = raw if raw.parts[:1] == ("configs",) else Path("configs") / raw
+    if target.suffix.lower() not in {".yaml", ".yml"}:
+        target = target.with_suffix(".yaml")
+    resolved = (PROJECT_ROOT / target).resolve()
+    if CONFIGS_DIR.resolve() not in resolved.parents:
+        raise HTTPException(status_code=400, detail="Config path must live under configs/")
+    return target.as_posix()
+
+
+def _build_clean_config() -> dict[str, Any]:
+    config = load_config_raw()
+    sumo_configs = sorted((PROJECT_ROOT / "data").rglob("*.sumocfg"))
+    default_sumo_cfg = _relative_to_root(sumo_configs[0]) if sumo_configs else "data/cities/example/network/example.sumocfg"
+    config.setdefault("sumo", {})["config_file"] = default_sumo_cfg
+    config.setdefault("output", {})["output_folder"] = "results/custom/new_config"
+    return config
 
 
 def _build_tree(path: Path, depth: int = 2) -> list[dict[str, Any]]:
@@ -79,6 +116,16 @@ def _build_tree(path: Path, depth: int = 2) -> list[dict[str, Any]]:
             node["children"] = _build_tree(child, depth=depth - 1)
         nodes.append(node)
     return nodes
+
+
+def _cleanup_empty_config_dirs(path: Path) -> None:
+    current = path.parent
+    while current != CONFIGS_DIR and current.exists():
+        try:
+            current.rmdir()
+        except OSError:
+            break
+        current = current.parent
 
 
 @app.get("/api/health")
@@ -103,6 +150,44 @@ def list_configs() -> dict[str, Any]:
                 "name": path.name,
             }
             for path in configs
+        ]
+    }
+
+
+@app.get("/api/sumo-configs")
+def list_sumo_configs() -> dict[str, Any]:
+    paths = sorted((PROJECT_ROOT / "data").rglob("*.sumocfg"))
+    return {
+        "sumo_configs": [_relative_to_root(path) for path in paths]
+    }
+
+
+@app.get("/api/output-folders")
+def list_output_folders() -> dict[str, Any]:
+    folders: set[str] = {"results/custom/new_config"}
+    for config_path in CONFIGS_DIR.rglob("*.yaml"):
+        try:
+            config = load_config_raw(config_path)
+        except Exception:
+            continue
+        output_cfg = config.get("output", {}) if isinstance(config, dict) else {}
+        output_folder = output_cfg.get("output_folder") if isinstance(output_cfg, dict) else None
+        if isinstance(output_folder, str) and output_folder.strip():
+            folders.add(output_folder)
+    return {"output_folders": sorted(folders)}
+
+
+@app.get("/api/docs")
+def list_docs() -> dict[str, Any]:
+    docs_root = PROJECT_ROOT / "docs"
+    paths = [PROJECT_ROOT / "README.md", *sorted(docs_root.rglob("*.md"))]
+    return {
+        "docs": [
+            {
+                "path": _relative_to_root(path),
+                "name": path.name,
+            }
+            for path in paths
         ]
     }
 
@@ -150,6 +235,41 @@ def save_config_payload(payload: ConfigPayload) -> dict[str, Any]:
     }
 
 
+@app.post("/api/config/create")
+def create_config_payload(payload: ConfigCreatePayload) -> dict[str, Any]:
+    target_path = _normalize_config_target(payload.path)
+    resolved_target = (PROJECT_ROOT / target_path).resolve()
+    if resolved_target.exists():
+        raise HTTPException(status_code=409, detail="Target config already exists")
+
+    if payload.source_path:
+        source = resolve_config_path(payload.source_path)
+        if not source.exists():
+            raise HTTPException(status_code=404, detail="Source config not found")
+        config = load_config_raw(source)
+    else:
+        config = _build_clean_config()
+
+    saved = save_config(config, target_path)
+    return {
+        "path": _relative_to_root(saved),
+        "created": True,
+        "mode": "clone" if payload.source_path else "clean",
+    }
+
+
+@app.post("/api/config/delete")
+def delete_config_payload(payload: ConfigDeletePayload) -> dict[str, Any]:
+    resolved = resolve_config_path(payload.path)
+    if not resolved.exists() or not resolved.is_file():
+        raise HTTPException(status_code=404, detail="Config not found")
+    if CONFIGS_DIR.resolve() not in resolved.resolve().parents:
+        raise HTTPException(status_code=400, detail="Only files under configs/ can be deleted")
+    resolved.unlink()
+    _cleanup_empty_config_dirs(resolved)
+    return {"deleted": True}
+
+
 @app.get("/api/jobs")
 def list_jobs() -> dict[str, Any]:
     return {"jobs": job_manager.list_jobs()}
@@ -187,6 +307,23 @@ def list_results(depth: int = Query(2, ge=0, le=5)) -> dict[str, Any]:
     }
 
 
+@app.get("/api/results/summary")
+def get_result_summary(path: str = Query(...)) -> dict[str, Any]:
+    resolved = _resolve_safe_path(path)
+    summary = build_run_summary(resolved)
+    if summary is None:
+        raise HTTPException(status_code=404, detail="No run summary found for the selected path")
+    return summary
+
+
+@app.get("/api/locations/search")
+def search_place(query: str = Query(..., min_length=2), limit: int = Query(6, ge=1, le=10)) -> dict[str, Any]:
+    try:
+        return {"results": search_locations(query, limit=limit)}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Location search failed: {exc}") from exc
+
+
 @app.get("/api/fs/tree")
 def list_tree(path: str, depth: int = Query(2, ge=0, le=5)) -> dict[str, Any]:
     resolved = _resolve_safe_path(path)
@@ -217,7 +354,6 @@ def get_file_text(path: str) -> PlainTextResponse:
 def branding() -> dict[str, Any]:
     return {
         "name": "AntifragiCity SAS",
-        "project": "Horizon Europe AntifragiCity",
         "colors": {
             "primary": "#f93262",
             "secondary": "#ffbea1",
@@ -228,7 +364,17 @@ def branding() -> dict[str, Any]:
         },
         "logo_path": "frontend/public/branding/antifragicity-logo-main-h.svg",
         "favicon_path": "frontend/public/branding/antifragicity-favicon.svg",
-        "font_note": "Official font files were not readable from this environment; the first version uses a clean web-safe fallback stack and can be updated once the font assets are accessible.",
+        "eu_logo_path": "frontend/public/branding/eu-funded-by-eu.png",
+        "project_url": "https://antifragicity.eu",
+        "footer_disclaimer": (
+            "This project has received funding from the European Union’s Horizon Europe research "
+            "and innovation programme under grant agreement No. 101203052. Views and opinions "
+            "expressed are however those of the author(s) only and do not necessarily reflect "
+            "those of the European Union or the European Climate, Infrastructure and Environment "
+            "Executive Agency (CINEA). Neither the European Union nor the granting authority can "
+            "be held responsible for them."
+        ),
+        "copyright": "© AntifragiCity. All rights reserved.",
     }
 
 

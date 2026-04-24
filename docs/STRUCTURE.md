@@ -82,7 +82,7 @@ Application code only.
 - `integrations/`: govgr and OSM download/ingest tooling.
 - `generators/`: network and route generation workflows.
 - `gui/`: FastAPI backend for the React GUI, including workflow metadata,
-  background job execution, and result/file APIs.
+  background job execution, config creation, OSM search, and result/file APIs.
 - `tools/`: standalone operational or analyst-facing utilities.
 - `visualization/`: plots, reports, and the live dashboard.
 - `app/`: config resolution, persistence, validation, and GUI-friendly services.
@@ -92,8 +92,9 @@ Application code only.
 React frontend for the operator GUI.
 
 - `frontend/src/`: application views, dynamic workflow forms, config editor,
-  job console, and result previews.
-- `frontend/public/branding/`: AntifragiCity logo assets used by the UI shell.
+  job console, OSM search/boundary preview, and interactive result dashboards.
+- `frontend/public/branding/`: AntifragiCity logo assets plus the EU funding
+  mark used in the footer.
 
 See `docs/GUI.md` for the functional explanation of how the frontend and
 backend interact.
