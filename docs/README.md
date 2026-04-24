@@ -11,7 +11,8 @@ correctly on GitHub.
 - [REFERENCE.md](REFERENCE.md):
   outputs, risk model, severity model, and development commands
 - [GUI.md](GUI.md):
-  how the GUI works, what it covers, and development run instructions
+  how the GUI works, including config creation, OSM search/boundary preview,
+  split workflow pages, interactive results, and in-GUI documentation preview
 - [STRUCTURE.md](STRUCTURE.md):
   canonical repository layout
 - [THESSALONIKI_OPERATOR_GUIDE.md](THESSALONIKI_OPERATOR_GUIDE.md):

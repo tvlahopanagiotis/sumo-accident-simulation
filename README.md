@@ -236,6 +236,12 @@ The first GUI version is now in place:
 - `frontend/` provides the React operator console.
 - `src/sas/app/config.py` still centralizes config loading, saving, and validation.
 - The CLI remains intact; the GUI is an additional interface over the same workflows.
+- Workflow pages are now split into `Data & Integrations`, `Generators`, `Simulations`, and `Analysis`.
+- The GUI can create configs from a clean starter template or by cloning an existing config.
+- `Data & Integrations` now includes OSM place search, boundary preview, and explicit bbox overrides.
+- `Results` now parses SAS run artifacts into interactive charts and tables instead of only static file previews.
+- The GUI also includes a `Documentation` page for tabbed preview of the markdown docs under `docs/`.
+- `Data & Integrations` now supports map-based locality boundaries, bbox editing, and custom drawn shapes for OSM extract setup.
 
 For the actual GUI behavior, screen model, and execution flow, see
 [`docs/GUI.md`](docs/GUI.md).

@@ -1,35 +1,28 @@
 # GUI Guide
 
-This document explains how the first SAS GUI works, what it currently covers,
-and how it relates to the existing CLI.
+This document explains the current SAS GUI, how it relates to the CLI, and
+what the present first-generation interface actually does.
 
-The first GUI version ships as:
+The GUI ships as:
 
-- a Python backend in `src/sas/gui/`
+- a FastAPI backend in `src/sas/gui/`
 - a React frontend in `frontend/`
 
 The CLI remains fully supported. The GUI is an additional operator interface,
-not a replacement.
+not a replacement runtime.
 
 ## What It Is
 
-The GUI is an operator console for the existing SAS workflows.
-
-It does not introduce a separate simulation engine. Instead, it sits on top of
-the same Python modules and command flows that already power:
+The GUI is an operator console over the same SAS workflows that already power:
 
 - `sas`
 - `sas-assess`
-- the network generators
-- the data download / gov.gr tooling
+- the generator commands
+- the OSM / gov.gr integration commands
 - the analysis scripts
 
-The design goal for this first version is practical control and visibility:
-
-- edit configs without hand-editing YAML
-- launch workflows without remembering CLI arguments
-- monitor progress and logs in one place
-- inspect generated images, reports, and results directly from the GUI
+It does not introduce a separate simulation engine. It orchestrates the same
+Python modules and subprocess flows already used by the CLI.
 
 ## How It Works
 
@@ -41,14 +34,17 @@ Main pieces:
 
 - `app.py`
   - FastAPI application
-  - serves config, workflow, job, and file/result endpoints
+  - exposes config, workflow, location-search, result-summary, job, and file APIs
 - `workflows.py`
-  - registry of GUI-exposed workflows
-  - defines fields, labels, defaults, and how form input becomes CLI/module arguments
+  - workflow registry used by both the launcher UI and the subprocess runner
+  - maps form values to `python -m sas...` commands
 - `jobs.py`
-  - background job manager
-  - starts long-running tasks as managed subprocesses
-  - captures logs, status, progress hints, and output paths
+  - managed background subprocess execution
+  - captures logs, progress hints, return codes, and key output files
+- `locations.py`
+  - OSM/Nominatim place search helper for the GUI
+- `results.py`
+  - parses existing run artifacts into a structured summary for the Results page
 
 ### Frontend
 
@@ -56,40 +52,26 @@ The frontend lives in `frontend/`.
 
 It is a React app that:
 
-- loads the workflow registry from the backend
-- renders workflow forms dynamically
-- loads and saves YAML configs through the API
-- polls job state and result trees
-- previews text files, images, and HTML reports
+- loads workflow metadata from the backend
+- edits and saves configs through the API
+- creates new configs from a clean starter or a clone of an existing config
+- searches OSM locations and previews extract boundaries
+- launches workflows as managed jobs
+- polls jobs and results
+- renders interactive post-run metrics from existing SAS output files
 
 ### Execution Model
 
-For the first version, long-running actions are executed as subprocess jobs.
+Long-running actions are executed as subprocess jobs.
 
 That means:
 
-- the GUI does not replace the existing CLI code paths
-- job logs are captured from process output
-- progress is inferred from milestone log lines where possible
-- existing result folders and output files remain the source of truth
+- the GUI stays aligned with the CLI code paths
+- job logs are captured from stdout/stderr
+- progress is inferred from current log/report artifacts
+- run folders and result files remain the source of truth
 
-This keeps the GUI aligned with the CLI and reduces duplication.
-
-## Current Scope
-
-The GUI currently exposes:
-
-- config browsing, validation, and saving
-- simulation runs
-- resilience assessment runs
-- network generators
-- OSM and gov.gr data workflows
-- analysis tools
-- job status, logs, progress, and cancellation
-- live image/report/result preview
-
-The frontend is branded for the AntifragiCity project using the official logo
-assets and the palette derived from the provided SVG brand files.
+This keeps GUI and CLI behavior close and avoids duplicating business logic.
 
 ## Main Screens
 
@@ -97,65 +79,163 @@ assets and the palette derived from the provided SVG brand files.
 
 High-level landing page with:
 
-- available config/workflow/result counts
-- active job summary
+- counts for configs, workflows, jobs, and result roots
+- active-job snapshot
 - live progress image when present
 
 ### Config Studio
 
-Used to work with YAML configs in two modes:
+Config Studio now supports:
 
-- structured mode
-  - editable nested form view based on the YAML structure
-- raw mode
-  - direct YAML text editing
+- loading configs from `configs/`
+- creating a new config from a clean starter template
+- cloning the currently selected config into a new file
+- deleting config files from the GUI
+- validating configs through the shared backend validation layer
+- saving in structured mode or raw YAML mode
+- selecting configs from a folder-grouped config picker
+- selecting the network from discovered `.sumocfg` files instead of hand-typing paths
+- selecting the output folder from discovered output roots instead of typing every path manually
 
-Current behavior:
+Structured mode is now organized into secondary tabs:
 
-- load a config from `configs/`
-- validate it through the shared config validation layer
-- save it back without rewriting paths into machine-specific absolute values
+- `SUMO Runtime`
+- `Risk Model`
+- `Accident Model`
+- `Outputs & Monitoring`
+- `Resilience Assessment`
 
-### Workflows
+Each tab includes:
 
-Workflow launcher grouped by category:
+- introductory text
+- grouped forms instead of one long flat column
+- lightweight inline descriptions
+- hover help for examples and practical meaning
+- switch-style toggles for boolean settings
 
-- Simulation
-- Generators
-- Data & Integrations
-- Analysis
+The `Risk Model`, `Accident Model`, and `Resilience Assessment` tabs also
+include a dedicated “About This Model” dialog that explains how to interpret
+their parameters in simulation terms and points back to the relevant source and
+documentation files.
 
-Each workflow form is built from backend metadata rather than hardcoded page
-logic.
+The `Resilience Assessment` tab also uses a clearer structure for:
+
+- demand levels as a vertical numeric list
+- incident scenarios as a table with preset ladder, scenario name, and base
+  probability side by side
+
+### Data & Integrations
+
+This is now a dedicated page rather than one card inside a generic workflow
+grid.
+
+Current capabilities:
+
+- search a place through OSM/Nominatim
+- pick a result from the returned matches
+- preview the result on a real map component
+- switch between locality boundary, bounding box, and custom shape modes
+- override south/west/north/east boundaries before launch
+- draw a custom shape directly on the map; the GUI derives the enclosing bbox
+  used by the current download backend
+- keep a stable map view while sketching a custom shape instead of constantly
+  re-fitting to the in-progress polygon
+- pass those explicit bounds to the OSM download workflow
+- edit advanced OSM fetch parameters such as endpoints and user-agent details
+
+Greek traffic-feed tooling is shown separately.
+
+Important current limitation:
+
+- the present gov.gr integration in this repository is still effectively
+  Thessaloniki-specific, because it uses the IMET/CERTH Thessaloniki feed
+  sources already wired into `sas.integrations.govgr_downloader`
+
+So the GUI surfaces these workflows only in the Greek-location context and
+marks Thessaloniki as the currently valid operational target.
+
+### Generators
+
+Generators now have their own page. The UI still exposes the existing bundled
+generator workflows, but frames them as reusable generation tasks rather than
+as root-level script substitutes.
+
+### Simulations
+
+Simulations now have their own page and currently expose:
+
+- single or batch simulation runs
+- resilience assessment runs
+
+### Analysis
+
+Analysis now has its own page and exposes the current analyst tooling:
+
+- batch analysis
+- parameter sweeps
+- sweep visualisation
+- merge-report workflow
+- Seattle real-data comparison
 
 ### Jobs
 
-Operational monitoring view:
+Jobs remain the operational monitoring page:
 
-- left side: job queue
+- left third: job queue
 - right side top: live image / HTML report area
 - right side bottom: logs
 
 Capabilities:
 
-- see running / failed / completed jobs
 - inspect the exact command being run
 - cancel running jobs
-- watch progress and generated outputs
+- watch progress and output discovery
 
 ### Results
 
-Simple file/result browser over allowed project output paths.
+Results is no longer just a file browser.
 
-Current previews:
+It now has two layers:
 
-- text-like files
-- generated PNG/SVG images
-- HTML reports
+- a file/tree browser over result folders
+- an interactive run dashboard when the selected file or folder belongs to a
+  valid run directory
 
-## What The GUI Covers Today
+The interactive layer parses existing SAS outputs such as:
 
-The first version includes GUI launchers for:
+- `metadata.json`
+- `network_metrics.csv`
+- `accident_reports.json`
+- `antifragility_index.json`
+
+It then renders:
+
+- headline metrics
+- vehicle-count, speed, throughput, delay, accident, and speed-ratio charts
+- severity distribution
+- accident table
+- per-event antifragility table
+- embedded report and figure previews
+
+The underlying source of truth is still the normal SAS run folder.
+
+### Documentation
+
+The sidebar now also includes a `Documentation` page.
+
+This page:
+
+- lists the markdown files under `docs/`
+- includes the repository-root `README.md`
+- presents them as tabs
+- renders each document as markdown rather than raw plain text
+
+The goal is to keep operator guidance and reference material available inside
+the same workspace as config editing and workflow execution.
+
+## Current Scope
+
+The GUI currently exposes launchers for:
 
 - simulation runs
 - resilience assessment
@@ -168,35 +248,45 @@ The first version includes GUI launchers for:
 - MFD merge/report regeneration
 - Seattle real-data comparison
 
+## Branding And Footer
+
+The GUI uses the AntifragiCity logo assets in `frontend/public/branding/`.
+
+The UI footer now includes:
+
+- project navigation links
+- `https://antifragicity.eu`
+- the Horizon Europe funding disclaimer
+- the `Funded by the European Union` mark used by the current frontend build
+
 ## Current Limitations
 
-- Progress is partly inferred from log output rather than emitted through a
-  dedicated event stream.
-- Simulation live visualization currently relies on `live_progress.png`
-  refreshes rather than native browser charts.
-- The frontend uses a clean fallback font stack because the official
-  AntifragiCity font assets were not readable from the provided OneDrive path
-  in this environment.
-- The backend currently uses polling between frontend and API rather than
-  WebSockets/SSE.
-- The GUI is designed for local operator use in this first version, not for
-  multi-user deployment.
+- Progress is still inferred partly from logs and existing artifacts rather
+  than emitted through a dedicated event stream.
+- Simulation live monitoring still relies on `live_progress.png` refreshes for
+  in-progress visualisation.
+- The backend/frontend still use polling rather than WebSockets or SSE.
+- The Results page is now interactive, but it currently reflects the metrics
+  already written by SAS; if a future workflow needs richer post-run views, the
+  underlying simulation/analysis outputs should be extended rather than
+  bypassed.
 
 ## Relationship To The CLI
 
-The CLI is still the stable operational baseline.
+The CLI is still the operational baseline.
 
 Use the CLI when:
 
 - you want shell automation
-- you want batch scripting / cron / CI integration
+- you want CI/cron/batch scripting
 - you do not need interactive monitoring
 
 Use the GUI when:
 
-- you want guided configuration editing
+- you want guided config authoring
+- you want place search and boundary preview for OSM ingestion
 - you want a visible job queue and logs
-- you want result/report preview without hunting through folders
+- you want interactive post-run dashboards without manually opening result files
 
 Both interfaces are intended to coexist.
 
@@ -209,7 +299,7 @@ pip install -e .
 sas-gui-api
 ```
 
-or without installing the package entry point:
+or without the entry point:
 
 ```bash
 PYTHONPATH=src python -m sas.gui.app
@@ -227,19 +317,8 @@ Then open:
 
 `http://127.0.0.1:5173`
 
-The frontend expects the backend API at:
+The frontend expects the backend at:
 
 `http://127.0.0.1:8000`
 
-To change that, set `VITE_API_BASE` when starting the frontend.
-
-## First-Version Implementation Notes
-
-- Long-running tasks are launched as managed subprocess jobs so the GUI can
-  surface logs and progress without changing the CLI workflows.
-- Simulation live progress currently uses the generated `live_progress.png`
-  image when available.
-- The official AntifragiCity font files could not be read from the provided
-  OneDrive folder in this environment, so the first version uses a clean
-  fallback stack. Once those files are accessible, the frontend can be updated
-  to use the exact brand typography.
+Override with `VITE_API_BASE` if needed.

@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] - 2026-04-24
+
+### Changed
+- Reworked the GUI navigation so workflow categories now live on separate
+  sidebar pages: `Data & Integrations`, `Generators`, `Simulations`, and
+  `Analysis`.
+- Replaced the old flat structured config editor with section tabs, grouped
+  forms, parameter explanations, example values, and clearer input types.
+- Improved Config Studio with folder-grouped config selection, `.sumocfg`
+  discovery for the network field, output-folder discovery, hover help popups,
+  switch-style booleans, config deletion, and section-level model guidance for
+  the risk, accident, and resilience tabs.
+- Added a `Documentation` sidebar page that previews the markdown files under
+  `docs/` plus the root `README.md` as rendered markdown tabs.
+- Upgraded `Data & Integrations` with OSM/Traffic Feed tabs and a real map
+  preview that can show locality geometry, bounding boxes, and custom drawn
+  shapes.
+- Stabilized custom-shape map behavior so drawing no longer auto-zooms into the
+  temporary shape extent on each point.
+- Added the workflow module path label to the OSM extract card, matching the
+  pattern used elsewhere in the GUI.
+- Added config creation from either a clean starter template or a clone of the
+  selected config.
+- Reworked the Results page so it parses existing SAS artifacts into
+  interactive charts, summary cards, accident tables, antifragility event
+  tables, and report/image previews.
+- Added an AntifragiCity/EU-compliant footer and removed the temporary sidebar
+  branding disclaimer.
+
+### Added
+- OSM place search from the GUI via Nominatim, with embedded map preview and
+  explicit south/west/north/east boundary overrides.
+- Backend endpoints for location search, config creation, and parsed run
+  summaries.
+- Official `Funded by the European Union` branding asset in
+  `frontend/public/branding/`.
+- Frontend markdown rendering and map dependencies for documentation preview and
+  boundary overlays.
+
+### Documentation
+- Updated `docs/GUI.md` to match the current screen model and execution flow.
+- Refreshed README GUI notes to reflect the new information architecture and
+  interactive results behavior.
+- Updated `docs/STRUCTURE.md` to include the new GUI helper modules and footer
+  branding asset.
+
+### Verification
+- Verified the GUI backend modules with `python -m compileall src/sas/gui src/sas/integrations/download_osm_place.py`.
+- Verified the frontend with `cd frontend && npm run build`.
+- Smoke-tested the new API flows for branding, config creation, and parsed run
+  summaries through FastAPI `TestClient`.
+
 ## [0.2.0] - 2026-04-23
 
 ### Changed
