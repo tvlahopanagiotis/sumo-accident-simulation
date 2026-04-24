@@ -47,6 +47,10 @@ build/
 .venv/
 venv/
 env/
+.matplotlib/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
 
 # ── Testing & type-checking ─────────────────────────────────────────
 .pytest_cache/

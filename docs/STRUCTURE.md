@@ -20,6 +20,9 @@ change so it always matches the current on-disk layout.
 ├── .github/
 │   └── workflows/
 ├── .worktrees/
+├── frontend/
+│   ├── public/
+│   └── src/
 ├── configs/
 │   ├── seattle/
 │   │   └── default.yaml
@@ -51,6 +54,7 @@ change so it always matches the current on-disk layout.
 │       ├── app/
 │       ├── core/
 │       ├── generators/
+│       ├── gui/
 │       ├── integrations/
 │       ├── simulation/
 │       ├── tools/
@@ -77,9 +81,22 @@ Application code only.
 - `analysis/`: resilience assessment, MFD analysis, reports, and batch analysis.
 - `integrations/`: govgr and OSM download/ingest tooling.
 - `generators/`: network and route generation workflows.
+- `gui/`: FastAPI backend for the React GUI, including workflow metadata,
+  background job execution, and result/file APIs.
 - `tools/`: standalone operational or analyst-facing utilities.
 - `visualization/`: plots, reports, and the live dashboard.
 - `app/`: config resolution, persistence, validation, and GUI-friendly services.
+
+### `frontend/`
+
+React frontend for the operator GUI.
+
+- `frontend/src/`: application views, dynamic workflow forms, config editor,
+  job console, and result previews.
+- `frontend/public/branding/`: AntifragiCity logo assets used by the UI shell.
+
+See `docs/GUI.md` for the functional explanation of how the frontend and
+backend interact.
 
 ### `configs/`
 
@@ -144,6 +161,7 @@ After `pip install -e .`:
 
 - There are no root-level Python compatibility wrappers anymore.
 - The only root-level markdown file is `README.md`.
+- The GUI spans `src/sas/gui/` and `frontend/`; keep their contracts aligned.
 - If a new city is added, prefer `data/cities/<city>/...` and
   `configs/<city>/...`.
 - If a new benchmark is added, prefer `data/benchmarks/<name>/...`.

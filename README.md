@@ -12,6 +12,8 @@ standard SUMO traffic simulation.
 The repository is organized around a package-first layout:
 
 - code in `src/sas/`
+- GUI backend in `src/sas/gui/`
+- React frontend in `frontend/`
 - configs in `configs/`
 - city and benchmark assets in `data/`
 - outputs in `results/`
@@ -74,6 +76,17 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+### 4. GUI prerequisites
+
+For the React frontend:
+
+```bash
+cd frontend
+npm install
+```
+
+Node `20+` is recommended.
+
 ## Main Commands
 
 After installation:
@@ -106,6 +119,12 @@ sas-sweep
 sas-visualise-sweep
 sas-merge-report
 sas-compare-seattle-real
+```
+
+GUI backend:
+
+```bash
+sas-gui-api
 ```
 
 ## Quick Start
@@ -189,6 +208,8 @@ sas
 ## Repository Layout
 
 - `src/sas/`: application package
+- `src/sas/gui/`: FastAPI backend for the GUI
+- `frontend/`: React operator interface
 - `configs/`: simulation configs grouped by city
 - `data/cities/`: real-city networks and datasets
 - `data/benchmarks/`: benchmark networks
@@ -204,12 +225,17 @@ sas
 - [docs/THESSALONIKI_OPERATOR_GUIDE.md](docs/THESSALONIKI_OPERATOR_GUIDE.md): Thessaloniki workflow
 - [docs/MACOS_INSTALL.md](docs/MACOS_INSTALL.md): macOS setup
 - [docs/SEATTLE_DATA.md](docs/SEATTLE_DATA.md): Seattle bundle and network notes
+- [docs/GUI.md](docs/GUI.md): how the GUI works, what it covers, and how to run it
 - [docs/CHANGELOG.md](docs/CHANGELOG.md): changelog
 
 ## GUI Direction
 
-The repository is already structured for a future GUI:
+The first GUI version is now in place:
 
-- `src/sas/app/config.py` centralizes config loading, saving, and validation.
-- `src/sas/app/services.py` exposes programmatic simulation and assessment entry points.
-- The CLI is now just a thin interface over importable package logic.
+- `src/sas/gui/` provides the FastAPI backend, workflow registry, and job manager.
+- `frontend/` provides the React operator console.
+- `src/sas/app/config.py` still centralizes config loading, saving, and validation.
+- The CLI remains intact; the GUI is an additional interface over the same workflows.
+
+For the actual GUI behavior, screen model, and execution flow, see
+[`docs/GUI.md`](docs/GUI.md).

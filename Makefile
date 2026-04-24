@@ -12,7 +12,7 @@ CALIBRATION_YEAR ?= 2025
 VALIDATION_YEAR ?= 2026
 TARGETS_DIR ?= data/cities/thessaloniki/govgr/targets/post_metro_2025_2026
 
-.PHONY: help venv install install-dev run run-batch run-postmetro50 assess \
+.PHONY: help venv install install-dev run run-batch run-postmetro50 assess gui-api gui-frontend gui-build \
 	fetch-realtime fetch-historical-2025 fetch-historical-2026 build-targets \
 	test smoke-govgr clean-pycache
 
@@ -25,6 +25,9 @@ help:
 	@echo "  make run-batch RUNS=10       Run batch simulations"
 	@echo "  make run-postmetro50         Run using 50 km/h-capped Thessaloniki network"
 	@echo "  make assess                  Run resilience assessment"
+	@echo "  make gui-api                 Start the FastAPI backend for the GUI"
+	@echo "  make gui-frontend            Start the React frontend dev server"
+	@echo "  make gui-build               Build the React frontend"
 	@echo "  make fetch-realtime          Download realtime govgr datasets"
 	@echo "  make fetch-historical-2025   Download 2025 historical speed + travel times"
 	@echo "  make fetch-historical-2026   Download 2026 historical speed + travel times"
@@ -51,6 +54,15 @@ run-postmetro50:
 
 assess:
 	$(PYTHON) -m sas.analysis.resilience_assessment --config $(CONFIG)
+
+gui-api:
+	$(PYTHON) -m sas.gui.app
+
+gui-frontend:
+	cd frontend && npm install && npm run dev
+
+gui-build:
+	cd frontend && npm install && npm run build
 
 fetch-realtime:
 	$(PYTHON) -m sas.integrations.govgr_downloader --source realtime --dataset all --output-dir $(DOWNLOADS_ROOT)/realtime_latest

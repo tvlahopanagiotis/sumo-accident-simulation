@@ -67,11 +67,22 @@ def _prepare_loaded_config(config: dict[str, Any]) -> dict[str, Any]:
     return prepared
 
 
-def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
-    """Load a YAML config and normalize repository-relative paths."""
+def prepare_runtime_config(config: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a raw config dict for execution-time use."""
+    return _prepare_loaded_config(config)
+
+
+def load_config_raw(config_path: str | Path | None = None) -> dict[str, Any]:
+    """Load a YAML config without rewriting repository-relative paths."""
     resolved_path = resolve_config_path(config_path)
     with resolved_path.open(encoding="utf-8") as handle:
         raw: dict[str, Any] = yaml.safe_load(handle)
+    return raw
+
+
+def load_config(config_path: str | Path | None = None) -> dict[str, Any]:
+    """Load a YAML config and normalize repository-relative paths."""
+    raw = load_config_raw(config_path)
     return _prepare_loaded_config(raw)
 
 

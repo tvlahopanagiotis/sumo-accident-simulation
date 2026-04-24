@@ -50,6 +50,8 @@ dependencies = [
     "requests>=2.28.0,<3.0.0",
     "scipy>=1.10.0,<2.0.0",
     "anthropic>=0.20.0",
+    "fastapi>=0.115.0,<1.0.0",
+    "uvicorn>=0.32.0,<1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -86,6 +88,7 @@ sas-compare-seattle-real = "sas.tools.compare_seattle_real:main"
 sas-sweep = "sas.tools.experiment_sweep:main"
 sas-visualise-sweep = "sas.tools.visualise_sweep:main"
 sas-merge-report = "sas.tools.merge_mfd_and_update_report:main"
+sas-gui-api = "sas.gui.app:main"
 
 [project.urls]
 Homepage = "https://github.com/tvlahopanagiotis/sumo-accident-simulation"

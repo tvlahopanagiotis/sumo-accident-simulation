@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 - Centralized config loading, validation, and save logic in `src/sas/app/`
   to support a future GUI-driven parameter editor.
 - Updated the test suite and tooling for the new package layout.
+- Added a first GUI stack with a FastAPI backend and React frontend while
+  keeping the CLI workflows intact.
 
 ### Added
 - Package entry points for simulation, assessment, generators, OSM downloads,
@@ -21,6 +23,7 @@ All notable changes to this project will be documented in this file.
 - `docs/STRUCTURE.md` as the canonical repository layout reference.
 - `docs/REFERENCE.md` and `docs/SEATTLE_DATA.md` for operational and
   dataset-specific documentation.
+- `docs/GUI.md` for GUI architecture and run instructions.
 
 ### Documentation
 - Consolidated long-form markdown under `docs/` and kept only `README.md` at
@@ -30,6 +33,8 @@ All notable changes to this project will be documented in this file.
   repository layout.
 - Documented that large Seattle `seattle.osm` and `seattle.net.xml` artifacts
   are generated locally and are not committed to Git history.
+- Added a dedicated GUI guide that explains the first-version architecture,
+  screens, execution model, and CLI relationship.
 
 ### Verification
 - Verified the restructured repository with `pytest -q tests` (`92 passed`).

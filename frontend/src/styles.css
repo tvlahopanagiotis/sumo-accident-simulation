@@ -1,0 +1,475 @@
+:root {
+  --brand-primary: #f93262;
+  --brand-secondary: #ffbea1;
+  --brand-ink: #29131b;
+  --brand-surface: #fff6f2;
+  --brand-surface-alt: #ffe7de;
+  --brand-border: #f2b9aa;
+  --shadow-soft: 0 16px 40px rgba(97, 21, 46, 0.11);
+  color: var(--brand-ink);
+  background:
+    radial-gradient(circle at top right, rgba(249, 50, 98, 0.16), transparent 24rem),
+    radial-gradient(circle at bottom left, rgba(255, 190, 161, 0.28), transparent 20rem),
+    linear-gradient(180deg, #fff7f4 0%, #fff0ea 100%);
+  font-family: "Avenir Next", "Montserrat", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--brand-ink);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 18rem 1fr;
+}
+
+.sidebar {
+  padding: 1.5rem;
+  border-right: 1px solid rgba(41, 19, 27, 0.08);
+  background: rgba(255, 247, 244, 0.72);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.brand-block {
+  padding: 1rem;
+  border-radius: 1.3rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 235, 226, 0.9));
+  box-shadow: var(--shadow-soft);
+}
+
+.brand-logo {
+  width: 100%;
+  display: block;
+}
+
+.brand-project {
+  margin: 0.75rem 0 0;
+  color: rgba(41, 19, 27, 0.7);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nav-item {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.9rem 1rem;
+  text-align: left;
+  background: transparent;
+  color: var(--brand-ink);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.nav-item:hover,
+.nav-item.is-active {
+  background: linear-gradient(90deg, rgba(249, 50, 98, 0.16), rgba(255, 190, 161, 0.28));
+  transform: translateX(2px);
+}
+
+.sidebar-note {
+  margin-top: auto;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: rgba(255, 236, 228, 0.92);
+  color: rgba(41, 19, 27, 0.78);
+  line-height: 1.5;
+}
+
+.main-panel {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1fr minmax(14rem, 18rem);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.hero h1 {
+  margin: 0.2rem 0 0.4rem;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.78rem;
+  color: rgba(41, 19, 27, 0.62);
+}
+
+.hero-copy {
+  max-width: 50rem;
+  margin: 0;
+  color: rgba(41, 19, 27, 0.74);
+  line-height: 1.6;
+}
+
+.status-card,
+.panel,
+.workflow-card {
+  border-radius: 1.4rem;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(41, 19, 27, 0.08);
+  box-shadow: var(--shadow-soft);
+}
+
+.status-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.2rem;
+}
+
+.status-card p {
+  margin: 0.2rem 0 0;
+  color: rgba(41, 19, 27, 0.65);
+}
+
+.status-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  box-shadow: 0 0 0 0.55rem rgba(249, 50, 98, 0.14);
+}
+
+.content-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.overview-grid,
+.results-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.jobs-grid {
+  grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr);
+  align-items: start;
+}
+
+.config-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.panel {
+  padding: 1.2rem;
+}
+
+.panel h2,
+.workflow-card h3 {
+  margin-top: 0;
+}
+
+.metric-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.metric-list div {
+  padding: 1rem;
+  border-radius: 1rem;
+  background: var(--brand-surface);
+}
+
+.metric-list span {
+  display: block;
+  color: rgba(41, 19, 27, 0.65);
+  margin-bottom: 0.4rem;
+}
+
+.metric-list strong {
+  font-size: 1.7rem;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(255, 190, 161, 0.32);
+  color: rgba(41, 19, 27, 0.75);
+}
+
+.button-row,
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.primary-button,
+.secondary-button,
+.tab-row button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+}
+
+.primary-button {
+  background: linear-gradient(120deg, var(--brand-primary), #ff6580);
+  color: white;
+}
+
+.secondary-button,
+.tab-row button {
+  background: rgba(255, 190, 161, 0.28);
+  color: var(--brand-ink);
+}
+
+.tab-row {
+  display: flex;
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+
+.tab-row .tab-active {
+  background: rgba(249, 50, 98, 0.16);
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.field span {
+  color: rgba(41, 19, 27, 0.72);
+  font-size: 0.92rem;
+}
+
+.field input,
+.field select,
+.field textarea,
+.raw-editor {
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--brand-border);
+  background: rgba(255, 247, 244, 0.92);
+  color: var(--brand-ink);
+}
+
+.raw-editor,
+.log-console,
+.file-preview,
+.command-preview {
+  font-family: "SFMono-Regular", "JetBrains Mono", ui-monospace, monospace;
+}
+
+.nested-block {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.config-section {
+  border: 1px solid rgba(41, 19, 27, 0.08);
+  border-radius: 1rem;
+  padding: 0.85rem;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.config-section summary {
+  cursor: pointer;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.workflow-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 1rem;
+}
+
+.workflow-card {
+  padding: 1rem;
+}
+
+.workflow-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.workflow-head code {
+  color: rgba(41, 19, 27, 0.48);
+  font-size: 0.82rem;
+}
+
+.workflow-description,
+.muted {
+  color: rgba(41, 19, 27, 0.66);
+}
+
+.job-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.job-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(41, 19, 27, 0.08);
+  border-radius: 1rem;
+  background: var(--brand-surface);
+  padding: 0.9rem;
+}
+
+.job-row.is-selected {
+  border-color: rgba(249, 50, 98, 0.42);
+  background: rgba(249, 50, 98, 0.08);
+}
+
+.progress-track {
+  width: 100%;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 190, 161, 0.32);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand-primary), var(--brand-secondary));
+}
+
+.job-status {
+  margin: 0.85rem 0 1rem;
+  color: rgba(41, 19, 27, 0.74);
+}
+
+.command-preview,
+.log-console,
+.file-preview {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #26171d;
+  color: #ffe9df;
+  border-radius: 1rem;
+  padding: 1rem;
+  overflow: auto;
+}
+
+.job-detail-stack {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.job-media-panel,
+.job-log-panel {
+  border: 1px solid rgba(41, 19, 27, 0.08);
+  border-radius: 1rem;
+  background: rgba(255, 247, 244, 0.68);
+  padding: 1rem;
+}
+
+.job-media-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.live-image,
+.preview-image {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgba(41, 19, 27, 0.08);
+  background: white;
+}
+
+.report-frame {
+  width: 100%;
+  min-height: 28rem;
+  border: 1px solid rgba(41, 19, 27, 0.08);
+  border-radius: 1rem;
+  background: white;
+}
+
+.tree-list {
+  list-style: none;
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.tree-node {
+  display: inline-flex;
+  gap: 0.55rem;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--brand-ink);
+  padding: 0.35rem 0;
+}
+
+@media (max-width: 1080px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid rgba(41, 19, 27, 0.08);
+  }
+
+  .hero,
+  .overview-grid,
+  .jobs-grid,
+  .results-grid,
+  .job-media-grid {
+    grid-template-columns: 1fr;
+  }
+}
