@@ -35,7 +35,7 @@ sas-generate-thessaloniki --update-config
 
 For command details:
 
-- [`operations/generator-thessaloniki.md`](operations/generator-thessaloniki.md)
+- [`operations/generators.md`](operations/generators.md)
 
 ## 4. Run one simulation
 
@@ -59,7 +59,7 @@ sas --config configs/thessaloniki/postmetro_50kph.yaml --runs 10
 
 For simulator behavior and outputs:
 
-- [`operations/simulation-runner.md`](operations/simulation-runner.md)
+- [`operations/simulation.md`](operations/simulation.md)
 - [`REFERENCE.md`](REFERENCE.md)
 
 ## 5. Download govgr data
@@ -107,7 +107,7 @@ sas-fetch-govgr \
 
 For command details:
 
-- [`operations/data-govgr-download.md`](operations/data-govgr-download.md)
+- [`operations/data-integrations.md`](operations/data-integrations.md)
 
 ## 6. Build calibration/validation targets
 
@@ -125,7 +125,7 @@ Outputs go to:
 
 For command details:
 
-- [`operations/data-govgr-targets.md`](operations/data-govgr-targets.md)
+- [`operations/data-integrations.md`](operations/data-integrations.md)
 
 ## 7. What to share with colleagues
 

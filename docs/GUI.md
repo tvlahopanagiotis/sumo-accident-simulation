@@ -225,10 +225,19 @@ The sidebar now also includes a `Documentation` page.
 
 This page:
 
-- lists the markdown files under `docs/`
 - includes the repository-root `README.md`
-- presents them as tabs
+- groups documents into a curated reading order rather than a flat file list
+- separates module guides from command guides and maintenance notes
 - renders each document as markdown rather than raw plain text
+
+The current reading structure is:
+
+- `Start Here`
+- `Foundations`
+- `Module Guides`
+- `Command Guides`
+- `City Notes And Reviews`
+- `Maintenance`
 
 The goal is to keep operator guidance and reference material available inside
 the same workspace as config editing and workflow execution.

@@ -49,9 +49,8 @@ Continuously refreshed image of the Python live dashboard.
 
 Self-contained HTML summary of a completed run.
 
-Use [`operations/README.md`](operations/README.md) for command-by-command
-workflow instructions. This file only covers parameter semantics and output
-definitions.
+Use [`operations/README.md`](operations/README.md) for workflow instructions.
+This file only covers parameter semantics and output definitions.
 
 ## Risk Model
 

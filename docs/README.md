@@ -6,10 +6,28 @@ This directory contains the long-form project documentation. The root
 All links in this directory use repository-relative paths so they render
 correctly on GitHub.
 
-## Operations
+## Start Here
 
+- [README.md](../README.md):
+  root project overview and quick start
+- [modules/README.md](modules/README.md):
+  narrative path through the main SAS modules
 - [operations/README.md](operations/README.md):
-  index of all CLI workflow docs
+  consolidated workflow index
+
+## Module Guides
+
+- [modules/simulator.md](modules/simulator.md):
+  runtime, incident logic, outputs, and simulator priorities
+- [modules/generators.md](modules/generators.md):
+  network and demand generation workflows
+- [modules/data-integrations.md](modules/data-integrations.md):
+  external data intake and target preparation
+- [modules/analysis.md](modules/analysis.md):
+  resilience, batch, sweep, and validation workflows
+
+## Workflow Guides
+
 - [THESSALONIKI_OPERATOR_GUIDE.md](THESSALONIKI_OPERATOR_GUIDE.md):
   shortest city-specific Thessaloniki runbook
 

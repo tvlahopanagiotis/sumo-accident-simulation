@@ -20,7 +20,8 @@ The repository is organized around a package-first layout:
 
 For the canonical repo map, see [docs/STRUCTURE.md](docs/STRUCTURE.md).
 For the full documentation index, see [docs/README.md](docs/README.md).
-For command-by-command workflow docs, see
+For narrative module guides, see [docs/modules/README.md](docs/modules/README.md).
+For workflow docs, see
 [docs/operations/README.md](docs/operations/README.md).
 
 ## Core Capabilities
@@ -223,7 +224,8 @@ sas
 ## Docs
 
 - [docs/README.md](docs/README.md): documentation index
-- [docs/operations/README.md](docs/operations/README.md): operator and analyst workflow docs by command
+- [docs/modules/README.md](docs/modules/README.md): narrative guides for the major SAS modules
+- [docs/operations/README.md](docs/operations/README.md): consolidated operator and analyst workflow docs
 - [docs/STRUCTURE.md](docs/STRUCTURE.md): canonical repository layout
 - [docs/REFERENCE.md](docs/REFERENCE.md): outputs, risk model, severity model, development notes
 - [docs/THESSALONIKI_OPERATOR_GUIDE.md](docs/THESSALONIKI_OPERATOR_GUIDE.md): Thessaloniki workflow

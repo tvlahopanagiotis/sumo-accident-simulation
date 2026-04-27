@@ -44,8 +44,9 @@ change so it always matches the current on-disk layout.
 │       └── riverside/
 │           └── network/
 ├── docs/
-│   ├── README.md
+│   ├── modules/
 │   ├── operations/
+│   ├── README.md
 │   ├── STRUCTURE.md
 │   └── ...
 ├── results/
@@ -140,8 +141,10 @@ source input to the package unless explicitly documented.
 Project documentation lives here. The only markdown file kept at the repository
 root is `README.md`; all other long-form docs belong under `docs/`.
 
-- `docs/operations/`: command-by-command workflow documentation for operators
-  and analysts.
+- `docs/operations/`: consolidated workflow documentation for operators and
+  analysts.
+- `docs/modules/`: narrative guides for the simulator, generators,
+  data/integrations, and analysis layers.
 - top-level docs under `docs/`: reference, project notes, platform guides, and
   maintenance material.
 

@@ -1,46 +1,40 @@
 # Operations
 
 This section is the operator-facing workflow map for the CLI tools in SAS.
-Each file covers one command or one tightly related operation.
+It is intentionally consolidated so the command documentation is easier to
+browse and less fragmented.
 
 Use this section when you need to run the project. Use
+[`../modules/README.md`](../modules/README.md) when you want the higher-level
+story of how the major parts fit together. Use
 [`../REFERENCE.md`](../REFERENCE.md) when you need formulas, parameter
 semantics, or output definitions.
 
-## Simulation
+## Start Here
 
-- [simulation-runner.md](simulation-runner.md): `sas`
+- [new-location-workflow.md](new-location-workflow.md):
+  end-to-end guide for taking a new location from zero data to analysis
 
-## Generators
+## Operational Guides
 
-- [generator-thessaloniki.md](generator-thessaloniki.md): `sas-generate-thessaloniki`
-- [generator-seattle.md](generator-seattle.md): `sas-generate-seattle`
-- [generator-sioux-falls.md](generator-sioux-falls.md): `sas-generate-sioux-falls`
-- [generator-riverside.md](generator-riverside.md): `sas-generate-riverside`
-
-## Data And Integrations
-
-- [data-osm.md](data-osm.md): `sas-fetch-osm`
-- [data-govgr-download.md](data-govgr-download.md): `sas-fetch-govgr`
-- [data-govgr-targets.md](data-govgr-targets.md): `sas-build-govgr-targets`
-
-## Analysis
-
-- [analysis-resilience-assessment.md](analysis-resilience-assessment.md): `sas-assess`
-- [analysis-batch.md](analysis-batch.md): `sas-analyse-batch`
-- [analysis-sweep.md](analysis-sweep.md): `sas-sweep`
-- [analysis-visualise-sweep.md](analysis-visualise-sweep.md): `sas-visualise-sweep`
-- [analysis-merge-report.md](analysis-merge-report.md): `sas-merge-report`
-- [analysis-seattle-validation.md](analysis-seattle-validation.md): `sas-compare-seattle-real`
+- [data-integrations.md](data-integrations.md):
+  external data acquisition and target-building commands
+- [generators.md](generators.md):
+  all bundled network and demand generation commands
+- [simulation.md](simulation.md):
+  simulator command layer, centered on `sas`
+- [analysis.md](analysis.md):
+  resilience, batch, sweep, and validation analysis commands
 
 ## Recommended Reading Order
 
 For a new city workflow:
 
-1. build or fetch data in `Data And Integrations`
-2. run the relevant generator
-3. run [`simulation-runner.md`](simulation-runner.md)
-4. run one or more analysis workflows
+1. start with [new-location-workflow.md](new-location-workflow.md) for a brand-new city
+2. use [data-integrations.md](data-integrations.md) to fetch source data
+3. use [generators.md](generators.md) to build runnable SUMO inputs
+4. use [simulation.md](simulation.md) to run SAS
+5. use [analysis.md](analysis.md) for results and resilience workflows
 
 For parameter semantics and the current incident logic review:
 

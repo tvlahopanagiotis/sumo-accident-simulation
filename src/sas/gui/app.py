@@ -43,7 +43,7 @@ class JobCreatePayload(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
-app = FastAPI(title="SAS GUI API", version="0.1.0")
+app = FastAPI(title="SAS GUI API", version="0.2.2")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

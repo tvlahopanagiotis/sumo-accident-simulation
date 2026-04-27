@@ -5,9 +5,9 @@ artifact policy. It is not the primary command reference.
 
 For CLI workflow steps, use:
 
-- [`operations/generator-seattle.md`](operations/generator-seattle.md)
-- [`operations/data-osm.md`](operations/data-osm.md)
-- [`operations/analysis-seattle-validation.md`](operations/analysis-seattle-validation.md)
+- [`operations/generators.md`](operations/generators.md)
+- [`operations/data-integrations.md`](operations/data-integrations.md)
+- [`operations/analysis.md`](operations/analysis.md)
 
 ## Data Bundle
 

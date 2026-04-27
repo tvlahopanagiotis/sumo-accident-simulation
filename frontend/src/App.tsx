@@ -34,6 +34,7 @@ type InfoModal = {
   title: string;
   sections: Array<{ heading: string; body: string[] }>;
 } | null;
+const APP_VERSION = "0.2.2";
 
 const DEFAULT_BRANDING: Branding = {
   name: "AntifragiCity SAS",
@@ -56,14 +57,14 @@ const DEFAULT_BRANDING: Branding = {
 
 const VIEW_LABELS: Array<{ key: ViewKey; label: string }> = [
   { key: "overview", label: "Overview" },
+  { key: "documentation", label: "Documentation" },
   { key: "configs", label: "Config Studio" },
   { key: "data_integrations", label: "Data & Integrations" },
   { key: "generators", label: "Generators" },
   { key: "simulations", label: "Simulations" },
   { key: "analysis", label: "Analysis" },
-  { key: "jobs", label: "Jobs" },
   { key: "results", label: "Results" },
-  { key: "documentation", label: "Documentation" },
+  { key: "jobs", label: "Jobs" },
 ];
 
 const WORKFLOW_CATEGORY_BY_VIEW: Record<Exclude<ViewKey, "overview" | "configs" | "jobs" | "results" | "documentation">, string> = {
@@ -126,6 +127,118 @@ function groupPathsByFolder(paths: string[], stripPrefix: string): Array<{ folde
   return Array.from(groups.entries())
     .map(([folder, items]) => ({ folder, items: items.sort() }))
     .sort((a, b) => a.folder.localeCompare(b.folder));
+}
+
+function humanizeDocLabel(path: string): string {
+  const fileName = path.split("/").slice(-1)[0].replace(/\.md$/i, "");
+  return fileName
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+const DOC_LABELS = new Map<string, string>([
+  ["README.md", "Project Overview"],
+  ["docs/README.md", "Documentation Index"],
+  ["docs/STRUCTURE.md", "Repository Structure"],
+  ["docs/REFERENCE.md", "Reference"],
+  ["docs/GUI.md", "GUI Guide"],
+  ["docs/modules/README.md", "Module Guides Index"],
+  ["docs/modules/simulator.md", "Simulator Module"],
+  ["docs/modules/generators.md", "Generators Module"],
+  ["docs/modules/data-integrations.md", "Data & Integrations Module"],
+  ["docs/modules/analysis.md", "Analysis Module"],
+  ["docs/operations/README.md", "Command Guides Index"],
+  ["docs/operations/new-location-workflow.md", "Add A New Location"],
+  ["docs/operations/simulation.md", "Simulation Operations"],
+  ["docs/operations/generators.md", "Generator Operations"],
+  ["docs/operations/data-integrations.md", "Data & Integrations Operations"],
+  ["docs/operations/analysis.md", "Analysis Operations"],
+  ["docs/THESSALONIKI_OPERATOR_GUIDE.md", "Thessaloniki Operator Guide"],
+  ["docs/SEATTLE_DATA.md", "Seattle Data Notes"],
+  ["docs/SUMO_ACCIDENT_SIMULATOR_REVIEW.md", "SUMO Incident Model Review"],
+  ["docs/MACOS_INSTALL.md", "macOS Install Guide"],
+  ["docs/WORKTREES.md", "Git Worktrees Guide"],
+  ["docs/CHANGELOG.md", "Changelog"],
+]);
+
+function docLabel(path: string): string {
+  return DOC_LABELS.get(path) ?? humanizeDocLabel(path);
+}
+
+function groupDocumentationPaths(paths: string[]): Array<{ title: string; description: string; items: string[] }> {
+  const sections: Array<{ title: string; description: string; items: string[] }> = [
+    {
+      title: "Start Here",
+      description: "Read these first to understand the project and the overall documentation map.",
+      items: ["README.md", "docs/README.md"],
+    },
+    {
+      title: "Foundations",
+      description: "Core repository, interface, and reference material that defines how SAS is organized and how it behaves.",
+      items: ["docs/STRUCTURE.md", "docs/REFERENCE.md", "docs/GUI.md"],
+    },
+    {
+      title: "Module Guides",
+      description: "Narrative guides for the main parts of the system: simulator, generators, data intake, and analysis.",
+      items: [
+        "docs/modules/README.md",
+        "docs/modules/simulator.md",
+        "docs/modules/generators.md",
+        "docs/modules/data-integrations.md",
+        "docs/modules/analysis.md",
+      ],
+    },
+    {
+      title: "Command Guides",
+      description: "Consolidated operator runbooks, including the end-to-end new-location path.",
+      items: [
+        "docs/operations/README.md",
+        "docs/operations/new-location-workflow.md",
+        "docs/operations/data-integrations.md",
+        "docs/operations/generators.md",
+        "docs/operations/simulation.md",
+        "docs/operations/analysis.md",
+      ],
+    },
+    {
+      title: "City Notes And Reviews",
+      description: "City-specific notes and technical review material for the current incident model.",
+      items: [
+        "docs/THESSALONIKI_OPERATOR_GUIDE.md",
+        "docs/SEATTLE_DATA.md",
+        "docs/SUMO_ACCIDENT_SIMULATOR_REVIEW.md",
+      ],
+    },
+    {
+      title: "Maintenance",
+      description: "Environment setup, repository workflow guidance, and release history.",
+      items: ["docs/MACOS_INSTALL.md", "docs/WORKTREES.md", "docs/CHANGELOG.md"],
+    },
+  ];
+
+  const pathSet = new Set(paths);
+  const used = new Set<string>();
+  const groups = sections
+    .map((section) => {
+      const items = section.items.filter((path) => pathSet.has(path));
+      items.forEach((path) => used.add(path));
+      return { ...section, items };
+    })
+    .filter((section) => section.items.length > 0);
+
+  const leftovers = paths
+    .filter((path) => !used.has(path))
+    .sort((left, right) => docLabel(left).localeCompare(docLabel(right)));
+  if (leftovers.length > 0) {
+    groups.push({
+      title: "Other Docs",
+      description: "Markdown files that are available in the repository but are not yet part of the curated documentation path.",
+      items: leftovers,
+    });
+  }
+
+  return groups;
 }
 
 function buildConfigPath(folderChoice: string, customFolder: string, fileName: string): string {
@@ -669,6 +782,7 @@ export default function App() {
   const configPathGroups = useMemo(() => groupPathsByFolder(configPaths, "configs"), [configPaths]);
   const sumoConfigGroups = useMemo(() => groupPathsByFolder(sumoConfigPaths, "data"), [sumoConfigPaths]);
   const outputFolderGroups = useMemo(() => groupPathsByFolder(outputFolderPaths, "results"), [outputFolderPaths]);
+  const documentationGroups = useMemo(() => groupDocumentationPaths(docPaths), [docPaths]);
   const configFolderChoices = useMemo(() => [...topLevelFolders(configPaths), "__new__"], [configPaths]);
   const computedNewConfigPath = useMemo(
     () => buildConfigPath(newConfigFolderChoice, newConfigCustomFolder, newConfigName),
@@ -1812,23 +1926,50 @@ export default function App() {
         ) : null}
 
         {view === "documentation" ? (
-          <section className="content-grid config-grid">
-            <article className="panel">
+          <section className="docs-layout">
+            <article className="panel docs-nav-panel">
               <div className="section-header">
                 <div>
                   <h2>Documentation</h2>
-                  <p className="muted">Browse the project markdown documentation directly from the GUI. Each document is available as its own tab for quick reference while configuring or running workflows.</p>
+                  <p className="muted">Browse the project guides in reading order. The library panel and the open document now scroll independently.</p>
                 </div>
               </div>
-              <div className="secondary-tab-row">
-                {docPaths.map((path) => (
-                  <button key={path} className={selectedDocPath === path ? "tab-active" : ""} onClick={() => setSelectedDocPath(path)}>
-                    {path.split("/").slice(-1)[0].replace(/\.md$/i, "")}
-                  </button>
-                ))}
+              <div className="docs-nav-scroll">
+                <div className="docs-group-stack">
+                  {documentationGroups.map((group) => (
+                    <section key={group.title} className="docs-group">
+                      <h3>{group.title}</h3>
+                      <p className="muted">{group.description}</p>
+                      <div className="docs-group-list">
+                        {group.items.map((path) => (
+                          <button
+                            key={path}
+                            type="button"
+                            className={selectedDocPath === path ? "doc-link doc-link-active" : "doc-link"}
+                            onClick={() => setSelectedDocPath(path)}
+                          >
+                            <span>{docLabel(path)}</span>
+                            <small>{path}</small>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
               </div>
-              <div className="markdown-preview">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{selectedDocText}</ReactMarkdown>
+            </article>
+
+            <article className="panel docs-content-panel">
+              <div className="section-header">
+                <div>
+                  <h2>{docLabel(selectedDocPath)}</h2>
+                  <p className="muted">{selectedDocPath}</p>
+                </div>
+              </div>
+              <div className="docs-content-scroll">
+                <div className="markdown-preview">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{selectedDocText}</ReactMarkdown>
+                </div>
               </div>
             </article>
           </section>
@@ -1851,6 +1992,7 @@ export default function App() {
           </div>
           <div className="footer-meta">
             <span>{branding.copyright}</span>
+            <span>Version {APP_VERSION}</span>
             <a href={branding.project_url} target="_blank" rel="noreferrer">
               antifragicity.eu
             </a>

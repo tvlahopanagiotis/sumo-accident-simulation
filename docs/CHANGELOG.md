@@ -18,6 +18,19 @@ All notable changes to this project will be documented in this file.
   vehicle counts.
 - Expanded config validation and the GUI config editor to cover the new
   incident controls and corrected time-unit guidance.
+- Reorganized the long-form documentation into a more explicit reading path:
+  start here, foundations, module guides, command guides, city notes, and
+  maintenance.
+- Reworked the GUI `Documentation` page grouping so it now follows the same
+  curated structure instead of a flatter topic bucket layout.
+- Reduced documentation fragmentation by consolidating the operational markdown
+  files into fewer workflow guides.
+- Made the documentation library panel and the open document pane scroll
+  independently in the GUI.
+- Reordered the GUI sidebar and documentation command-guide sections to follow
+  the recommended workflow order more closely.
+- Surfaced the release version in the GUI footer and aligned the frontend,
+  backend, and package metadata to `0.2.2`.
 
 ### Added
 - New accident config controls:
@@ -25,7 +38,16 @@ All notable changes to this project will be documented in this file.
   - `reroute_affected_vehicles`
   - `reroute_radius_m`
   - `reroute_interval_s`
-- A command-by-command operations documentation set under `docs/operations/`.
+- An operations documentation set under `docs/operations/`.
+- New module-overview guides for:
+  - simulator
+  - generators
+  - data and integrations
+  - analysis
+- Improvement-recommendation sections under each module guide, based on the
+  current scripts and architecture.
+- A new end-to-end workflow guide for adding a brand-new location and taking it
+  through setup, generation, simulation, and analysis.
 
 ### Documentation
 - Rewrote the SUMO accident simulator review to match the current hybrid
