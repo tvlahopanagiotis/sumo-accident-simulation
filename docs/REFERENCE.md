@@ -22,7 +22,8 @@ All output is written to `results/` unless overridden by config.
 
 ### `accident_reports.json`
 
-One entry per accident.
+One entry per accident, including queue impact, blocked-lane counts, and
+rerouted-vehicle counts.
 
 ### `antifragility_index.json`
 
@@ -48,6 +49,10 @@ Continuously refreshed image of the Python live dashboard.
 
 Self-contained HTML summary of a completed run.
 
+Use [`operations/README.md`](operations/README.md) for command-by-command
+workflow instructions. This file only covers parameter semantics and output
+definitions.
+
 ## Risk Model
 
 ### Composite score
@@ -58,6 +63,17 @@ risk_score  =  speed_weight      × speed_risk
             +  density_weight    × density_risk
 
 final_risk  =  clamp(risk_score × road_type_multiplier, 0, 1)
+```
+
+### Trigger rule
+
+An incident is only sampled when `final_risk >= trigger_threshold`.
+
+```text
+effective_probability
+  = base_probability
+  × (1 + 10 × (final_risk − trigger_threshold))
+  × secondary_multiplier
 ```
 
 ### Speed risk
@@ -83,6 +99,8 @@ density_risk = exp( −(density − peak_density)² / (2 σ²) )
 
 with `σ = peak_density × 0.5`.
 
+`density` is measured in vehicles per lane-km.
+
 ### Road-type multiplier
 
 | Speed limit | Road type | Default multiplier |
@@ -104,6 +122,24 @@ Configured tiers:
 | CRITICAL | 2 | 0 % | 30 min |
 
 Durations are sampled from clipped log-normal ranges per tier.
+
+## Incident Effect Model
+
+Incidents can operate in three modes:
+
+- `speed_limit`: reduce lane max speeds only
+- `lane_closure`: close lanes without adding extra speed degradation
+- `hybrid`: combine discrete lane closures with speed reductions on the
+  remaining open lanes
+
+The default `hybrid` mode translates `lane_capacity_fraction` into:
+
+- a discrete blocked-lane count on multi-lane edges
+- a residual speed factor on the remaining open lanes
+- periodic local rerouting around the incident when enabled
+
+On single-lane edges, partial severities are represented through speed
+reduction, while full-closure incidents close the only lane.
 
 ## Reproducibility
 

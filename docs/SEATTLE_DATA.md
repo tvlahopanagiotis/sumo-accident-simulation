@@ -1,7 +1,13 @@
 # Seattle Data And Network Notes
 
-This document consolidates the Seattle-specific notes that were previously
-spread across local `README.md` files inside `data/`.
+This file is the Seattle-specific data note. It describes the bundle and local
+artifact policy. It is not the primary command reference.
+
+For CLI workflow steps, use:
+
+- [`operations/generator-seattle.md`](operations/generator-seattle.md)
+- [`operations/data-osm.md`](operations/data-osm.md)
+- [`operations/analysis-seattle-validation.md`](operations/analysis-seattle-validation.md)
 
 ## Data Bundle
 

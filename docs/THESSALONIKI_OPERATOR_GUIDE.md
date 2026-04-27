@@ -1,6 +1,8 @@
 # Thessaloniki Operator Guide
 
-This is the shortest practical workflow for transport-engineering use.
+This is the shortest city-specific runbook in the repository. It stays focused
+on the Thessaloniki operational path and delegates command details to
+`docs/operations/`.
 
 ## 1. Open the correct folder
 
@@ -25,7 +27,17 @@ If SUMO is missing on macOS:
 brew install sumo
 ```
 
-## 3. Run one simulation
+## 3. Build or refresh the Thessaloniki network
+
+```bash
+sas-generate-thessaloniki --update-config
+```
+
+For command details:
+
+- [`operations/generator-thessaloniki.md`](operations/generator-thessaloniki.md)
+
+## 4. Run one simulation
 
 Default config:
 
@@ -45,7 +57,12 @@ Batch run:
 sas --config configs/thessaloniki/postmetro_50kph.yaml --runs 10
 ```
 
-## 4. Download govgr data
+For simulator behavior and outputs:
+
+- [`operations/simulation-runner.md`](operations/simulation-runner.md)
+- [`REFERENCE.md`](REFERENCE.md)
+
+## 5. Download govgr data
 
 Realtime:
 
@@ -88,7 +105,11 @@ sas-fetch-govgr \
   --output-dir data/cities/thessaloniki/govgr/downloads/historical_2026
 ```
 
-## 5. Build calibration/validation targets
+For command details:
+
+- [`operations/data-govgr-download.md`](operations/data-govgr-download.md)
+
+## 6. Build calibration/validation targets
 
 ```bash
 sas-build-govgr-targets \
@@ -102,7 +123,11 @@ Outputs go to:
 
 `data/cities/thessaloniki/govgr/targets/post_metro_2025_2026/`
 
-## 6. What to share with colleagues
+For command details:
+
+- [`operations/data-govgr-targets.md`](operations/data-govgr-targets.md)
+
+## 7. What to share with colleagues
 
 Share these folders/files for reproducible analysis:
 

@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-04-27
+
+### Changed
+- Reworked the incident-impact model from a speed-only lane slowdown into a
+  configurable `speed_limit` / `lane_closure` / `hybrid` incident effect model.
+- Added explicit lane closures, edge-level speed degradation, clearing-phase
+  recovery, and periodic local rerouting around active incidents.
+- Normalized risk-model density to vehicles per lane-km instead of vehicles per
+  edge-km.
+- Moved the default scientific runtime to `sumo.step_length: 1` and rescaled
+  the default incident probabilities and resilience-assessment ladders for the
+  new time resolution.
+- Extended accident reporting with blocked-lane, managed-lane, and rerouted
+  vehicle counts.
+- Expanded config validation and the GUI config editor to cover the new
+  incident controls and corrected time-unit guidance.
+
+### Added
+- New accident config controls:
+  - `incident_effect_mode`
+  - `reroute_affected_vehicles`
+  - `reroute_radius_m`
+  - `reroute_interval_s`
+- A command-by-command operations documentation set under `docs/operations/`.
+
+### Documentation
+- Rewrote the SUMO accident simulator review to match the current hybrid
+  incident logic and to state the remaining scientific limitations clearly.
+- Reorganized the docs index so workflow docs, reference docs, and
+  data/project notes are separated by purpose.
+- Clarified the Thessaloniki and Seattle docs so they point to the new command
+  references instead of duplicating them loosely.
+
+### Verification
+- Verified the simulator and tests with `pytest -q` (`98 passed`).
+
 ## [0.2.1] - 2026-04-24
 
 ### Changed

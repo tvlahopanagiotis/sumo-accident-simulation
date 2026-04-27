@@ -20,11 +20,14 @@ The repository is organized around a package-first layout:
 
 For the canonical repo map, see [docs/STRUCTURE.md](docs/STRUCTURE.md).
 For the full documentation index, see [docs/README.md](docs/README.md).
+For command-by-command workflow docs, see
+[docs/operations/README.md](docs/operations/README.md).
 
 ## Core Capabilities
 
 - Probabilistic accident triggering using speed, speed variance, density, and road type.
-- Four severity tiers with configurable durations, capacity loss, and response timing.
+- Four severity tiers with configurable durations, edge-capacity loss, lane closures, and response timing.
+- Optional local rerouting around active incidents for system-wide resilience analysis.
 - Accident lifecycle management: `ACTIVE -> CLEARING -> RESOLVED`.
 - Antifragility Index and resilience assessment workflows.
 - Batch execution and aggregate reporting.
@@ -220,12 +223,14 @@ sas
 ## Docs
 
 - [docs/README.md](docs/README.md): documentation index
+- [docs/operations/README.md](docs/operations/README.md): operator and analyst workflow docs by command
 - [docs/STRUCTURE.md](docs/STRUCTURE.md): canonical repository layout
 - [docs/REFERENCE.md](docs/REFERENCE.md): outputs, risk model, severity model, development notes
 - [docs/THESSALONIKI_OPERATOR_GUIDE.md](docs/THESSALONIKI_OPERATOR_GUIDE.md): Thessaloniki workflow
 - [docs/MACOS_INSTALL.md](docs/MACOS_INSTALL.md): macOS setup
 - [docs/SEATTLE_DATA.md](docs/SEATTLE_DATA.md): Seattle bundle and network notes
 - [docs/GUI.md](docs/GUI.md): how the GUI works, what it covers, and how to run it
+- [docs/SUMO_ACCIDENT_SIMULATOR_REVIEW.md](docs/SUMO_ACCIDENT_SIMULATOR_REVIEW.md): technical review of the current incident model
 - [docs/CHANGELOG.md](docs/CHANGELOG.md): changelog
 
 ## GUI Direction
