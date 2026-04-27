@@ -336,6 +336,9 @@ class MetricsCollector:
             "impact": {
                 "peak_queue_length_vehicles": accident.peak_queue_length,
                 "vehicles_affected": accident.vehicles_affected_count,
+                "rerouted_vehicles": accident.rerouted_vehicle_count,
+                "blocked_lanes": len(accident.blocked_lane_ids),
+                "managed_lanes": len(accident.managed_lane_ids),
             },
         }
         self._disruption_events.append(report)

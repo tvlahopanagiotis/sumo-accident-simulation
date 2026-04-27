@@ -104,6 +104,28 @@ def validate_config(config: dict[str, Any]) -> None:
     """
     errors = []
 
+    def _as_float(value: Any, label: str) -> float | None:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            errors.append(f"{label} must be numeric, got {value!r}")
+            return None
+
+    def _as_int(value: Any, label: str) -> int | None:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            errors.append(f"{label} must be an integer, got {value!r}")
+            return None
+
+    sumo = config.get("sumo", {})
+    step_length = _as_float(sumo.get("step_length", 0), "sumo.step_length")
+    if step_length is not None and step_length <= 0:
+        errors.append(f"sumo.step_length must be > 0, got {step_length}")
+    total_steps = _as_int(sumo.get("total_steps", 0), "sumo.total_steps")
+    if total_steps is not None and total_steps <= 0:
+        errors.append(f"sumo.total_steps must be > 0, got {total_steps}")
+
     risk = config.get("risk", {})
     bp = risk.get("base_probability", -1)
     if not (0 < bp < 1):
@@ -113,6 +135,21 @@ def validate_config(config: dict[str, Any]) -> None:
         errors.append(f"risk.trigger_threshold must be in (0, 1), got {th}")
 
     acc = config.get("accident", {})
+    effect_mode = str(acc.get("incident_effect_mode", "hybrid")).lower()
+    if effect_mode not in {"speed_limit", "lane_closure", "hybrid"}:
+        errors.append(
+            "accident.incident_effect_mode must be one of "
+            "['hybrid', 'lane_closure', 'speed_limit']"
+        )
+    reroute_radius = _as_float(acc.get("reroute_radius_m", 750.0), "accident.reroute_radius_m")
+    if reroute_radius is not None and reroute_radius < 0:
+        errors.append(f"accident.reroute_radius_m must be >= 0, got {reroute_radius}")
+    reroute_interval = _as_int(
+        acc.get("reroute_interval_s", 60), "accident.reroute_interval_s"
+    )
+    if reroute_interval is not None and reroute_interval <= 0:
+        errors.append(f"accident.reroute_interval_s must be > 0, got {reroute_interval}")
+
     severity = acc.get("severity", {})
     if not severity:
         errors.append(
@@ -153,12 +190,33 @@ def validate_config(config: dict[str, Any]) -> None:
                     f"must be < duration_max_s ({d_max})"
                 )
 
-    sumo = config.get("sumo", {})
     cfg_file = sumo.get("config_file", "")
     if not os.path.exists(cfg_file):
         errors.append(f"sumo.config_file not found: {cfg_file}")
 
     output = config.get("output", {})
+    metrics_interval = _as_int(
+        output.get("metrics_interval_steps", 0), "output.metrics_interval_steps"
+    )
+    if metrics_interval is not None and metrics_interval <= 0:
+        errors.append(f"output.metrics_interval_steps must be > 0, got {metrics_interval}")
+    pre_window = output.get("pre_window_seconds", 0)
+    if pre_window is not None:
+        pre_window_value = _as_int(pre_window, "output.pre_window_seconds")
+        if pre_window_value is not None and pre_window_value <= 0:
+            errors.append(f"output.pre_window_seconds must be > 0, got {pre_window_value}")
+    post_window = output.get("post_window_seconds", 0)
+    if post_window is not None:
+        post_window_value = _as_int(post_window, "output.post_window_seconds")
+        if post_window_value is not None and post_window_value <= 0:
+            errors.append(f"output.post_window_seconds must be > 0, got {post_window_value}")
+    baseline_window = output.get("baseline_window_steps", 0)
+    if baseline_window is not None:
+        baseline_window_value = _as_int(baseline_window, "output.baseline_window_steps")
+        if baseline_window_value is not None and baseline_window_value <= 0:
+            errors.append(
+                f"output.baseline_window_steps must be > 0, got {baseline_window_value}"
+            )
     live_refresh = output.get("live_progress_refresh_steps")
     if live_refresh is not None:
         try:

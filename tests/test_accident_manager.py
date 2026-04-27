@@ -9,6 +9,7 @@ All tests use the mock traci injected by conftest.py.
 import random
 import statistics
 from collections import Counter
+from unittest.mock import call
 
 import pytest
 import traci  # mock from conftest.py
@@ -25,6 +26,10 @@ def _minimal_severity_config():
     return {
         "max_concurrent_accidents": 2,
         "secondary_accident_enabled": True,
+        "incident_effect_mode": "hybrid",
+        "reroute_affected_vehicles": True,
+        "reroute_radius_m": 750,
+        "reroute_interval_s": 60,
         "severity": {
             "minor": {
                 "weight": 62,
@@ -48,6 +53,19 @@ def _setup_traci_for_trigger(
     lane_max_speed=13.9,
 ):
     """Configure mock traci returns for a successful trigger_accident call."""
+    traci.vehicle.getRoadID.reset_mock()
+    traci.vehicle.getLaneID.reset_mock()
+    traci.vehicle.getLanePosition.reset_mock()
+    traci.vehicle.getPosition.reset_mock()
+    traci.vehicle.setSpeed.reset_mock()
+    traci.vehicle.setSpeedMode.reset_mock()
+    traci.lane.getMaxSpeed.reset_mock()
+    traci.lane.getDisallowed.reset_mock()
+    traci.lane.setMaxSpeed.reset_mock()
+    traci.lane.setDisallowed.reset_mock()
+    traci.edge.getLaneNumber.reset_mock()
+    traci.lane.getMaxSpeed.side_effect = None
+    traci.vehicle.rerouteTraveltime.side_effect = None
     traci.vehicle.getRoadID.return_value = edge_id
     traci.vehicle.getLaneID.return_value = lane_id
     traci.vehicle.getLanePosition.return_value = position
@@ -55,6 +73,8 @@ def _setup_traci_for_trigger(
     traci.vehicle.setSpeed.return_value = None
     traci.vehicle.setSpeedMode.return_value = None
     traci.lane.getMaxSpeed.return_value = lane_max_speed
+    traci.edge.getLaneNumber.return_value = 1
+    traci.lane.getDisallowed.return_value = []
     traci.lane.setMaxSpeed.return_value = None
 
 
@@ -188,6 +208,52 @@ class TestTriggerAccident:
         result = mgr.trigger_accident("veh_1", current_step=50)
         assert result is None
 
+    def test_second_accident_on_same_edge_is_suppressed(self):
+        """Only one active accident is allowed per edge to avoid state clashes."""
+        config = _minimal_severity_config()
+        _setup_traci_for_trigger()
+        traci.edge.getLaneNumber.return_value = 2
+        traci.lane.getDisallowed.return_value = []
+
+        mgr = AccidentManager(config)
+        first = mgr.trigger_accident("veh_1", current_step=10)
+        second = mgr.trigger_accident("veh_2", current_step=20)
+
+        assert first is not None
+        assert second is None
+
+    def test_hybrid_mode_closes_lane_and_scales_edge_speeds(self):
+        """Hybrid mode should block lanes and apply edge-wide speed changes."""
+        config = _minimal_severity_config()
+        config["severity"]["minor"]["lane_capacity_fraction"] = 0.4
+        _setup_traci_for_trigger(lane_id="edge_1_0")
+        traci.edge.getLaneNumber.return_value = 2
+        traci.lane.getDisallowed.return_value = []
+        traci.lane.getMaxSpeed.side_effect = lambda lane_id: 20.0
+
+        mgr = AccidentManager(config)
+        accident = mgr.trigger_accident("veh_1", current_step=10)
+
+        assert accident is not None
+        assert accident.blocked_lane_ids == ["edge_1_0"]
+        assert traci.lane.setDisallowed.call_args_list[0] == call("edge_1_0", [
+            "private",
+            "passenger",
+            "taxi",
+            "bus",
+            "coach",
+            "delivery",
+            "truck",
+            "trailer",
+            "motorcycle",
+            "moped",
+            "evehicle",
+            "authority",
+            "vip",
+        ])
+        changed_lanes = {args.args[0] for args in traci.lane.setMaxSpeed.call_args_list}
+        assert {"edge_1_0", "edge_1_1"}.issubset(changed_lanes)
+
 
 # ---------------------------------------------------------------------------
 # Severity distribution tests
@@ -209,6 +275,7 @@ class TestSeverityDistribution:
             acc = mgr.trigger_accident(f"v{i}", current_step=i)
             if acc is not None:
                 counts[acc.severity] += 1
+                mgr.active_accidents.clear()
 
         total = sum(counts.values())
         # Expected: MINOR ~62%, MODERATE ~28%, MAJOR ~8%, CRITICAL ~2%
@@ -350,3 +417,56 @@ class TestSecondaryMultiplier:
         # Even very close, multiplier should be 1.0
         mult = mgr.get_secondary_multiplier(100.0, 200.0)
         assert mult == 1.0
+
+
+class TestIncidentRerouting:
+    """Tests for periodic local rerouting around active incidents."""
+
+    def test_refresh_rerouting_targets_only_local_upstream_vehicles(self):
+        config = _minimal_severity_config()
+        mgr = AccidentManager(config)
+        accident = Accident(
+            accident_id="ACC_TEST",
+            trigger_step=0,
+            vehicle_id="accident_vehicle",
+            edge_id="edge_1",
+            lane_id="edge_1_0",
+            position=50.0,
+            x=100.0,
+            y=200.0,
+        )
+        mgr.active_accidents[accident.accident_id] = accident
+        traci.vehicle.rerouteTraveltime.reset_mock()
+        traci.vehicle.rerouteTraveltime.return_value = None
+
+        all_sub = {
+            "upstream_same_edge": {
+                traci.constants.VAR_ROAD_ID: "edge_1",
+                traci.constants.VAR_POSITION: (90.0, 200.0),
+                traci.constants.VAR_LANEPOSITION: 30.0,
+            },
+            "downstream_same_edge": {
+                traci.constants.VAR_ROAD_ID: "edge_1",
+                traci.constants.VAR_POSITION: (110.0, 200.0),
+                traci.constants.VAR_LANEPOSITION: 80.0,
+            },
+            "nearby_other_edge": {
+                traci.constants.VAR_ROAD_ID: "edge_2",
+                traci.constants.VAR_POSITION: (120.0, 210.0),
+                traci.constants.VAR_LANEPOSITION: 10.0,
+            },
+            "far_away": {
+                traci.constants.VAR_ROAD_ID: "edge_3",
+                traci.constants.VAR_POSITION: (2000.0, 2000.0),
+                traci.constants.VAR_LANEPOSITION: 10.0,
+            },
+        }
+
+        mgr.refresh_rerouting(current_step=0, all_sub=all_sub)
+
+        rerouted_ids = [args.args[0] for args in traci.vehicle.rerouteTraveltime.call_args_list]
+        assert "upstream_same_edge" in rerouted_ids
+        assert "nearby_other_edge" in rerouted_ids
+        assert "downstream_same_edge" not in rerouted_ids
+        assert "far_away" not in rerouted_ids
+        assert accident.rerouted_vehicle_count == 2

@@ -41,15 +41,15 @@ QUICK_DEMAND_LEVELS: list[float] = [1.0, 2.0, 5.0]
 # Incident configurations — each overrides risk.base_probability.
 DEFAULT_INCIDENT_CONFIGS: list[dict] = [
     {"name": "baseline", "base_probability": 0.0},
-    {"name": "low_incident", "base_probability": 5.0e-05},
-    {"name": "default_incident", "base_probability": 1.5e-04},
-    {"name": "high_incident", "base_probability": 5.0e-04},
-    {"name": "extreme_incident", "base_probability": 1.0e-03},
+    {"name": "low_incident", "base_probability": 1.0e-05},
+    {"name": "default_incident", "base_probability": 3.0e-05},
+    {"name": "high_incident", "base_probability": 1.0e-04},
+    {"name": "extreme_incident", "base_probability": 2.0e-04},
 ]
 
 QUICK_INCIDENT_CONFIGS: list[dict] = [
     {"name": "baseline", "base_probability": 0.0},
-    {"name": "default_incident", "base_probability": 1.5e-04},
+    {"name": "default_incident", "base_probability": 3.0e-05},
 ]
 
 

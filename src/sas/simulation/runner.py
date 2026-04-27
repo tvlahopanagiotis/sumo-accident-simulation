@@ -29,8 +29,9 @@ How it works (every simulation step)
      pre-fetched data — zero additional TraCI calls in the hot loop
   6. If triggered, and concurrency limit allows, create accident via AccidentManager
   7. Advance all active accident lifecycles
-  8. Every metrics_interval seconds, record a network snapshot
-  9. At the end, export results + metadata.json
+  8. Periodically reroute nearby vehicles around active incidents
+  9. Every metrics_interval seconds, record a network snapshot
+ 10. At the end, export results + metadata.json
 
 Performance
 -----------
@@ -337,6 +338,7 @@ def run_once(
             # ── Advance accident lifecycles ────────────────────────────────
             prev_active = set(accident_manager.active_accidents.keys())
             accident_manager.update(step)
+            accident_manager.refresh_rerouting(step, all_sub)
             curr_active = set(accident_manager.active_accidents.keys())
             active_accident_points = _serialize_accidents(list(accident_manager.active_accidents.values()))
             resolved_accident_points = _serialize_accidents(

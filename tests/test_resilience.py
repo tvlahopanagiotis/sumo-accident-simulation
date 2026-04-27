@@ -100,7 +100,7 @@ class TestScenarioGenerator:
         assert cfg["risk"]["base_probability"] == 5.0e-04
         assert cfg["output"]["output_folder"] == "/tmp/test_run"
         # Original should not be mutated.
-        assert sample_config["risk"]["base_probability"] == 1.5e-04
+        assert sample_config["risk"]["base_probability"] == 3.0e-06
 
     def test_assign_route_files(self, sample_config):
         """Route files are assigned to all matching scenarios."""

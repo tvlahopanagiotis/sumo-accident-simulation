@@ -31,7 +31,7 @@ def _make_vdata(speed, edge_id="edge_1", position=(100.0, 200.0)):
     }
 
 
-def _make_model(risk_config, road_limit=13.89, edge_length_m=1000.0):
+def _make_model(risk_config, road_limit=13.89, edge_length_m=1000.0, lane_count=1):
     """
     Create a RiskModel and pre-populate its caches so that tests do not
     depend on traci.lane.getMaxSpeed / traci.lane.getLength being called.
@@ -40,6 +40,7 @@ def _make_model(risk_config, road_limit=13.89, edge_length_m=1000.0):
     # Pre-fill caches for 'edge_1' so the fast-path never hits traci
     model._road_speed_cache["edge_1"] = road_limit
     model._edge_length_cache["edge_1"] = edge_length_m / 1000.0  # km
+    model._edge_lane_count_cache["edge_1"] = lane_count
     # Also cache the road-type multiplier so _get_road_multiplier_cached works
     # For 13.89 m/s the road is classified as 'arterial' (>= 13.9 is arterial)
     # 13.89 < 13.9, so it is 'local'.  Use exactly 13.9 for arterial.
@@ -272,6 +273,7 @@ class TestPrepareStep:
         model = RiskModel(risk_config)
         # Pre-fill edge length cache (1 km)
         model._edge_length_cache["edge_A"] = 1.0
+        model._edge_lane_count_cache["edge_A"] = 2
 
         # Simulate 10 vehicles on edge_A
         all_sub = {}
@@ -285,7 +287,7 @@ class TestPrepareStep:
         model.prepare_step(all_sub)
 
         assert "edge_A" in model._edge_density_cache
-        assert abs(model._edge_density_cache["edge_A"] - 10.0) < 1e-9
+        assert abs(model._edge_density_cache["edge_A"] - 5.0) < 1e-9
 
     def test_prepare_step_ignores_junction_edges(self, risk_config):
         """Edges starting with ':' (junctions) should be excluded from density."""

@@ -13,27 +13,30 @@ sumo:
   # SUMO executable: "sumo" (headless, for batch runs) or "sumo-gui" (graphical).
   binary: sumo
 
-  # Total simulation duration in steps.  With step_length=5 s, 7200 steps = 2 h.
+  # Total simulated seconds.  7200 s = 2 h of network evolution.
   total_steps: 7200
 
   # Random seed passed to both SUMO and Python's RNG — set to a fixed integer
   # for reproducible results, or change between runs to explore variance.
   seed: 42
 
-  # Duration of each simulation step in seconds.
-  # 5 s is a good balance: fine enough for congestion dynamics, fast enough
-  # for a 2-hour run to complete in ~5–10 minutes of wall-clock time.
-  step_length: 5
+  # Duration of each SUMO simulation step in seconds.
+  # 1 s is recommended for scientific runs.  It preserves system-wide analysis
+  # while improving incident timing, queue formation, and rerouting fidelity.
+  step_length: 1
 
 # -----------------------------------------------------------------------------
 risk:
 # -----------------------------------------------------------------------------
 # Controls how the per-vehicle risk score is computed each step.
-# Score = base_probability × speed_term × variance_term × density_term × road_type
-# An accident is triggered when score > trigger_threshold (sampled stochastically).
+# SAS computes a weighted composite score from speed, local speed
+# heterogeneity, density, and road type. If that score exceeds
+# trigger_threshold, a stochastic trigger is sampled using base_probability.
 # -----------------------------------------------------------------------------
 
-  # Baseline accident probability per vehicle per step before any multipliers.
+  # Baseline accident probability per vehicle per 1-second step before any
+  # multipliers. Values were reduced ~5× from the older 5-second setup so the
+  # network-level incident rate stays in the same order of magnitude.
   # Calibrate to your network's steady-state vehicle count:
   #   ~80  vehicles  (Riverside)    → 2.0e-04
   #   ~150 vehicles  (Sioux Falls)  → 1.5e-04
@@ -44,7 +47,7 @@ risk:
   # Thessaloniki calibration: ~1100–1200 simultaneous vehicles at steady state.
   # Target: 3–5 accidents per 2-hour run.
   # (Full run at 5.0e-05 produced 11 accidents with ~1150 vehicles; reduced ~3×.)
-  base_probability: 1.5e-05
+  base_probability: 3.0e-06
 
   # Weight of the speed component in the composite risk score (0–1).
   # Higher values make fast-moving vehicles disproportionately risky.
@@ -67,7 +70,7 @@ risk:
   # Weight of the local vehicle density component (0–1).
   density_weight: 0.3
 
-  # Vehicle density (vehicles/km of lane) at which density risk saturates at 1.0.
+  # Vehicle density (vehicles per lane-km) at which density risk saturates at 1.0.
   # 15 veh/km corresponds to slow-moving but not gridlocked urban traffic.
   peak_density_vehicles_per_km: 15
 
@@ -105,17 +108,30 @@ accident:
   # Models rubbernecking, debris, emergency-vehicle conflicts, etc.
   secondary_accident_enabled: true
 
+  # How the active incident affects the network:
+  #   speed_limit  → speed reduction only
+  #   lane_closure → explicit lane closures only
+  #   hybrid       → lane closures where justified + edge-wide speed reduction
+  incident_effect_mode: hybrid
+
+  # Periodically reroute nearby vehicles around active incidents using current
+  # travel times. This adds local route-choice adaptation instead of only
+  # queue formation behind the blockage.
+  reroute_affected_vehicles: true
+  reroute_radius_m: 750
+  reroute_interval_s: 60
+
   # Severity tiers — sampled by weight (must not sum to exactly 100; weights
   # are relative).  Each tier defines the physical and operational parameters
-  # of the accident: how long it lasts, how much it reduces lane capacity, and
-  # how aggressively it elevates risk for nearby vehicles.
+  # of the accident: how long it lasts, how much effective edge capacity
+  # remains, and how aggressively it elevates risk for nearby vehicles.
   severity:
 
     minor:
       weight: 62                    # ~62 % of all accidents
       duration_min_s: 120           # shortest possible incident (2 min)
       duration_max_s: 900           # up to 15 min
-      lane_capacity_fraction: 0.7   # 70 % of normal capacity remains
+      lane_capacity_fraction: 0.7   # 70 % of edge capacity remains
       response_time_s: 300          # emergency services arrive after 5 min
       secondary_risk_radius_m: 75   # secondary risk zone radius
       secondary_risk_multiplier: 1.5 # risk amplification inside that zone
@@ -124,7 +140,7 @@ accident:
       weight: 28                    # ~28 % of all accidents
       duration_min_s: 900           # at least 15 min
       duration_max_s: 2700          # up to 45 min
-      lane_capacity_fraction: 0.4   # 40 % capacity — one lane typically blocked
+      lane_capacity_fraction: 0.4   # 40 % capacity — typically one blocked lane plus slowdown
       response_time_s: 600          # 10 min response time
       secondary_risk_radius_m: 150
       secondary_risk_multiplier: 2.5
@@ -155,8 +171,8 @@ output:
   # subfolder: results/Thessaloniki_Run1_2026-03-05_14:30/
   output_folder: results/thessaloniki/postmetro_50kph
 
-  # How often (in steps) to record a row in network_metrics.csv.
-  # 60 steps × 5 s/step = every 5 minutes of simulated time.
+  # How often (in simulation seconds) to record a row in network_metrics.csv.
+  # 60 s gives a 1-minute reporting interval.
   metrics_interval_steps: 60
 
   # Save per-vehicle speed/position snapshots alongside the metrics CSV.
@@ -187,7 +203,7 @@ output:
   # Seconds of metrics history captured immediately after each accident resolves.
   post_window_seconds: 300   # 5 min
 
-  # Number of simulation steps used as the "normal traffic" baseline when
+  # Number of simulated seconds used as the "normal traffic" baseline when
   # computing the Antifragility Index.
   # Raised from 1800 → 3600: with period=1.0 the Thessaloniki network doesn't
   # reach steady-state vehicle count until ~step 2400; using only 1800 steps
@@ -230,13 +246,13 @@ resilience_assessment:
     - name: baseline
       base_probability: 0.0           # no accidents (pure traffic dynamics)
     - name: low_incident
-      base_probability: 5.0e-05       # low incident rate
+      base_probability: 1.0e-05       # low incident rate
     - name: default_incident
-      base_probability: 1.5e-04       # moderate (calibrated default)
+      base_probability: 3.0e-05       # moderate default for 1 s steps
     - name: high_incident
-      base_probability: 5.0e-04       # stress test
+      base_probability: 1.0e-04       # stress test
     - name: extreme_incident
-      base_probability: 1.0e-03       # extreme overload
+      base_probability: 2.0e-04       # extreme overload
 
   # Resilience score component weights (must sum to 1.0).
   resilience_weights:

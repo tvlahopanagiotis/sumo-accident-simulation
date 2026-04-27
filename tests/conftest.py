@@ -59,10 +59,10 @@ def sample_config():
             "binary": "sumo",
             "total_steps": 7200,
             "seed": 42,
-            "step_length": 5,
+            "step_length": 1,
         },
         "risk": {
-            "base_probability": 1.5e-04,
+            "base_probability": 3.0e-06,
             "speed_weight": 0.40,
             "speed_exponent": 2.0,
             "speed_variance_weight": 0.30,
@@ -81,6 +81,10 @@ def sample_config():
         "accident": {
             "max_concurrent_accidents": 2,
             "secondary_accident_enabled": True,
+            "incident_effect_mode": "hybrid",
+            "reroute_affected_vehicles": True,
+            "reroute_radius_m": 750,
+            "reroute_interval_s": 60,
             "severity": {
                 "minor": {
                     "weight": 62,
@@ -129,7 +133,7 @@ def sample_config():
             "save_accident_heatmap": True,
             "pre_window_seconds": 300,
             "post_window_seconds": 300,
-            "baseline_window_steps": 1800,
+            "baseline_window_steps": 3600,
         },
     }
 
@@ -158,5 +162,5 @@ def output_config(tmp_path):
         "save_accident_heatmap": True,
         "pre_window_seconds": 300,
         "post_window_seconds": 300,
-        "baseline_window_steps": 1800,
+        "baseline_window_steps": 3600,
     }

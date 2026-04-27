@@ -78,9 +78,10 @@ class RiskModel:
         self._lane_multiplier_cache: dict[str, float] = {}  # edge_id → road multiplier
         self._road_speed_cache: dict[str, float] = {}  # edge_id → speed limit (m/s)
         self._edge_length_cache: dict[str, float] = {}  # edge_id → length in km
+        self._edge_lane_count_cache: dict[str, int] = {}  # edge_id → lane count
 
         # Per-step density cache — refreshed each step by prepare_step().
-        self._edge_density_cache: dict[str, float] = {}  # edge_id → vehicles/km
+        self._edge_density_cache: dict[str, float] = {}  # edge_id → vehicles / lane-km
 
     # ------------------------------------------------------------------
     # Fast-path API  (zero TraCI calls in the hot loop)
@@ -92,8 +93,8 @@ class RiskModel:
         Must be called once per simulation step, before evaluating any vehicles.
 
         Internally counts vehicles per edge from the subscription dict, then
-        converts to vehicles/km using a cached edge-length lookup (one TraCI
-        call per *unique edge*, only on first encounter — never repeated).
+        converts to vehicles / lane-km using cached edge length and lane-count
+        lookups (one TraCI call per unique edge property on first encounter).
 
         Args:
             all_sub: Return value of traci.vehicle.getAllSubscriptionResults().
@@ -106,12 +107,12 @@ class RiskModel:
             if eid and not eid.startswith(":"):
                 edge_counts[eid] = edge_counts.get(eid, 0) + 1
 
-        # Convert raw counts → vehicles/km using cached edge lengths
+        # Convert raw counts → vehicles / lane-km using cached edge geometry
         self._edge_density_cache = {}
         for eid, count in edge_counts.items():
-            length_km = self._get_edge_length_km(eid)
-            if length_km > 0:
-                self._edge_density_cache[eid] = count / length_km
+            lane_km = self._get_lane_km(eid)
+            if lane_km > 0:
+                self._edge_density_cache[eid] = count / lane_km
 
     def get_risk_score(
         self,
@@ -224,6 +225,20 @@ class RiskModel:
                 self._edge_length_cache[edge_id] = 0.0
         return self._edge_length_cache[edge_id]
 
+    def _get_edge_lane_count(self, edge_id: str) -> int:
+        """Return the number of lanes on the edge, cached after first lookup."""
+        if edge_id not in self._edge_lane_count_cache:
+            try:
+                self._edge_lane_count_cache[edge_id] = max(1, int(traci.edge.getLaneNumber(edge_id)))
+            except traci.exceptions.TraCIException as exc:
+                logger.debug("Cannot get lane count for edge %s: %s", edge_id, exc)
+                self._edge_lane_count_cache[edge_id] = 1
+        return self._edge_lane_count_cache[edge_id]
+
+    def _get_lane_km(self, edge_id: str) -> float:
+        """Return the total lane-kilometres represented by the edge."""
+        return self._get_edge_length_km(edge_id) * self._get_edge_lane_count(edge_id)
+
     def _get_road_multiplier_cached(self, edge_id: str) -> float:
         """
         Return road type multiplier.
@@ -235,16 +250,16 @@ class RiskModel:
 
     def _get_edge_density(self, edge_id: str) -> float:
         """
-        Estimate vehicle density on an edge in vehicles per km.
+        Estimate vehicle density on an edge in vehicles per lane-km.
         Returns 0.0 for internal edges (junctions).
         """
         if edge_id.startswith(":"):
             return 0.0
         try:
             vehicle_count: int = int(traci.edge.getLastStepVehicleNumber(edge_id))
-            edge_length_km = self._get_edge_length_km(edge_id)
-            if edge_length_km > 0:
-                return vehicle_count / edge_length_km
+            lane_km = self._get_lane_km(edge_id)
+            if lane_km > 0:
+                return vehicle_count / lane_km
         except traci.exceptions.TraCIException as exc:
             logger.debug("Failed to compute density for edge %s: %s", edge_id, exc)
         return 0.0
