@@ -1,0 +1,61 @@
+# =============================================================================
+# SAS – Backend API (FastAPI + SUMO)
+# =============================================================================
+# Ubuntu 24.04 ships Python 3.12 and supports the official SUMO PPA.
+# SUMO_HOME and PYTHONPATH are set so TraCI / libsumo work at runtime.
+# =============================================================================
+
+FROM ubuntu:24.04 AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# ── System dependencies + SUMO via official PPA ───────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+        software-properties-common \
+        curl \
+    && add-apt-repository ppa:sumo/stable \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        sumo \
+        sumo-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV SUMO_HOME=/usr/share/sumo
+ENV PYTHONPATH=/usr/share/sumo/tools
+
+# ── Python virtualenv ──────────────────────────────────────────────────────
+# Ubuntu 24.04 enforces PEP 668 (externally managed env), so use a venv.
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+RUN python3 -m venv $VIRTUAL_ENV
+
+# ── Python package installation ────────────────────────────────────────────
+WORKDIR /app
+
+COPY pyproject.toml ./
+COPY src/ ./src/
+
+RUN pip install --no-cache-dir -e .
+
+# ── Runtime configuration ──────────────────────────────────────────────────
+# Bind to 0.0.0.0 so the container port is reachable from outside.
+# Override via: docker run -e API_HOST=0.0.0.0 -e API_PORT=12000
+ENV API_HOST=0.0.0.0
+ENV API_PORT=12000
+
+# Copy project assets that the API serves / reads.
+# Volumes defined in docker-compose will shadow these at runtime.
+COPY configs/ ./configs/
+COPY data/ ./data/
+COPY docs/ ./docs/
+COPY README.md ./
+COPY frontend/public/ ./frontend/public/
+
+RUN mkdir -p results
+
+EXPOSE 12000
+
+CMD ["sh", "-c", \
+     "python -m uvicorn sas.gui.app:app --host ${API_HOST} --port ${API_PORT}"]

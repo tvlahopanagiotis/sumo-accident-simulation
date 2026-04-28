@@ -57,6 +57,7 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:4173",
         "http://127.0.0.1:4173",
+        "https://sas.rhoe-api.gr",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -410,7 +411,7 @@ def branding() -> dict[str, Any]:
 def main() -> None:
     import uvicorn
 
-    uvicorn.run("sas.gui.app:app", host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run("sas.gui.app:app", host="127.0.0.1", port=12000, reload=False)
 
 
 if __name__ == "__main__":
