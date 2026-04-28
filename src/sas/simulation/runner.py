@@ -357,7 +357,17 @@ def run_once(
             if step % metrics.metrics_interval == 0:
                 # Pass pre-fetched subscription data — record_step uses it
                 # instead of re-fetching speeds via individual TraCI calls.
-                metrics.record_step(step, len(accident_manager.active_accidents), all_sub)
+                metrics.record_step(
+                    step,
+                    len(accident_manager.active_accidents),
+                    all_sub,
+                    active_blocked_lanes=sum(
+                        len(acc.blocked_lane_ids)
+                        for acc in accident_manager.active_accidents.values()
+                    ),
+                    cumulative_accidents=accident_manager._accident_counter,
+                    resolved_accidents=len(accident_manager.resolved_accidents),
+                )
                 if live_progress is not None:
                     live_progress.update(
                         metrics.snapshots,
@@ -398,7 +408,7 @@ def run_once(
         logger.info("SUMO connection closed.")
 
     # ── Export results ────────────────────────────────────────────────────
-    metrics.export_all()
+    exported = metrics.export_all()
 
     if live_progress is not None:
         try:
@@ -424,15 +434,28 @@ def run_once(
         "steps_run": step,
         "total_accidents": accident_manager._accident_counter,
     }
-    ai_file = os.path.join(output_folder, "antifragility_index.json")
-    if os.path.exists(ai_file):
-        with open(ai_file) as f:
-            ai_data = json.load(f)
+    ai_data = exported.get("antifragility") or {}
+    if ai_data:
         summary["antifragility_index"] = ai_data.get("antifragility_index")
         summary["interpretation"] = ai_data.get("interpretation", "")
         summary["n_events_measured"] = ai_data.get("n_events_measured", 0)
         summary["ci_95_low"] = ai_data.get("ci_95_low")
         summary["ci_95_high"] = ai_data.get("ci_95_high")
+
+    simulation_summary = exported.get("simulation_summary") or {}
+    network_summary = simulation_summary.get("network", {})
+    accident_summary = simulation_summary.get("accidents", {})
+    if isinstance(network_summary, dict):
+        summary["peak_vehicle_count"] = network_summary.get("peak_vehicle_count")
+        summary["peak_active_accidents"] = network_summary.get("peak_active_accidents")
+        summary["peak_active_blocked_lanes"] = network_summary.get("peak_active_blocked_lanes")
+        summary["peak_throughput_per_hour"] = network_summary.get("peak_throughput_per_hour")
+        summary["mean_speed_kmh"] = network_summary.get("mean_speed_kmh")
+        summary["mean_delay_seconds"] = network_summary.get("mean_delay_seconds")
+        summary["min_speed_ratio"] = network_summary.get("min_speed_ratio")
+    if isinstance(accident_summary, dict):
+        summary["accidents_by_severity"] = accident_summary.get("by_severity", {})
+        summary["total_rerouted_vehicles"] = accident_summary.get("total_rerouted_vehicles")
 
     logger.info(
         "Run complete — %d steps, %d accidents, AI=%s",

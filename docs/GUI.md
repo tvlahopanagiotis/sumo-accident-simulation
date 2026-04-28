@@ -131,17 +131,34 @@ grid.
 
 Current capabilities:
 
+- split the OSM workflow into:
+  - `New Extract`
+  - `Extracted Network`
 - search a place through OSM/Nominatim
 - pick a result from the returned matches
+- bootstrap `data/cities/<city>/network/` and `configs/<city>/default.yaml`
+  directly from the OSM workflow
 - preview the result on a real map component
-- switch between locality boundary, bounding box, and custom shape modes
+- keep boundary mode and map preview together:
+  - locality boundary
+  - bounding box
+  - custom shape
 - override south/west/north/east boundaries before launch
 - draw a custom shape directly on the map; the GUI derives the enclosing bbox
   used by the current download backend
-- keep a stable map view while sketching a custom shape instead of constantly
-  re-fitting to the in-progress polygon
 - pass those explicit bounds to the OSM download workflow
 - edit advanced OSM fetch parameters such as endpoints and user-agent details
+- browse extracted city `.osm` files directly from the same page
+- inspect extracted roads by:
+  - speed-limit tags
+  - road type
+  - lanes and direction
+  - signalized intersections
+- clean up speed-limit tags before generation by:
+  - clicking one road
+  - Shift-clicking multiple roads
+  - selecting all roads that match a filter set
+  - expanding a selected segment to the full connected same-name road
 
 Greek traffic-feed tooling is shown separately.
 

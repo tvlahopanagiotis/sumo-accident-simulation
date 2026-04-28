@@ -83,12 +83,58 @@ export type LocationSearchResult = {
   geojson?: Record<string, unknown> | null;
 };
 
+export type CityRecord = {
+  slug: string;
+  display_name: string;
+  city_root: string;
+  network_dir: string | null;
+  osm_path: string | null;
+  net_path: string | null;
+  sumocfg_path: string | null;
+  config_path: string | null;
+  has_osm: boolean;
+  has_network: boolean;
+  metadata: Record<string, unknown>;
+};
+
+export type CityNetworkPreview = {
+  city: CityRecord;
+  source_path: string;
+  bbox: [number, number, number, number] | null;
+  stats: {
+    feature_count: number;
+    road_type_counts: Record<string, number>;
+    with_speed_limit: number;
+    with_lane_count: number;
+    oneway_count: number;
+    signalized_intersection_count: number;
+  };
+  features: Array<{
+    id: string;
+    name?: string | null;
+    road_type: string;
+    speed_kph: number | null;
+    lane_count: number | null;
+    oneway: boolean;
+    reverse_oneway: boolean;
+    node_ids: string[];
+    coords: Array<[number, number]>;
+  }>;
+  intersections: Array<{
+    id: string;
+    coords: [number, number];
+    connected_road_types: string[];
+    connected_road_count: number;
+  }>;
+};
+
 export type ResultRunSummary = {
   run_root: string;
   metadata: Record<string, unknown>;
   summary: Record<string, unknown>;
   config_snapshot: Record<string, unknown>;
   metrics: {
+    rows: Array<Record<string, number>>;
     series: Record<string, number[]>;
     stats: Record<string, number>;
   };
@@ -98,6 +144,9 @@ export type ResultRunSummary = {
     max_duration_seconds: number;
     max_queue_length_vehicles: number;
     max_vehicles_affected: number;
+    total_rerouted_vehicles: number;
+    total_blocked_lanes: number;
+    total_managed_lanes: number;
     items: Array<Record<string, unknown>>;
   } | null;
   antifragility: {
@@ -109,6 +158,11 @@ export type ResultRunSummary = {
     ci_95_high: number | null;
     interpretation: string | null;
     per_event: Array<Record<string, unknown>>;
+  } | null;
+  simulation_summary: {
+    network?: Record<string, unknown>;
+    accidents?: Record<string, unknown>;
+    antifragility?: Record<string, unknown> | null;
   } | null;
   artifacts: {
     report_path: string | null;

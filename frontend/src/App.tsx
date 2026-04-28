@@ -4,10 +4,14 @@ import type { ChangeEvent } from "react";
 import type { LeafletMouseEvent } from "leaflet";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { CityNetworkMap, classifyRoadGroup, type NetworkViewMode } from "./cityNetworkMap";
 import { CONFIG_SECTIONS, type ConfigFieldSpec, type ConfigSectionSpec } from "./configStudio";
 import { api } from "./lib/api";
+import { AccidentImpactScatter, SeverityDistributionChart, TimeSeriesChart } from "./resultsCharts";
 import type {
   Branding,
+  CityNetworkPreview,
+  CityRecord,
   ConfigDocument,
   JobRecord,
   LocationSearchResult,
@@ -30,11 +34,12 @@ type ViewKey =
 type ConfigMode = "structured" | "raw";
 type ConfigSectionKey = ConfigSectionSpec["key"];
 type BoundaryMode = "locality" | "bbox" | "shape";
+type OSMSubtab = "new" | "extracted";
 type InfoModal = {
   title: string;
   sections: Array<{ heading: string; body: string[] }>;
 } | null;
-const APP_VERSION = "0.2.2";
+const APP_VERSION = "0.2.3";
 
 const DEFAULT_BRANDING: Branding = {
   name: "AntifragiCity SAS",
@@ -351,9 +356,12 @@ function setPathValue(root: Record<string, unknown>, path: string, nextValue: un
   return cloneWithUpdate(root, pathSegments(path), nextValue) as Record<string, unknown>;
 }
 
-function searchLocationOutputPath(location: LocationSearchResult): string {
-  const place = slugify(location.city || location.state || location.country || location.display_name);
-  return `data/cities/${place}/network/${place}.osm`;
+function citySlugFromLocation(location: LocationSearchResult): string {
+  return slugify(location.city || location.state || location.country || location.display_name);
+}
+
+function buildCityConfigPath(citySlug: string): string {
+  return `configs/${citySlug}/default.yaml`;
 }
 
 function HelpBadge({ field }: { field: ConfigFieldSpec | WorkflowField }) {
@@ -625,70 +633,6 @@ function TreeView({
   );
 }
 
-function SimpleLineChart({
-  title,
-  values,
-  accentClass,
-}: {
-  title: string;
-  values: number[];
-  accentClass?: string;
-}) {
-  const width = 520;
-  const height = 180;
-  if (values.length < 2) {
-    return (
-      <div className="chart-card">
-        <div className="chart-head">
-          <h3>{title}</h3>
-        </div>
-        <p className="muted">Not enough data yet.</p>
-      </div>
-    );
-  }
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const points = values
-    .map((value, index) => {
-      const x = (index / (values.length - 1)) * width;
-      const y = height - ((value - min) / range) * height;
-      return `${x},${y}`;
-    })
-    .join(" ");
-  return (
-    <div className="chart-card">
-      <div className="chart-head">
-        <h3>{title}</h3>
-        <span>
-          {formatNumber(min)} → {formatNumber(max)}
-        </span>
-      </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className={`chart-svg ${accentClass ?? ""}`} role="img" aria-label={title}>
-        <polyline points={points} fill="none" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
-  );
-}
-
-function SeverityBars({ counts }: { counts: Record<string, number> }) {
-  const entries = Object.entries(counts);
-  const max = Math.max(...entries.map(([, value]) => value), 1);
-  return (
-    <div className="severity-bars">
-      {entries.map(([label, value]) => (
-        <div key={label} className="severity-row">
-          <strong>{label}</strong>
-          <div className="severity-track">
-            <div className="severity-fill" style={{ width: `${(value / max) * 100}%` }} />
-          </div>
-          <span>{value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function WorkflowCard({
   workflow,
   values,
@@ -770,6 +714,17 @@ export default function App() {
   const [boundaryMode, setBoundaryMode] = useState<BoundaryMode>("bbox");
   const [customShapePoints, setCustomShapePoints] = useState<Array<[number, number]>>([]);
   const [dataTab, setDataTab] = useState<"osm" | "feeds">("osm");
+  const [osmSubtab, setOsmSubtab] = useState<OSMSubtab>("new");
+  const [cities, setCities] = useState<CityRecord[]>([]);
+  const [selectedCitySlug, setSelectedCitySlug] = useState<string>("");
+  const [selectedCityPreview, setSelectedCityPreview] = useState<CityNetworkPreview | null>(null);
+  const [networkViewMode, setNetworkViewMode] = useState<NetworkViewMode>("speed");
+  const [selectedWayIds, setSelectedWayIds] = useState<string[]>([]);
+  const [bulkRoadGroup, setBulkRoadGroup] = useState<string>("any");
+  const [bulkSpeedClass, setBulkSpeedClass] = useState<string>("any");
+  const [bulkLaneClass, setBulkLaneClass] = useState<string>("any");
+  const [bulkDirectionClass, setBulkDirectionClass] = useState<string>("any");
+  const [bulkSpeedValue, setBulkSpeedValue] = useState<number | "">("");
   const [infoModal, setInfoModal] = useState<InfoModal>(null);
 
   const selectedJob = useMemo(
@@ -793,6 +748,13 @@ export default function App() {
     () => Object.fromEntries(workflowSpecs.map((workflow) => [workflow.id, workflow])) as Record<string, WorkflowSpec>,
     [workflowSpecs],
   );
+  const osmFieldsByName = useMemo(
+    () =>
+      Object.fromEntries(
+        ((workflowsById["integration.fetch_osm"]?.fields ?? []) as WorkflowField[]).map((field) => [field.name, field]),
+      ) as Record<string, WorkflowField>,
+    [workflowsById],
+  );
 
   const workflowGroups = useMemo(() => {
     return workflowSpecs.reduce<Record<string, WorkflowSpec[]>>((acc, workflow) => {
@@ -814,6 +776,54 @@ export default function App() {
   const isThessalonikiSelection = isGreekSelection && `${selectedLocation?.display_name ?? ""}`.toLowerCase().includes("thessaloniki");
   const localityPolygons = useMemo(() => normalizeGeoJsonCoordinates(selectedLocation?.geojson), [selectedLocation]);
   const shapeBounds = useMemo(() => boundsFromPoints(customShapePoints), [customShapePoints]);
+  const selectedCity = useMemo(
+    () => cities.find((city) => city.slug === selectedCitySlug) ?? null,
+    [cities, selectedCitySlug],
+  );
+  const extractedRoadGroups = useMemo(() => {
+    const groups = new Set<string>();
+    for (const feature of selectedCityPreview?.features ?? []) {
+      groups.add(classifyRoadGroup(feature.road_type));
+    }
+    return ["any", ...Array.from(groups).sort()];
+  }, [selectedCityPreview]);
+  const extractedSpeedClasses = useMemo(() => {
+    const values = new Set<string>();
+    for (const feature of selectedCityPreview?.features ?? []) {
+      values.add(feature.speed_kph === null ? "unknown" : String(feature.speed_kph));
+    }
+    return ["any", ...Array.from(values).sort((left, right) => {
+      if (left === "unknown") {
+        return -1;
+      }
+      if (right === "unknown") {
+        return 1;
+      }
+      return Number(left) - Number(right);
+    })];
+  }, [selectedCityPreview]);
+  const extractedLaneClasses = useMemo(() => {
+    const values = new Set<string>();
+    for (const feature of selectedCityPreview?.features ?? []) {
+      values.add(feature.lane_count === null ? "unknown" : String(feature.lane_count));
+    }
+    return ["any", ...Array.from(values).sort((left, right) => {
+      if (left === "unknown") {
+        return -1;
+      }
+      if (right === "unknown") {
+        return 1;
+      }
+      return Number(left) - Number(right);
+    })];
+  }, [selectedCityPreview]);
+  const selectedWayNames = useMemo(() => {
+    const selected = new Set(selectedWayIds);
+    return (selectedCityPreview?.features ?? [])
+      .filter((feature) => selected.has(feature.id))
+      .slice(0, 5)
+      .map((feature) => feature.name || feature.id);
+  }, [selectedCityPreview, selectedWayIds]);
   const activeMapBounds = useMemo(() => {
     if (boundaryMode === "shape" && shapeBounds) {
       return shapeBounds;
@@ -845,8 +855,9 @@ export default function App() {
       {
         heading: "OSM Extracts",
         body: [
-          "Use the OSM tab to search for a place, inspect the locality geometry, and decide whether to use the locality outline, a bounding box, or a custom drawn shape.",
-          "The current download backend still performs extraction through a bounding box, so custom shapes are converted to their enclosing bbox for the actual fetch.",
+          "Use `New Extract` to search for a place, inspect the locality geometry, bootstrap a new city folder and default config, and launch the raw OSM download.",
+          "Use `Extracted Network` to inspect saved city `.osm` files, review speed tags, visualize signalized intersections, and clean up speed limits before generator work begins.",
+          "Road editing supports direct map selection, Shift multi-select, filter-based selection, and expansion to the full connected road when segments share the same road name.",
         ],
       },
       {
@@ -873,6 +884,14 @@ export default function App() {
     setConfigPaths(configData.configs.map((item) => item.path));
   };
 
+  const refreshCities = async () => {
+    const cityData = await api.get<{ cities: CityRecord[] }>("/api/cities");
+    setCities(cityData.cities);
+    setSelectedCitySlug((current) =>
+      cityData.cities.some((city) => city.slug === current) ? current : cityData.cities[0]?.slug || "",
+    );
+  };
+
   const refreshResults = async () => {
     const resultData = await api.get<{ entries: TreeNode[] }>("/api/results");
     setResultsTree(resultData.entries);
@@ -885,16 +904,21 @@ export default function App() {
       api.get<{ sumo_configs: string[] }>("/api/sumo-configs"),
       api.get<{ output_folders: string[] }>("/api/output-folders"),
       api.get<{ docs: Array<{ path: string }> }>("/api/docs"),
+      api.get<{ cities: CityRecord[] }>("/api/cities"),
       api.get<Branding>("/api/branding"),
       api.get<{ jobs: JobRecord[] }>("/api/jobs"),
       api.get<{ entries: TreeNode[] }>("/api/results"),
     ])
-      .then(([workflowData, configData, sumoConfigData, outputFolderData, docsData, brandingData, jobData, resultData]) => {
+      .then(([workflowData, configData, sumoConfigData, outputFolderData, docsData, cityData, brandingData, jobData, resultData]) => {
         setWorkflowSpecs(workflowData.workflows);
         setConfigPaths(configData.configs.map((item) => item.path));
         setSumoConfigPaths(sumoConfigData.sumo_configs);
         setOutputFolderPaths(outputFolderData.output_folders);
         setDocPaths(docsData.docs.map((item) => item.path));
+        setCities(cityData.cities);
+        setSelectedCitySlug((current) =>
+          cityData.cities.some((city) => city.slug === current) ? current : cityData.cities[0]?.slug || "",
+        );
         setBranding(brandingData);
         setJobs(jobData.jobs);
         setResultsTree(resultData.entries);
@@ -955,9 +979,27 @@ export default function App() {
         })
         .catch(() => undefined);
       void refreshResults().catch(() => undefined);
+      void refreshCities().catch(() => undefined);
     }, 2000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!selectedCitySlug) {
+      setSelectedCityPreview(null);
+      setSelectedWayIds([]);
+      return;
+    }
+    void api
+      .get<CityNetworkPreview>(`/api/cities/${encodeURIComponent(selectedCitySlug)}/network-preview`)
+      .then((preview) => {
+        setSelectedCityPreview(preview);
+        setSelectedWayIds((current) =>
+          current.filter((wayId) => preview.features.some((feature) => feature.id === wayId)),
+        );
+      })
+      .catch(() => setSelectedCityPreview(null));
+  }, [selectedCitySlug]);
 
   useEffect(() => {
     if (!selectedFile) {
@@ -1119,14 +1161,173 @@ export default function App() {
     }
   };
 
+  const applyCityScaffoldDefaults = (citySlug: string) => {
+    if (!citySlug) {
+      return;
+    }
+    updateWorkflowValue("integration.fetch_osm", "city_slug", citySlug);
+    updateWorkflowValue("integration.fetch_osm", "out", `data/cities/${citySlug}/network/${citySlug}.osm`);
+    updateWorkflowValue("integration.fetch_osm", "config_out", buildCityConfigPath(citySlug));
+  };
+
+  const toggleWaySelection = (featureId: string, additive: boolean) => {
+    setSelectedWayIds((current) => {
+      if (!additive) {
+        return current.length === 1 && current[0] === featureId ? current : [featureId];
+      }
+      return current.includes(featureId) ? current.filter((item) => item !== featureId) : [...current, featureId];
+    });
+  };
+
+  const selectWaysByFilters = () => {
+    const matched = (selectedCityPreview?.features ?? []).filter((feature) => {
+      if (bulkRoadGroup !== "any" && classifyRoadGroup(feature.road_type) !== bulkRoadGroup) {
+        return false;
+      }
+      if (
+        bulkSpeedClass !== "any" &&
+        !(
+          (bulkSpeedClass === "unknown" && feature.speed_kph === null) ||
+          (feature.speed_kph !== null && String(feature.speed_kph) === bulkSpeedClass)
+        )
+      ) {
+        return false;
+      }
+      if (
+        bulkLaneClass !== "any" &&
+        !(
+          (bulkLaneClass === "unknown" && feature.lane_count === null) ||
+          (feature.lane_count !== null && String(feature.lane_count) === bulkLaneClass)
+        )
+      ) {
+        return false;
+      }
+      if (bulkDirectionClass === "oneway" && !feature.oneway) {
+        return false;
+      }
+      if (bulkDirectionClass === "bidirectional" && feature.oneway) {
+        return false;
+      }
+      return true;
+    });
+    setSelectedWayIds(matched.map((feature) => feature.id));
+    setMessage(`Selected ${matched.length} road segment(s) in ${selectedCity?.display_name ?? "city"}`);
+  };
+
+  const selectConnectedNamedRoad = () => {
+    const features = selectedCityPreview?.features ?? [];
+    if (features.length === 0 || selectedWayIds.length === 0) {
+      setMessage("Select at least one road segment first");
+      return;
+    }
+
+    const byId = new Map(features.map((feature) => [feature.id, feature]));
+    const matchingName = (name: string | null | undefined) =>
+      (name ?? "").trim().toLowerCase();
+    const adjacency = new Map<string, string[]>();
+
+    for (const feature of features) {
+      adjacency.set(feature.id, []);
+    }
+
+    for (let i = 0; i < features.length; i += 1) {
+      const left = features[i];
+      const leftName = matchingName(left.name);
+      if (!leftName) {
+        continue;
+      }
+      const leftNodes = new Set(left.node_ids);
+      for (let j = i + 1; j < features.length; j += 1) {
+        const right = features[j];
+        if (matchingName(right.name) !== leftName) {
+          continue;
+        }
+        if (!right.node_ids.some((nodeId) => leftNodes.has(nodeId))) {
+          continue;
+        }
+        adjacency.get(left.id)?.push(right.id);
+        adjacency.get(right.id)?.push(left.id);
+      }
+    }
+
+    const queue = [...selectedWayIds];
+    const visited = new Set<string>(selectedWayIds);
+    const namedSeeds = selectedWayIds.filter((wayId) => Boolean(byId.get(wayId)?.name?.trim()));
+
+    if (namedSeeds.length === 0) {
+      setMessage("The current selection has no named road segments to expand");
+      return;
+    }
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const feature = byId.get(current);
+      if (!feature || !feature.name) {
+        continue;
+      }
+      for (const neighborId of adjacency.get(current) ?? []) {
+        if (visited.has(neighborId)) {
+          continue;
+        }
+        visited.add(neighborId);
+        queue.push(neighborId);
+      }
+    }
+
+    setSelectedWayIds(Array.from(visited));
+    const namedCount = Array.from(visited).filter((wayId) => byId.get(wayId)?.name).length;
+    setMessage(`Expanded selection to ${visited.size} connected segment(s)${namedCount ? " with the same road name" : ""}`);
+  };
+
+  const applySpeedLimitUpdate = async () => {
+    if (!selectedCitySlug) {
+      setMessage("Select an extracted city first");
+      return;
+    }
+    if (selectedWayIds.length === 0) {
+      setMessage("Select one or more road segments first");
+      return;
+    }
+    if (bulkSpeedValue === "" || Number(bulkSpeedValue) <= 0) {
+      setMessage("Set a positive speed limit value first");
+      return;
+    }
+    try {
+      const result = await api.post<{ updated_way_count: number }>(
+        `/api/cities/${encodeURIComponent(selectedCitySlug)}/speed-limits`,
+        {
+          way_ids: selectedWayIds,
+          speed_kph: Number(bulkSpeedValue),
+        },
+      );
+      const preview = await api.get<CityNetworkPreview>(
+        `/api/cities/${encodeURIComponent(selectedCitySlug)}/network-preview`,
+      );
+      setSelectedCityPreview(preview);
+      setMessage(`Updated ${result.updated_way_count} road segment(s) to ${Number(bulkSpeedValue)} km/h`);
+    } catch (error) {
+      setMessage(`Speed limit update failed: ${String(error)}`);
+    }
+  };
+
+  const expandSelectionToNamedRoad = () => {
+    if (selectedWayIds.length === 0) {
+      setMessage("Select a road segment first");
+      return;
+    }
+    selectConnectedNamedRoad();
+  };
+
   const selectLocation = (location: LocationSearchResult) => {
+    const citySlug = citySlugFromLocation(location);
     setSelectedLocation(location);
+    setSelectedCitySlug(citySlug);
     const [south, north, west, east] = location.boundingbox;
     setCustomBounds([south, west, north, east]);
     setCustomShapePoints([]);
     setBoundaryMode(location.geojson ? "locality" : "bbox");
     updateWorkflowValue("integration.fetch_osm", "place", location.display_name);
-    updateWorkflowValue("integration.fetch_osm", "out", searchLocationOutputPath(location));
+    applyCityScaffoldDefaults(citySlug);
     updateWorkflowValue("integration.fetch_osm", "south", south);
     updateWorkflowValue("integration.fetch_osm", "west", west);
     updateWorkflowValue("integration.fetch_osm", "north", north);
@@ -1276,8 +1477,12 @@ export default function App() {
     </section>
   );
 
-  const metricsSeries = selectedRunSummary?.metrics.series;
+  const osmWorkflow = workflowsById["integration.fetch_osm"];
+  const osmValues = workflowValues["integration.fetch_osm"] ?? {};
   const metricsStats = selectedRunSummary?.metrics.stats;
+  const metricsRows = selectedRunSummary?.metrics.rows ?? [];
+  const simulationNetworkSummary =
+    (selectedRunSummary?.simulation_summary?.network as Record<string, unknown> | undefined) ?? {};
 
   return (
     <div className="app-shell">
@@ -1502,119 +1707,341 @@ export default function App() {
               </div>
 
               {dataTab === "osm" ? (
-                <div className="data-grid">
-                  <section className="workflow-card">
-                    <div className="workflow-head">
-                      <h3>Download OSM Extract</h3>
-                      <code>{workflowsById["integration.fetch_osm"]?.module}</code>
-                    </div>
-                    <div className="search-row">
-                      <input type="text" value={locationQuery} onChange={(event) => setLocationQuery(event.target.value)} placeholder="Search city, district, corridor, or municipality" />
-                      <button className="primary-button" onClick={() => void searchLocations()}>
-                        Search OSM
-                      </button>
-                    </div>
-                    {locationResults.length > 0 ? (
-                      <div className="location-results">
-                        {locationResults.map((location) => (
-                          <button key={`${location.osm_type}-${location.osm_id}`} className={`location-row ${selectedLocation?.osm_id === location.osm_id ? "is-selected" : ""}`} onClick={() => selectLocation(location)}>
-                            <strong>{location.country || "Unknown country"} / {location.city || location.state || "Unknown locality"}</strong>
-                            <span>{location.display_name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="muted">Search results will appear here, grouped implicitly by locality text.</p>
-                    )}
-                    <div className="workflow-fields compact-grid">
-                      {(workflowsById["integration.fetch_osm"]?.fields ?? [])
-                        .filter((field) => !["south", "west", "north", "east"].includes(field.name))
-                        .map((field) => (
-                          <WorkflowInput
-                            key={field.name}
-                            field={field}
-                            value={workflowValues["integration.fetch_osm"]?.[field.name]}
-                            onChange={(next) => updateWorkflowValue("integration.fetch_osm", field.name, next)}
-                            configPaths={configPaths}
-                          />
-                        ))}
-                    </div>
-                    <div className="bounds-card">
-                      <div className="bounds-head">
-                        <h4>Boundary Mode</h4>
-                        <p>Select the source of the extraction boundary. Locality uses the returned OSM geometry, bounding box uses the numeric limits, and custom shape lets you sketch a shape on the map.</p>
-                      </div>
-                      <div className="secondary-tab-row">
-                        <button className={boundaryMode === "locality" ? "tab-active" : ""} onClick={() => setBoundaryMode("locality")} disabled={!localityPolygons.length}>
-                          Locality Boundary
-                        </button>
-                        <button className={boundaryMode === "bbox" ? "tab-active" : ""} onClick={() => setBoundaryMode("bbox")}>
-                          Bounding Box
-                        </button>
-                        <button className={boundaryMode === "shape" ? "tab-active" : ""} onClick={() => setBoundaryMode("shape")}>
-                          Custom Shape
-                        </button>
-                      </div>
-                      <div className="bounds-grid">
-                        {(["South", "West", "North", "East"] as const).map((label, index) => (
-                          <label key={label} className="field">
-                            <span>{label}</span>
-                            <input
-                              type="number"
-                              value={activeMapBounds?.[index] ?? ""}
-                              onChange={(event) => updateBounds(index, Number(event.target.value))}
-                            />
-                          </label>
-                        ))}
-                      </div>
-                      {boundaryMode === "shape" ? (
-                        <div className="button-row">
-                          <button className="secondary-button" onClick={clearCustomShape}>
-                            Clear Shape
-                          </button>
-                          <span className="muted">Click on the map to add vertices. The enclosing bbox is used for the actual OSM request.</span>
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="button-row">
-                      <button className="primary-button" onClick={() => void launchWorkflow("integration.fetch_osm")}>
-                        Launch OSM Download
-                      </button>
-                    </div>
-                  </section>
+                <div className="workflow-stack">
+                  <div className="subtab-row" aria-label="OSM workflow tabs">
+                    <button className={`subtab-button ${osmSubtab === "new" ? "is-active" : ""}`} onClick={() => setOsmSubtab("new")}>
+                      New Extract
+                    </button>
+                    <button className={`subtab-button ${osmSubtab === "extracted" ? "is-active" : ""}`} onClick={() => setOsmSubtab("extracted")}>
+                      Extracted Network
+                    </button>
+                  </div>
 
-                  <section className="workflow-card">
-                    <h3>Boundary Preview</h3>
-                    {selectedLocation ? (
-                      <>
-                        <MapContainer
-                          {...({
-                            className: "map-frame",
-                            center: [selectedLocation.lat, selectedLocation.lon],
-                            zoom: 12,
-                            scrollWheelZoom: true,
-                          } as any)}
-                        >
-                          <TileLayer {...({ attribution: "&copy; OpenStreetMap contributors", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" } as any)} />
-                          <MapViewport bounds={activeMapBounds} center={[selectedLocation.lat, selectedLocation.lon]} mode={boundaryMode} />
-                          <ShapeEditor enabled={boundaryMode === "shape"} onAddPoint={addCustomShapePoint} />
-                          {boundaryMode === "locality" && selectedLocation.geojson ? <GeoJSON data={selectedLocation.geojson as never} /> : null}
-                          {boundaryMode === "bbox" && customBounds ? (
-                            <Rectangle bounds={[[customBounds[0], customBounds[1]], [customBounds[2], customBounds[3]]]} />
-                          ) : null}
-                          {boundaryMode === "shape" && customShapePoints.length >= 2 ? <Polygon positions={customShapePoints} /> : null}
-                        </MapContainer>
-                        <div className="location-summary">
-                          <strong>{selectedLocation.display_name}</strong>
-                          <span>
-                            {selectedLocation.country_code.toUpperCase()} · {selectedLocation.class}/{selectedLocation.type} · Mode: {boundaryMode}
-                          </span>
+                  {osmSubtab === "new" ? (
+                    <div className="osm-workspace">
+                      <section className="workflow-stack">
+                        <section className="workflow-card">
+                          <div className="workflow-head">
+                            <div>
+                              <h3>Search And Bootstrap</h3>
+                              <p className="workflow-description">Resolve a place with Nominatim, choose the city slug, and scaffold the standard SAS folders before downloading the OSM extract.</p>
+                            </div>
+                            <code>{osmWorkflow?.module}</code>
+                          </div>
+                          <div className="search-row">
+                            <input type="text" value={locationQuery} onChange={(event) => setLocationQuery(event.target.value)} placeholder="Search city, district, corridor, or municipality" />
+                            <button className="primary-button" onClick={() => void searchLocations()}>
+                              Search OSM
+                            </button>
+                          </div>
+                          {locationResults.length > 0 ? (
+                            <div className="location-results">
+                              {locationResults.map((location) => (
+                                <button key={`${location.osm_type}-${location.osm_id}`} className={`location-row ${selectedLocation?.osm_id === location.osm_id ? "is-selected" : ""}`} onClick={() => selectLocation(location)}>
+                                  <strong>{location.country || "Unknown country"} / {location.city || location.state || "Unknown locality"}</strong>
+                                  <span>{location.display_name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="muted">Search results appear here. Selecting one fills the city scaffold and boundary controls automatically.</p>
+                          )}
+                        </section>
+                        <section className="structured-group-card">
+                          <h4>City Bootstrap</h4>
+                          <div className="structured-fields-grid">
+                            {["place", "city_slug", "out", "config_out", "config_template"].map((name) => {
+                              const field = osmFieldsByName[name];
+                              if (!field) {
+                                return null;
+                              }
+                              return (
+                                <WorkflowInput
+                                  key={name}
+                                  field={field}
+                                  value={osmValues[name]}
+                                  onChange={(next) => {
+                                    updateWorkflowValue("integration.fetch_osm", name, next);
+                                    if (name === "city_slug" && typeof next === "string") {
+                                      setSelectedCitySlug(next);
+                                      applyCityScaffoldDefaults(next);
+                                    }
+                                  }}
+                                  configPaths={configPaths}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div className="chip-list">
+                            <span className="chip">Creates `data/cities/&lt;slug&gt;/network`</span>
+                            <span className="chip">Creates `configs/&lt;slug&gt;/default.yaml`</span>
+                            <span className="chip">Template: `configs/templates/city_default.yaml`</span>
+                          </div>
+                        </section>
+                        <section className="structured-group-card">
+                          <h4>Extraction Settings</h4>
+                          <div className="structured-fields-grid">
+                            {["pad_km", "all_features", "bootstrap_layout", "bootstrap_config", "email"].map((name) => {
+                              const field = osmFieldsByName[name];
+                              if (!field) {
+                                return null;
+                              }
+                              return (
+                                <WorkflowInput
+                                  key={name}
+                                  field={field}
+                                  value={osmValues[name]}
+                                  onChange={(next) => updateWorkflowValue("integration.fetch_osm", name, next)}
+                                  configPaths={configPaths}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div className="workflow-note-grid">
+                            <div className="workflow-note-box">
+                              <strong>Roads-only vs All Features</strong>
+                              <p>Keep `All Features` off for normal SAS work. It keeps the extract smaller and focused on the road network. Enable it only if later tooling truly needs non-road OSM objects.</p>
+                            </div>
+                            <div className="workflow-note-box">
+                              <strong>Endpoint Defaults</strong>
+                              <p>`Nominatim URL` resolves the place name and boundary. `Overpass URL` downloads the raw OSM XML. The default public OSM services are already populated for normal use.</p>
+                            </div>
+                          </div>
+                        </section>
+                        <section className="structured-group-card">
+                          <h4>Service Endpoints</h4>
+                          <div className="structured-fields-grid">
+                            {["nominatim_url", "overpass_url", "user_agent"].map((name) => {
+                              const field = osmFieldsByName[name];
+                              if (!field) {
+                                return null;
+                              }
+                              return (
+                                <WorkflowInput
+                                  key={name}
+                                  field={field}
+                                  value={osmValues[name]}
+                                  onChange={(next) => updateWorkflowValue("integration.fetch_osm", name, next)}
+                                  configPaths={configPaths}
+                                />
+                              );
+                            })}
+                          </div>
+                        </section>
+                      </section>
+
+                      <section className="workflow-card">
+                        <div className="workflow-head">
+                          <div>
+                            <h3>Boundary Preview</h3>
+                            <p className="workflow-description">Boundary mode, numeric bounds, and map preview stay together here so the extraction area can be adjusted visually.</p>
+                          </div>
                         </div>
-                      </>
-                    ) : (
-                      <p className="muted">Select a location to preview the extracted map boundary.</p>
-                    )}
-                  </section>
+                        <div className="bounds-card">
+                          <div className="bounds-head">
+                            <h4>Boundary Mode</h4>
+                            <p>Select the source of the extraction boundary. Locality uses the returned OSM geometry, bounding box uses the numeric limits, and custom shape lets you sketch a shape on the map.</p>
+                          </div>
+                          <div className="secondary-tab-row">
+                            <button className={boundaryMode === "locality" ? "tab-active" : ""} onClick={() => setBoundaryMode("locality")} disabled={!localityPolygons.length}>
+                              Locality Boundary
+                            </button>
+                            <button className={boundaryMode === "bbox" ? "tab-active" : ""} onClick={() => setBoundaryMode("bbox")}>
+                              Bounding Box
+                            </button>
+                            <button className={boundaryMode === "shape" ? "tab-active" : ""} onClick={() => setBoundaryMode("shape")}>
+                              Custom Shape
+                            </button>
+                          </div>
+                          <div className="bounds-grid">
+                            {(["South", "West", "North", "East"] as const).map((label, index) => (
+                              <label key={label} className="field">
+                                <span>{label}</span>
+                                <input
+                                  type="number"
+                                  value={activeMapBounds?.[index] ?? ""}
+                                  onChange={(event) => updateBounds(index, Number(event.target.value))}
+                                />
+                              </label>
+                            ))}
+                          </div>
+                          {boundaryMode === "shape" ? (
+                            <div className="button-row">
+                              <button className="secondary-button" onClick={clearCustomShape}>
+                                Clear Shape
+                              </button>
+                              <span className="muted">Click on the map to add vertices. The enclosing bbox is used for the actual OSM request.</span>
+                            </div>
+                          ) : null}
+                        </div>
+                        {selectedLocation ? (
+                          <>
+                            <MapContainer
+                              {...({
+                                className: "map-frame",
+                                center: [selectedLocation.lat, selectedLocation.lon],
+                                zoom: 12,
+                                scrollWheelZoom: true,
+                              } as any)}
+                            >
+                              <TileLayer {...({ attribution: "&copy; OpenStreetMap contributors", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" } as any)} />
+                              <MapViewport bounds={activeMapBounds} center={[selectedLocation.lat, selectedLocation.lon]} mode={boundaryMode} />
+                              <ShapeEditor enabled={boundaryMode === "shape"} onAddPoint={addCustomShapePoint} />
+                              {boundaryMode === "locality" && selectedLocation.geojson ? <GeoJSON data={selectedLocation.geojson as never} /> : null}
+                              {boundaryMode === "bbox" && customBounds ? (
+                                <Rectangle bounds={[[customBounds[0], customBounds[1]], [customBounds[2], customBounds[3]]]} />
+                              ) : null}
+                              {boundaryMode === "shape" && customShapePoints.length >= 2 ? <Polygon positions={customShapePoints} /> : null}
+                            </MapContainer>
+                            <div className="location-summary">
+                              <strong>{selectedLocation.display_name}</strong>
+                              <span>
+                                {selectedLocation.country_code.toUpperCase()} · {selectedLocation.class}/{selectedLocation.type} · Mode: {boundaryMode}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="muted">Select a location to preview the extracted map boundary.</p>
+                        )}
+                        <div className="button-row">
+                          <button className="primary-button" onClick={() => void launchWorkflow("integration.fetch_osm")}>
+                            Launch OSM Download
+                          </button>
+                        </div>
+                      </section>
+                    </div>
+                  ) : (
+                    <div className="extracted-workspace">
+                      <section className="workflow-stack">
+                        <section className="workflow-card">
+                          <div className="workflow-head">
+                            <div>
+                              <h3>Extracted Cities</h3>
+                              <p className="workflow-description">Choose an already extracted city and inspect or clean up its OSM speed-limit tags before moving to network generation.</p>
+                            </div>
+                          </div>
+                          <label className="field">
+                            <span>City</span>
+                            <select
+                              value={selectedCitySlug}
+                              onChange={(event) => {
+                                setSelectedCitySlug(event.target.value);
+                                setSelectedWayIds([]);
+                              }}
+                            >
+                              {cities.map((city) => (
+                                <option key={city.slug} value={city.slug}>
+                                  {city.display_name}
+                                </option>
+                              ))}
+                            </select>
+                            <small>
+                              {selectedCity?.config_path
+                                ? `Config: ${selectedCity.config_path}`
+                                : "No default config found for this city yet."}
+                            </small>
+                          </label>
+                        </section>
+                        <section className="structured-group-card">
+                          <h4>Select Roads</h4>
+                          <div className="structured-fields-grid">
+                            <label className="field">
+                              <span>Road Group</span>
+                              <select value={bulkRoadGroup} onChange={(event) => setBulkRoadGroup(event.target.value)}>
+                                {extractedRoadGroups.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option === "any"
+                                      ? "Any"
+                                      : option === "local_other"
+                                        ? "Local / Other"
+                                        : option.charAt(0).toUpperCase() + option.slice(1)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="field">
+                              <span>Current Speed</span>
+                              <select value={bulkSpeedClass} onChange={(event) => setBulkSpeedClass(event.target.value)}>
+                                {extractedSpeedClasses.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option === "any" ? "Any" : option === "unknown" ? "Unknown" : `${option} km/h`}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="field">
+                              <span>Lanes</span>
+                              <select value={bulkLaneClass} onChange={(event) => setBulkLaneClass(event.target.value)}>
+                                {extractedLaneClasses.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option === "any" ? "Any" : option === "unknown" ? "Unknown" : option}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="field">
+                              <span>Direction</span>
+                              <select value={bulkDirectionClass} onChange={(event) => setBulkDirectionClass(event.target.value)}>
+                                <option value="any">Any</option>
+                                <option value="oneway">One-way</option>
+                                <option value="bidirectional">Bidirectional / unspecified</option>
+                              </select>
+                            </label>
+                          </div>
+                          <div className="button-row">
+                            <button className="secondary-button" onClick={selectWaysByFilters}>
+                              Select Matches
+                            </button>
+                            <button className="secondary-button" onClick={expandSelectionToNamedRoad} disabled={selectedWayIds.length === 0}>
+                              Select Connected Named Road
+                            </button>
+                            <button className="secondary-button" onClick={() => setSelectedWayIds([])}>
+                              Clear Selection
+                            </button>
+                          </div>
+                          <p className="muted">Use the filters for bulk selection, click a road on the map, hold Shift to add or remove multiple roads, or expand the current selection to the full connected road when the segments share the same name.</p>
+                        </section>
+                        <section className="structured-group-card">
+                          <h4>Edit Speed Limits</h4>
+                          <div className="structured-fields-grid">
+                            <label className="field">
+                              <span>New Speed Limit (km/h)</span>
+                              <input
+                                type="number"
+                                value={bulkSpeedValue}
+                                onChange={(event) => setBulkSpeedValue(event.target.value === "" ? "" : Number(event.target.value))}
+                                placeholder="50"
+                              />
+                            </label>
+                            <label className="field">
+                              <span>Selection Summary</span>
+                              <div className="selection-summary">
+                                <strong>{selectedWayIds.length} road segment(s)</strong>
+                                <small>{selectedWayNames.length ? selectedWayNames.join(", ") : "No roads selected yet."}</small>
+                              </div>
+                            </label>
+                          </div>
+                          <div className="button-row">
+                            <button className="primary-button" onClick={() => void applySpeedLimitUpdate()}>
+                              Apply To Selected
+                            </button>
+                          </div>
+                          <div className="workflow-note-box">
+                            <strong>Typical Cleanup Pattern</strong>
+                            <p>Example: choose `Road Group = Local / Other` and `Current Speed = Unknown`, click `Select Matches`, then set a default speed and apply it to the selected roads.</p>
+                          </div>
+                        </section>
+                      </section>
+
+                      <CityNetworkMap
+                        preview={selectedCityPreview}
+                        mode={networkViewMode}
+                        onModeChange={setNetworkViewMode}
+                        selectedWayIds={selectedWayIds}
+                        onFeatureClick={toggleWaySelection}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="workflow-stack">
@@ -1780,18 +2207,61 @@ export default function App() {
                         <strong>{formatNumber(metricsStats?.peak_active_accidents, 0)}</strong>
                       </div>
                       <div className="summary-card">
+                        <span>Peak Blocked Lanes</span>
+                        <strong>{formatNumber(metricsStats?.peak_active_blocked_lanes, 0)}</strong>
+                      </div>
+                      <div className="summary-card">
+                        <span>Mean Speed (km/h)</span>
+                        <strong>{formatNumber(simulationNetworkSummary.mean_speed_kmh ?? metricsStats?.mean_speed_kmh)}</strong>
+                      </div>
+                      <div className="summary-card">
                         <span>Mean Delay (s)</span>
                         <strong>{formatNumber(metricsStats?.mean_delay_seconds)}</strong>
                       </div>
                     </div>
 
                     <div className="chart-grid">
-                      <SimpleLineChart title="Active Vehicles" values={metricsSeries?.vehicle_count ?? []} accentClass="chart-primary" />
-                      <SimpleLineChart title="Mean Speed (km/h)" values={metricsSeries?.mean_speed_kmh ?? []} accentClass="chart-secondary" />
-                      <SimpleLineChart title="Throughput per Hour" values={metricsSeries?.throughput_per_hour ?? []} accentClass="chart-primary" />
-                      <SimpleLineChart title="Mean Delay (s)" values={metricsSeries?.mean_delay_seconds ?? []} accentClass="chart-secondary" />
-                      <SimpleLineChart title="Concurrent Active Accidents" values={metricsSeries?.active_accidents ?? []} accentClass="chart-primary" />
-                      <SimpleLineChart title="Speed Ratio" values={metricsSeries?.speed_ratio ?? []} accentClass="chart-secondary" />
+                      <TimeSeriesChart
+                        title="Traffic State"
+                        data={metricsRows}
+                        leftAxisLabel="Vehicles"
+                        rightAxisLabel="Incidents / lanes"
+                        series={[
+                          { key: "vehicle_count", label: "Active vehicles", color: "#f93262", yAxisId: "left" },
+                          { key: "active_accidents", label: "Active accidents", color: "#ff8a64", yAxisId: "right" },
+                          { key: "active_blocked_lanes", label: "Blocked lanes", color: "#29131b", yAxisId: "right" },
+                        ]}
+                      />
+                      <TimeSeriesChart
+                        title="Speed And Delay"
+                        data={metricsRows}
+                        leftAxisLabel="Speed (km/h)"
+                        rightAxisLabel="Delay (s)"
+                        series={[
+                          { key: "mean_speed_kmh", label: "Mean speed", color: "#f93262", yAxisId: "left", valueSuffix: "km/h" },
+                          { key: "mean_delay_seconds", label: "Mean delay", color: "#ff8a64", yAxisId: "right", valueSuffix: "s" },
+                        ]}
+                      />
+                      <TimeSeriesChart
+                        title="Throughput And Speed Ratio"
+                        data={metricsRows}
+                        leftAxisLabel="Throughput / h"
+                        rightAxisLabel="Speed ratio"
+                        referenceY={{ value: 1.0, label: "Baseline ratio", color: "#29131b" }}
+                        series={[
+                          { key: "throughput_per_hour", label: "Throughput", color: "#f93262", yAxisId: "left" },
+                          { key: "speed_ratio", label: "Speed ratio", color: "#ff8a64", yAxisId: "right" },
+                        ]}
+                      />
+                      <TimeSeriesChart
+                        title="Incident Timeline"
+                        data={metricsRows}
+                        leftAxisLabel="Accidents"
+                        series={[
+                          { key: "cumulative_accidents", label: "Triggered", color: "#f93262", yAxisId: "left" },
+                          { key: "resolved_accidents", label: "Resolved", color: "#2ecc71", yAxisId: "left" },
+                        ]}
+                      />
                     </div>
 
                     <div className="results-detail-grid">
@@ -1799,11 +2269,13 @@ export default function App() {
                         <h3>Accident Distribution</h3>
                         {selectedRunSummary.accidents ? (
                           <>
-                            <SeverityBars counts={selectedRunSummary.accidents.by_severity} />
+                            <SeverityDistributionChart counts={selectedRunSummary.accidents.by_severity} />
                             <div className="chip-list">
                               <span className="chip">Max duration: {formatNumber(selectedRunSummary.accidents.max_duration_seconds, 0)} s</span>
                               <span className="chip">Max queue: {formatNumber(selectedRunSummary.accidents.max_queue_length_vehicles, 0)}</span>
                               <span className="chip">Max affected: {formatNumber(selectedRunSummary.accidents.max_vehicles_affected, 0)}</span>
+                              <span className="chip">Total rerouted: {formatNumber(selectedRunSummary.accidents.total_rerouted_vehicles, 0)}</span>
+                              <span className="chip">Total blocked lanes: {formatNumber(selectedRunSummary.accidents.total_blocked_lanes, 0)}</span>
                             </div>
                           </>
                         ) : (
@@ -1832,6 +2304,16 @@ export default function App() {
 
                     {selectedRunSummary.accidents?.items?.length ? (
                       <section className="detail-card">
+                        <h3>Accident Impact Scatter</h3>
+                        <p className="muted">
+                          Duration on the x-axis and vehicles affected on the y-axis. Use this to spot long incidents that also propagate strongly through the network.
+                        </p>
+                        <AccidentImpactScatter items={selectedRunSummary.accidents.items} />
+                      </section>
+                    ) : null}
+
+                    {selectedRunSummary.accidents?.items?.length ? (
+                      <section className="detail-card">
                         <h3>Accident Table</h3>
                         <div className="table-wrap">
                           <table className="data-table">
@@ -1843,7 +2325,9 @@ export default function App() {
                                 <th>Duration (s)</th>
                                 <th>Edge</th>
                                 <th>Affected</th>
+                                <th>Rerouted</th>
                                 <th>Peak Queue</th>
+                                <th>Blocked Lanes</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1855,7 +2339,9 @@ export default function App() {
                                   <td>{formatNumber(item.duration_seconds, 0)}</td>
                                   <td>{String(item.edge_id ?? "–")}</td>
                                   <td>{formatNumber(item.vehicles_affected, 0)}</td>
+                                  <td>{formatNumber(item.rerouted_vehicles, 0)}</td>
                                   <td>{formatNumber(item.peak_queue_length_vehicles, 0)}</td>
+                                  <td>{formatNumber(item.blocked_lanes, 0)}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -1896,12 +2382,15 @@ export default function App() {
                       </section>
                     ) : null}
 
-                    <section className="detail-card">
-                      <h3>Run Artifacts</h3>
-                      <div className="artifact-grid">
-                        {selectedRunSummary.artifacts.report_path ? (
-                          <iframe className="report-frame" src={api.fileUrl(selectedRunSummary.artifacts.report_path)} title="Run report" />
-                        ) : null}
+                      <section className="detail-card">
+                        <h3>Run Artifacts</h3>
+                        <p className="muted">
+                          This run now includes a richer machine-readable summary in `simulation_summary.json` alongside the CSV and event reports.
+                        </p>
+                        <div className="artifact-grid">
+                          {selectedRunSummary.artifacts.report_path ? (
+                            <iframe className="report-frame" src={api.fileUrl(selectedRunSummary.artifacts.report_path)} title="Run report" />
+                          ) : null}
                         {selectedRunSummary.artifacts.image_paths.map((path) => (
                           <img key={path} className="preview-image" src={api.fileUrl(path)} alt={path} />
                         ))}

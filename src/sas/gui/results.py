@@ -52,47 +52,97 @@ def find_run_root(selected_path: Path) -> Path | None:
 def _load_network_metrics(path: Path) -> dict[str, Any]:
     steps: list[int] = []
     timestamps_seconds: list[int] = []
+    timestamp_minutes: list[float] = []
     vehicle_count: list[float] = []
     mean_speed_kmh: list[float] = []
     throughput_per_hour: list[float] = []
     mean_delay_seconds: list[float] = []
     active_accidents: list[float] = []
+    active_blocked_lanes: list[float] = []
+    cumulative_accidents: list[float] = []
+    resolved_accidents: list[float] = []
     speed_ratio: list[float] = []
+    rows: list[dict[str, Any]] = []
 
     with path.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
-            steps.append(int(row["step"]))
-            timestamps_seconds.append(int(row["timestamp_seconds"]))
-            vehicle_count.append(float(row["vehicle_count"]))
-            mean_speed_kmh.append(float(row["mean_speed_kmh"]))
-            throughput_per_hour.append(float(row["throughput_per_hour"]))
-            mean_delay_seconds.append(float(row["mean_delay_seconds"]))
-            active_accidents.append(float(row["active_accidents"]))
-            speed_ratio.append(float(row["speed_ratio"]))
+            step = int(row["step"])
+            timestamp_s = int(row["timestamp_seconds"])
+            timestamp_min = float(row.get("timestamp_minutes", 0.0) or 0.0)
+            veh = float(row["vehicle_count"])
+            speed = float(row["mean_speed_kmh"])
+            throughput = float(row["throughput_per_hour"])
+            delay = float(row["mean_delay_seconds"])
+            accidents = float(row["active_accidents"])
+            blocked = float(row.get("active_blocked_lanes", 0.0) or 0.0)
+            cumulative = float(row.get("cumulative_accidents", 0.0) or 0.0)
+            resolved = float(row.get("resolved_accidents", 0.0) or 0.0)
+            ratio = float(row["speed_ratio"])
+
+            steps.append(step)
+            timestamps_seconds.append(timestamp_s)
+            timestamp_minutes.append(timestamp_min)
+            vehicle_count.append(veh)
+            mean_speed_kmh.append(speed)
+            throughput_per_hour.append(throughput)
+            mean_delay_seconds.append(delay)
+            active_accidents.append(accidents)
+            active_blocked_lanes.append(blocked)
+            cumulative_accidents.append(cumulative)
+            resolved_accidents.append(resolved)
+            speed_ratio.append(ratio)
+            rows.append(
+                {
+                    "step": step,
+                    "timestamp_seconds": timestamp_s,
+                    "timestamp_minutes": round(timestamp_min, 2),
+                    "vehicle_count": veh,
+                    "mean_speed_kmh": speed,
+                    "throughput_per_hour": throughput,
+                    "mean_delay_seconds": delay,
+                    "active_accidents": accidents,
+                    "active_blocked_lanes": blocked,
+                    "cumulative_accidents": cumulative,
+                    "resolved_accidents": resolved,
+                    "speed_ratio": ratio,
+                }
+            )
 
     stats = {
         "samples": len(steps),
+        "duration_seconds": max(timestamps_seconds) if timestamps_seconds else 0,
+        "duration_minutes": round(max(timestamp_minutes), 2) if timestamp_minutes else 0,
         "peak_vehicle_count": max(vehicle_count) if vehicle_count else 0,
         "peak_throughput_per_hour": max(throughput_per_hour) if throughput_per_hour else 0,
         "peak_active_accidents": max(active_accidents) if active_accidents else 0,
+        "peak_active_blocked_lanes": max(active_blocked_lanes) if active_blocked_lanes else 0,
         "max_mean_delay_seconds": max(mean_delay_seconds) if mean_delay_seconds else 0,
         "mean_vehicle_count": round(mean(vehicle_count), 2) if vehicle_count else 0,
         "mean_speed_kmh": round(mean(mean_speed_kmh), 2) if mean_speed_kmh else 0,
         "mean_throughput_per_hour": round(mean(throughput_per_hour), 2) if throughput_per_hour else 0,
         "mean_delay_seconds": round(mean(mean_delay_seconds), 2) if mean_delay_seconds else 0,
         "min_speed_ratio": round(min(speed_ratio), 4) if speed_ratio else 0,
+        "max_mean_speed_kmh": max(mean_speed_kmh) if mean_speed_kmh else 0,
+        "min_mean_speed_kmh": min(mean_speed_kmh) if mean_speed_kmh else 0,
+        "total_accidents_triggered": max(cumulative_accidents) if cumulative_accidents else 0,
+        "total_accidents_resolved": max(resolved_accidents) if resolved_accidents else 0,
     }
 
     return {
+        "rows": rows,
         "series": {
             "steps": steps,
             "timestamps_seconds": timestamps_seconds,
+            "timestamp_minutes": timestamp_minutes,
             "vehicle_count": vehicle_count,
             "mean_speed_kmh": mean_speed_kmh,
             "throughput_per_hour": throughput_per_hour,
             "mean_delay_seconds": mean_delay_seconds,
             "active_accidents": active_accidents,
+            "active_blocked_lanes": active_blocked_lanes,
+            "cumulative_accidents": cumulative_accidents,
+            "resolved_accidents": resolved_accidents,
             "speed_ratio": speed_ratio,
         },
         "stats": stats,
@@ -108,6 +158,9 @@ def _load_accidents(path: Path) -> dict[str, Any]:
     max_duration = 0
     max_queue = 0
     max_affected = 0
+    total_rerouted = 0
+    total_blocked_lanes = 0
+    total_managed_lanes = 0
     normalized: list[dict[str, Any]] = []
 
     for item in items:
@@ -118,10 +171,16 @@ def _load_accidents(path: Path) -> dict[str, Any]:
         duration_seconds = int(item.get("duration_seconds", 0) or 0)
         queue = int(impact.get("peak_queue_length_vehicles", 0) or 0)
         affected = int(impact.get("vehicles_affected", 0) or 0)
+        rerouted = int(impact.get("rerouted_vehicles", 0) or 0)
+        blocked_lanes = int(impact.get("blocked_lanes", 0) or 0)
+        managed_lanes = int(impact.get("managed_lanes", 0) or 0)
 
         max_duration = max(max_duration, duration_seconds)
         max_queue = max(max_queue, queue)
         max_affected = max(max_affected, affected)
+        total_rerouted += rerouted
+        total_blocked_lanes += blocked_lanes
+        total_managed_lanes += managed_lanes
 
         normalized.append(
             {
@@ -136,6 +195,9 @@ def _load_accidents(path: Path) -> dict[str, Any]:
                 "position_on_edge_m": _to_number(str(item.get("location", {}).get("position_on_edge_m"))) if isinstance(item.get("location"), dict) else None,
                 "peak_queue_length_vehicles": queue,
                 "vehicles_affected": affected,
+                "rerouted_vehicles": rerouted,
+                "blocked_lanes": blocked_lanes,
+                "managed_lanes": managed_lanes,
             }
         )
 
@@ -145,6 +207,9 @@ def _load_accidents(path: Path) -> dict[str, Any]:
         "max_duration_seconds": max_duration,
         "max_queue_length_vehicles": max_queue,
         "max_vehicles_affected": max_affected,
+        "total_rerouted_vehicles": total_rerouted,
+        "total_blocked_lanes": total_blocked_lanes,
+        "total_managed_lanes": total_managed_lanes,
         "items": normalized,
     }
 
@@ -179,6 +244,13 @@ def _collect_artifacts(run_root: Path) -> dict[str, Any]:
     }
 
 
+def _load_simulation_summary(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    payload = _json_load(path)
+    return payload if isinstance(payload, dict) else None
+
+
 def build_run_summary(selected_path: Path) -> dict[str, Any] | None:
     run_root = find_run_root(selected_path.resolve())
     if run_root is None:
@@ -188,6 +260,7 @@ def build_run_summary(selected_path: Path) -> dict[str, Any] | None:
     network_metrics = _load_network_metrics(run_root / "network_metrics.csv")
     accidents = _load_accidents(run_root / "accident_reports.json") if (run_root / "accident_reports.json").exists() else None
     antifragility = _load_antifragility(run_root / "antifragility_index.json") if (run_root / "antifragility_index.json").exists() else None
+    simulation_summary = _load_simulation_summary(run_root / "simulation_summary.json")
 
     return {
         "run_root": _relative(run_root),
@@ -197,5 +270,6 @@ def build_run_summary(selected_path: Path) -> dict[str, Any] | None:
         "metrics": network_metrics,
         "accidents": accidents,
         "antifragility": antifragility,
+        "simulation_summary": simulation_summary,
         "artifacts": _collect_artifacts(run_root),
     }

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 import yaml
 
 from ..app.config import CONFIGS_DIR, PROJECT_ROOT, load_config_raw, prepare_runtime_config, resolve_config_path, save_config, validate_config
+from .cities import build_city_network_preview, discover_cities, update_city_speed_limits
 from .jobs import job_manager
 from .locations import search_locations
 from .results import build_run_summary
@@ -43,7 +44,12 @@ class JobCreatePayload(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
-app = FastAPI(title="SAS GUI API", version="0.2.2")
+class CitySpeedLimitUpdatePayload(BaseModel):
+    way_ids: list[str] = Field(default_factory=list)
+    speed_kph: float
+
+
+app = FastAPI(title="SAS GUI API", version="0.2.3")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -322,6 +328,29 @@ def search_place(query: str = Query(..., min_length=2), limit: int = Query(6, ge
         return {"results": search_locations(query, limit=limit)}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Location search failed: {exc}") from exc
+
+
+@app.get("/api/cities")
+def list_cities() -> dict[str, Any]:
+    return {"cities": discover_cities()}
+
+
+@app.get("/api/cities/{city_slug}/network-preview")
+def get_city_network_preview(city_slug: str) -> dict[str, Any]:
+    try:
+        return build_city_network_preview(city_slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/cities/{city_slug}/speed-limits")
+def update_city_speed_limit_tags(city_slug: str, payload: CitySpeedLimitUpdatePayload) -> dict[str, Any]:
+    try:
+        return update_city_speed_limits(city_slug, payload.way_ids, payload.speed_kph)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/fs/tree")

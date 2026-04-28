@@ -14,6 +14,10 @@ What it does:
 2. derives or expands a bounding box
 3. downloads OSM XML through Overpass
 4. writes a local `.osm` file
+5. by default bootstraps:
+   - `data/cities/<city>/network/`
+   - `configs/<city>/default.yaml`
+   - city metadata for GUI discovery
 
 Typical usage:
 
@@ -26,9 +30,36 @@ sas-fetch-osm \
 ```bash
 sas-fetch-osm \
   --place "Athens, Greece" \
-  --out data/cities/athens/network/athens.osm \
+  --city-slug athens \
   --pad-km 1.5
 ```
+
+Useful options:
+
+- `--city-slug`
+  - sets the folder name under `data/cities/` and `configs/`
+- `--all-features`
+  - disabled by default
+  - keep it off for standard SUMO work, because roads-only extracts are smaller
+    and usually sufficient
+- `--bootstrap-layout` / `--bootstrap-config`
+  - keep both on for normal new-city setup
+- `--nominatim-url`
+  - place lookup endpoint
+- `--overpass-url`
+  - OSM XML extraction endpoint
+
+GUI workflow:
+
+- `New Extract`
+  - search and bootstrap a new city
+  - adjust the boundary
+  - launch the OSM fetch
+- `Extracted Network`
+  - inspect the saved `.osm`
+  - view speed tags, road type, lanes/direction, and signalized intersections
+  - select roads individually or by filter
+  - edit speed limits before running a generator
 
 ## govgr Downloads
 

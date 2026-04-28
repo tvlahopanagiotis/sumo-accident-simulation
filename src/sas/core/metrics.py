@@ -112,12 +112,16 @@ class NetworkSnapshot:
 
     step: int
     timestamp_seconds: int
+    timestamp_minutes: float
     vehicle_count: int
     mean_speed_ms: float  # m/s
     mean_speed_kmh: float  # km/h
     throughput_per_hour: float  # vehicles completing routes per hour
     mean_delay_seconds: float  # delay vs free-flow baseline (seconds)
     active_accidents: int
+    active_blocked_lanes: int
+    cumulative_accidents: int
+    resolved_accidents: int
     speed_ratio: float  # actual / free-flow speed (1.0 = no degradation)
 
 
@@ -176,6 +180,7 @@ class MetricsCollector:
         # ── CSV output ────────────────────────────────────────────────────
         self._snapshot_file = os.path.join(self.output_folder, "network_metrics.csv")
         self._accident_report_file = os.path.join(self.output_folder, "accident_reports.json")
+        self._simulation_summary_file = os.path.join(self.output_folder, "simulation_summary.json")
         self._init_csv()
 
     # -----------------------------------------------------------------------
@@ -199,6 +204,10 @@ class MetricsCollector:
         current_step: int,
         active_accident_count: int,
         all_sub: dict | None = None,
+        *,
+        active_blocked_lanes: int = 0,
+        cumulative_accidents: int = 0,
+        resolved_accidents: int = 0,
     ) -> None:
         """
         Record a network-wide snapshot at the current simulation time.
@@ -298,12 +307,16 @@ class MetricsCollector:
         snapshot = NetworkSnapshot(
             step=current_step,
             timestamp_seconds=current_step,
+            timestamp_minutes=round(current_step / 60.0, 2),
             vehicle_count=n_vehicles,
             mean_speed_ms=round(mean_speed, 3),
             mean_speed_kmh=round(mean_speed * 3.6, 2),
             throughput_per_hour=round(throughput, 1),
             mean_delay_seconds=round(mean_delay, 2),
             active_accidents=active_accident_count,
+            active_blocked_lanes=active_blocked_lanes,
+            cumulative_accidents=cumulative_accidents,
+            resolved_accidents=resolved_accidents,
             speed_ratio=round(speed_ratio, 4),
         )
         self.snapshots.append(snapshot)
@@ -416,7 +429,7 @@ class MetricsCollector:
 
         return result
 
-    def export_all(self) -> None:
+    def export_all(self) -> dict[str, Any]:
         """
         Write all final outputs to disk. Call once at the end of simulation.
         """
@@ -426,6 +439,7 @@ class MetricsCollector:
             json.dump(self._disruption_events, f, indent=2)
         logger.info("Accident reports → %s", self._accident_report_file)
 
+        ai_result: dict[str, Any] | None = None
         if self.compute_antifragility:
             ai_result = self.compute_antifragility_index()
             ai_file = os.path.join(self.output_folder, "antifragility_index.json")
@@ -450,7 +464,26 @@ class MetricsCollector:
                 "=" * 55,
             )
 
+        summary_payload = self.build_simulation_summary(ai_result)
+        with open(self._simulation_summary_file, "w") as f:
+            json.dump(summary_payload, f, indent=2)
+        logger.info("Simulation summary → %s", self._simulation_summary_file)
+
         logger.info("All outputs saved → %s", self.output_folder)
+        return {
+            "antifragility": ai_result,
+            "simulation_summary": summary_payload,
+        }
+
+    def build_simulation_summary(self, ai_result: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Build a richer run-level summary from snapshots and accident reports."""
+        network = self._build_network_summary()
+        accidents = self._build_accident_summary()
+        return {
+            "network": network,
+            "accidents": accidents,
+            "antifragility": ai_result,
+        }
 
     # -----------------------------------------------------------------------
     # Private helpers
@@ -527,12 +560,16 @@ class MetricsCollector:
                 fieldnames=[
                     "step",
                     "timestamp_seconds",
+                    "timestamp_minutes",
                     "vehicle_count",
                     "mean_speed_ms",
                     "mean_speed_kmh",
                     "throughput_per_hour",
                     "mean_delay_seconds",
                     "active_accidents",
+                    "active_blocked_lanes",
+                    "cumulative_accidents",
+                    "resolved_accidents",
                     "speed_ratio",
                 ],
             )
@@ -542,3 +579,125 @@ class MetricsCollector:
         with open(self._snapshot_file, "a", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=asdict(snapshot).keys())
             writer.writerow(asdict(snapshot))
+
+    def _build_network_summary(self) -> dict[str, Any]:
+        """Aggregate network-level snapshot metrics for exports and GUI use."""
+        if not self.snapshots:
+            return {
+                "samples": 0,
+                "metrics_interval_seconds": self.metrics_interval,
+                "baseline_speed_kmh": None,
+            }
+
+        vehicle_counts = [snap.vehicle_count for snap in self.snapshots]
+        speeds_kmh = [snap.mean_speed_kmh for snap in self.snapshots]
+        throughputs = [snap.throughput_per_hour for snap in self.snapshots]
+        delays = [snap.mean_delay_seconds for snap in self.snapshots]
+        active_accidents = [snap.active_accidents for snap in self.snapshots]
+        active_blocked_lanes = [snap.active_blocked_lanes for snap in self.snapshots]
+        speed_ratios = [snap.speed_ratio for snap in self.snapshots]
+        cumulative_accidents = [snap.cumulative_accidents for snap in self.snapshots]
+        resolved_counts = [snap.resolved_accidents for snap in self.snapshots]
+
+        last = self.snapshots[-1]
+        return {
+            "samples": len(self.snapshots),
+            "metrics_interval_seconds": self.metrics_interval,
+            "duration_seconds": last.timestamp_seconds,
+            "duration_minutes": round(last.timestamp_seconds / 60.0, 2),
+            "baseline_speed_kmh": round(self._baseline_speed * 3.6, 2)
+            if self._baseline_speed
+            else None,
+            "peak_vehicle_count": max(vehicle_counts),
+            "mean_vehicle_count": round(statistics.mean(vehicle_counts), 2),
+            "peak_active_accidents": max(active_accidents),
+            "peak_active_blocked_lanes": max(active_blocked_lanes),
+            "peak_throughput_per_hour": max(throughputs),
+            "mean_throughput_per_hour": round(statistics.mean(throughputs), 2),
+            "min_mean_speed_kmh": min(speeds_kmh),
+            "max_mean_speed_kmh": max(speeds_kmh),
+            "mean_speed_kmh": round(statistics.mean(speeds_kmh), 2),
+            "max_mean_delay_seconds": max(delays),
+            "mean_delay_seconds": round(statistics.mean(delays), 2),
+            "min_speed_ratio": min(speed_ratios),
+            "last_speed_ratio": last.speed_ratio,
+            "total_accidents_triggered": max(cumulative_accidents),
+            "total_accidents_resolved": max(resolved_counts),
+        }
+
+    def _build_accident_summary(self) -> dict[str, Any]:
+        """Aggregate resolved-accident impacts for richer result exports."""
+        if not self._disruption_events:
+            return {
+                "count": 0,
+                "by_severity": {},
+            }
+
+        by_severity: dict[str, int] = {}
+        durations: list[int] = []
+        queues: list[int] = []
+        affected: list[int] = []
+        rerouted: list[int] = []
+        blocked_lanes: list[int] = []
+        managed_lanes: list[int] = []
+
+        longest: dict[str, Any] | None = None
+        highest_queue: dict[str, Any] | None = None
+        highest_affected: dict[str, Any] | None = None
+
+        for item in self._disruption_events:
+            severity = str(item.get("severity", "UNKNOWN")).upper()
+            by_severity[severity] = by_severity.get(severity, 0) + 1
+
+            duration = int(item.get("duration_seconds", 0) or 0)
+            impact = item.get("impact", {}) if isinstance(item.get("impact"), dict) else {}
+            queue = int(impact.get("peak_queue_length_vehicles", 0) or 0)
+            impacted = int(impact.get("vehicles_affected", 0) or 0)
+            rerouted_count = int(impact.get("rerouted_vehicles", 0) or 0)
+            blocked_count = int(impact.get("blocked_lanes", 0) or 0)
+            managed_count = int(impact.get("managed_lanes", 0) or 0)
+
+            durations.append(duration)
+            queues.append(queue)
+            affected.append(impacted)
+            rerouted.append(rerouted_count)
+            blocked_lanes.append(blocked_count)
+            managed_lanes.append(managed_count)
+
+            candidate = {
+                "accident_id": item.get("accident_id"),
+                "severity": severity,
+                "edge_id": item.get("location", {}).get("edge_id")
+                if isinstance(item.get("location"), dict)
+                else None,
+                "duration_seconds": duration,
+                "peak_queue_length_vehicles": queue,
+                "vehicles_affected": impacted,
+            }
+            if longest is None or duration > int(longest["duration_seconds"]):
+                longest = candidate
+            if highest_queue is None or queue > int(highest_queue["peak_queue_length_vehicles"]):
+                highest_queue = candidate
+            if highest_affected is None or impacted > int(highest_affected["vehicles_affected"]):
+                highest_affected = candidate
+
+        count = len(self._disruption_events)
+        return {
+            "count": count,
+            "by_severity": by_severity,
+            "mean_duration_seconds": round(statistics.mean(durations), 2),
+            "max_duration_seconds": max(durations),
+            "mean_peak_queue_length_vehicles": round(statistics.mean(queues), 2),
+            "max_peak_queue_length_vehicles": max(queues),
+            "mean_vehicles_affected": round(statistics.mean(affected), 2),
+            "max_vehicles_affected": max(affected),
+            "total_rerouted_vehicles": sum(rerouted),
+            "mean_rerouted_vehicles": round(statistics.mean(rerouted), 2),
+            "total_blocked_lanes": sum(blocked_lanes),
+            "mean_blocked_lanes": round(statistics.mean(blocked_lanes), 2),
+            "total_managed_lanes": sum(managed_lanes),
+            "mean_managed_lanes": round(statistics.mean(managed_lanes), 2),
+            "longest_accident": longest,
+            "highest_queue_accident": highest_queue,
+            "highest_impact_accident": highest_affected,
+        }

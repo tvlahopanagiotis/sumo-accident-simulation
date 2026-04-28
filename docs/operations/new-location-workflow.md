@@ -51,26 +51,33 @@ Use `sas-fetch-osm` to get a raw `.osm` file:
 ```bash
 sas-fetch-osm \
   --place "Athens, Greece" \
-  --out data/cities/athens/network/athens.osm \
+  --city-slug athens \
   --pad-km 1.5
 ```
 
 If you prefer the GUI, use the `Data & Integrations` page to:
 
+- open `New Extract`
 - search the place
 - inspect the locality boundary
 - refine the bbox
+- bootstrap the city folder and default config
 - launch the download
 
-## 4. Create The City Folder And Config
+The current default bootstrap path is:
 
-Create a new config path under `configs/<city>/`.
+- `data/cities/athens/network/athens.osm`
+- `configs/athens/default.yaml`
 
-In the GUI, the simplest path is:
+Before moving on, open `Extracted Network` and do a quick input-quality pass:
 
-1. open `Config Studio`
-2. create a config from a clean starter or clone
-3. save it under a new folder such as `configs/athens/default.yaml`
+- inspect speed-limit coverage
+- inspect road types and lane/direction tagging
+- review signalized intersections
+- optionally fill missing speed tags for clear groups such as local roads with
+  unknown speeds
+
+## 4. Review The City Folder And Config
 
 The minimum decisions are:
 
@@ -78,6 +85,9 @@ The minimum decisions are:
 - SUMO `.sumocfg` path
 - runtime horizon
 - seed
+
+The OSM workflow now creates the starter config automatically, so this step is
+mainly a review-and-adjust pass rather than a blank-file creation step.
 
 ## 5. Build A Runnable Network And Demand Setup
 

@@ -107,13 +107,24 @@ class TestRecordStep:
         mc = _make_collector(output_config, sample_config)
         all_sub = _make_all_sub(10, speed=12.0)
 
-        mc.record_step(60, active_accident_count=0, all_sub=all_sub)
+        mc.record_step(
+            60,
+            active_accident_count=0,
+            all_sub=all_sub,
+            active_blocked_lanes=2,
+            cumulative_accidents=3,
+            resolved_accidents=1,
+        )
 
         assert len(mc.snapshots) == 1
         snap = mc.snapshots[0]
         assert snap.step == 60
+        assert snap.timestamp_minutes == 1.0
         assert snap.vehicle_count == 10
         assert abs(snap.mean_speed_ms - 12.0) < 0.01
+        assert snap.active_blocked_lanes == 2
+        assert snap.cumulative_accidents == 3
+        assert snap.resolved_accidents == 1
 
     def test_record_step_resets_arrival_counter(self, output_config, sample_config):
         """After record_step, the arrival counter should be reset to 0."""
@@ -249,7 +260,7 @@ class TestExport:
     """Tests for file export functionality."""
 
     def test_export_creates_files(self, output_config, sample_config):
-        """export_all should write accident_reports.json and network_metrics.csv."""
+        """export_all should write the main result artifacts."""
         mc = _make_collector(output_config, sample_config)
 
         # Record a few snapshots so CSV has content
@@ -257,16 +268,23 @@ class TestExport:
             all_sub = _make_all_sub(10, speed=12.0)
             mc.record_step(step, active_accident_count=0, all_sub=all_sub)
 
-        mc.export_all()
+        export_result = mc.export_all()
 
         output_folder = output_config["output_folder"]
         assert os.path.isfile(os.path.join(output_folder, "accident_reports.json"))
         assert os.path.isfile(os.path.join(output_folder, "network_metrics.csv"))
+        assert os.path.isfile(os.path.join(output_folder, "simulation_summary.json"))
+        assert "simulation_summary" in export_result
 
         # Verify JSON is valid
         with open(os.path.join(output_folder, "accident_reports.json")) as f:
             data = json.load(f)
         assert isinstance(data, list)
+
+        with open(os.path.join(output_folder, "simulation_summary.json")) as f:
+            summary = json.load(f)
+        assert "network" in summary
+        assert summary["network"]["samples"] == 3
 
     def test_export_creates_antifragility_file(self, output_config, sample_config):
         """When compute_antifragility_index is True, the AI JSON is written."""
@@ -284,7 +302,7 @@ class TestExport:
             }
         )
 
-        mc.export_all()
+        export_result = mc.export_all()
 
         ai_file = os.path.join(output_config["output_folder"], "antifragility_index.json")
         assert os.path.isfile(ai_file)
@@ -292,3 +310,4 @@ class TestExport:
         with open(ai_file) as f:
             ai_data = json.load(f)
         assert "antifragility_index" in ai_data
+        assert export_result["antifragility"]["antifragility_index"] == ai_data["antifragility_index"]

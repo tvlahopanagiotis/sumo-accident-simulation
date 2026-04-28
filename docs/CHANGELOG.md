@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.3] - 2026-04-28
+
+### Changed
+- Expanded run outputs so the simulator now exports richer time-series and
+  summary artifacts for downstream analysis, including
+  `simulation_summary.json`.
+- Reworked the GUI Results page into an interactive dashboard with
+  axis-labelled charts, legends, tooltips, brushing, incident timelines, and
+  richer accident-impact views.
+- Reworked the OSM workflow into a two-stage GUI path:
+  - `New Extract`
+  - `Extracted Network`
+- Tightened the OSM page layout so boundary controls stay with the map and the
+  extraction/config bootstrap controls stay in a separate operator panel.
+- Added an extracted-network review step before generation, so operators can
+  inspect and clean the raw `.osm` input instead of treating it as opaque.
+- Added reusable nested-tab styling to distinguish secondary workflow tabs from
+  top-level page tabs.
+
+### Added
+- Automatic city bootstrap during OSM fetch:
+  - `data/cities/<city>/network/`
+  - `configs/<city>/default.yaml`
+  - `configs/templates/city_default.yaml`
+  - city metadata for GUI discovery
+- A GUI-discoverable extracted-city browser driven by the saved city `.osm`
+  files.
+- OSM network preview modes for:
+  - speed limits
+  - road type
+  - lanes and direction
+  - signalized intersections
+- Road-selection editing in the extracted-network page:
+  - single-click selection
+  - Shift multi-selection
+  - bulk filter-based selection
+  - expansion to the connected same-name road
+- Backend API support for writing edited OSM `maxspeed` tags back to the city
+  extract.
+
+### Documentation
+- Updated the GUI and operations docs to describe the new OSM bootstrap,
+  extracted-network editor, and pre-generation input-cleanup workflow.
+
+### Verification
+- Verified the frontend with `npm run build`.
+- Verified the full test suite with `pytest -q` (`104 passed`).
+
 ## [0.2.2] - 2026-04-27
 
 ### Changed

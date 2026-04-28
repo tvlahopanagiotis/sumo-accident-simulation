@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 from ..app.config import DEFAULT_CONFIG_PATH, PROJECT_ROOT, load_config
+from ..integrations.download_osm_place import DEFAULT_NOMINATIM_URL, DEFAULT_OVERPASS_URL, DEFAULT_USER_AGENT
 from ..simulation.runner import _generate_output_folder_name
 
 
@@ -166,6 +167,7 @@ def build_command(workflow_id: str, payload: dict[str, Any]) -> list[str]:
     if workflow_id == "integration.fetch_osm":
         _append_arg(command, "--place", _value(payload, "place"))
         _append_arg(command, "--out", _value(payload, "out"))
+        _append_arg(command, "--city-slug", _value(payload, "city_slug"))
         _append_arg(command, "--pad-km", _value(payload, "pad_km"))
         _append_arg(command, "--south", _value(payload, "south"))
         _append_arg(command, "--west", _value(payload, "west"))
@@ -173,6 +175,12 @@ def build_command(workflow_id: str, payload: dict[str, Any]) -> list[str]:
         _append_arg(command, "--east", _value(payload, "east"))
         if _value(payload, "all_features", False):
             command.append("--all-features")
+        if _value(payload, "bootstrap_layout", True) is False:
+            command.append("--no-bootstrap-layout")
+        if _value(payload, "bootstrap_config", True) is False:
+            command.append("--no-bootstrap-config")
+        _append_arg(command, "--config-out", _value(payload, "config_out"))
+        _append_arg(command, "--config-template", _value(payload, "config_template"))
         _append_arg(command, "--nominatim-url", _value(payload, "nominatim_url"))
         _append_arg(command, "--overpass-url", _value(payload, "overpass_url"))
         _append_arg(command, "--user-agent", _value(payload, "user_agent"))
@@ -388,18 +396,23 @@ WORKFLOW_SPECS: dict[str, WorkflowSpec] = {
         module="sas.integrations.download_osm_place",
         progress_mode="indeterminate",
         fields=[
-            WorkflowField("place", "Place", type="text", required=True, placeholder="Seattle, Washington, USA"),
-            WorkflowField("out", "Output File", type="text", placeholder="data/cities/seattle/.../Seattle.osm"),
-            WorkflowField("pad_km", "Padding (km)", type="number", default=0),
+            WorkflowField("place", "Place", type="text", required=True, placeholder="Seattle, Washington, USA", help="Human-readable locality query sent to Nominatim."),
+            WorkflowField("city_slug", "City Folder / Slug", type="text", placeholder="seattle", help="Used for data/cities/<slug>/ and configs/<slug>/ naming."),
+            WorkflowField("out", "Output File", type="text", placeholder="data/cities/seattle/network/seattle.osm", help="Raw OSM XML destination. The recommended layout is data/cities/<slug>/network/<slug>.osm."),
+            WorkflowField("pad_km", "Padding (km)", type="number", default=0, help="Expand the resolved boundary on every side. Use small positive values when the locality boundary is too tight for route generation."),
             WorkflowField("south", "South", type="number"),
             WorkflowField("west", "West", type="number"),
             WorkflowField("north", "North", type="number"),
             WorkflowField("east", "East", type="number"),
-            WorkflowField("all_features", "All Features", type="boolean", default=False),
-            WorkflowField("nominatim_url", "Nominatim URL", type="text"),
-            WorkflowField("overpass_url", "Overpass URL", type="text"),
-            WorkflowField("user_agent", "User Agent", type="text"),
-            WorkflowField("email", "Contact Email", type="text"),
+            WorkflowField("all_features", "All Features", type="boolean", default=False, help="Off by default. Roads-only extracts stay smaller and are usually enough for SUMO. Turn this on only if downstream processing needs non-road OSM objects."),
+            WorkflowField("bootstrap_layout", "Bootstrap City Layout", type="boolean", default=True, help="Create data/cities/<slug>/network and city metadata before downloading."),
+            WorkflowField("bootstrap_config", "Bootstrap Default Config", type="boolean", default=True, help="Create configs/<slug>/default.yaml from the template when missing."),
+            WorkflowField("config_out", "Config Output", type="text", placeholder="configs/seattle/default.yaml", help="Default config path for the new city scaffold."),
+            WorkflowField("config_template", "Config Template", type="text", default="configs/templates/city_default.yaml", help="Template copied into the new city's default config."),
+            WorkflowField("nominatim_url", "Nominatim URL", type="text", default=DEFAULT_NOMINATIM_URL, help="Geocoding/search endpoint used to resolve a place name and bounding box. The public OSM endpoint is the recommended default."),
+            WorkflowField("overpass_url", "Overpass URL", type="text", default=DEFAULT_OVERPASS_URL, help="Overpass interpreter endpoint used to fetch the raw OSM XML extract. The default public endpoint is suitable for normal use."),
+            WorkflowField("user_agent", "User Agent", type="text", default=DEFAULT_USER_AGENT, help="HTTP User-Agent sent to public OSM services. Keep this populated for polite API usage."),
+            WorkflowField("email", "Contact Email", type="text", help="Optional contact email for Nominatim requests; useful for heavier or repeated usage of the public endpoint."),
         ],
     ),
     "integration.govgr_download": WorkflowSpec(

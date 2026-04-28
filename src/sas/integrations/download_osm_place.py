@@ -24,7 +24,8 @@ Examples
 from __future__ import annotations
 
 import argparse
-import os
+from datetime import datetime, timezone
+import json
 import re
 import sys
 import time
@@ -33,15 +34,22 @@ from typing import Any
 
 import requests
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 DEFAULT_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 DEFAULT_USER_AGENT = "antifragicity-sas-osm-downloader/0.1"
+DEFAULT_CONFIG_TEMPLATE = PROJECT_ROOT / "configs" / "templates" / "city_default.yaml"
 
 
 def _slugify(text: str) -> str:
     """Convert a free-form place string into a safe default filename stem."""
     slug = re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
     return slug or "place"
+
+
+def _default_city_slug(place: str) -> str:
+    """Use the first place token as the default city folder slug."""
+    return _slugify(place.split(",")[0])
 
 
 def _expand_bbox(
@@ -158,9 +166,68 @@ def _download_osm(
     raise RuntimeError(f"Overpass download failed after 3 attempts: {last_error}")
 
 
-def _default_output_path(place: str) -> Path:
-    """Pick a simple default output filename from the place name."""
-    return Path(f"{_slugify(place)}.osm")
+def _default_output_path(place: str, city_slug: str | None = None) -> Path:
+    """Place OSM extracts under the standard city/network layout."""
+    slug = city_slug or _default_city_slug(place)
+    return Path("data") / "cities" / slug / "network" / f"{slug}.osm"
+
+
+def _default_config_path(city_slug: str) -> Path:
+    return Path("configs") / city_slug / "default.yaml"
+
+
+def _city_root(city_slug: str) -> Path:
+    return Path("data") / "cities" / city_slug
+
+
+def _render_config_template(template_text: str, city_slug: str, place: str) -> str:
+    return (
+        template_text.replace("__CITY_SLUG__", city_slug)
+        .replace("__CITY_TITLE__", place)
+    )
+
+
+def _write_city_metadata(city_slug: str, place: str, osm_out: Path, config_out: Path) -> None:
+    payload = {
+        "slug": city_slug,
+        "display_name": place,
+        "osm_extract": osm_out.as_posix(),
+        "config_path": config_out.as_posix(),
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+    }
+    metadata_path = _city_root(city_slug) / "city_metadata.json"
+    metadata_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _resolve_template_path(path: Path) -> Path:
+    expanded = path.expanduser()
+    if expanded.is_absolute() or expanded.exists():
+        return expanded
+    return (PROJECT_ROOT / expanded).resolve()
+
+
+def _bootstrap_city_layout(
+    *,
+    city_slug: str,
+    place: str,
+    out_path: Path,
+    config_out: Path,
+    config_template: Path,
+    bootstrap_config: bool,
+) -> None:
+    """Create the standard city folder structure and a default config if missing."""
+    network_dir = _city_root(city_slug) / "network"
+    network_dir.mkdir(parents=True, exist_ok=True)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if bootstrap_config:
+        config_out.parent.mkdir(parents=True, exist_ok=True)
+        if not config_out.exists():
+            template_text = config_template.read_text(encoding="utf-8")
+            rendered = _render_config_template(template_text, city_slug, place)
+            config_out.write_text(rendered, encoding="utf-8")
+
+    _write_city_metadata(city_slug, place, out_path, config_out)
 
 
 def main() -> None:
@@ -175,7 +242,12 @@ def main() -> None:
     parser.add_argument(
         "--out",
         default=None,
-        help="Output .osm path. Default: ./<slugified-place>.osm",
+        help="Output .osm path. Default: data/cities/<city>/network/<city>.osm",
+    )
+    parser.add_argument(
+        "--city-slug",
+        default=None,
+        help="Folder/config slug to use under data/cities/ and configs/.",
     )
     parser.add_argument(
         "--pad-km",
@@ -212,11 +284,47 @@ def main() -> None:
         default=None,
         help="Optional contact email for Nominatim requests.",
     )
+    parser.add_argument(
+        "--bootstrap-layout",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Create the standard data/cities/<city>/network layout before download.",
+    )
+    parser.add_argument(
+        "--bootstrap-config",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Create configs/<city>/default.yaml from the city template when missing.",
+    )
+    parser.add_argument(
+        "--config-out",
+        default=None,
+        help="Override the generated config path. Default: configs/<city>/default.yaml",
+    )
+    parser.add_argument(
+        "--config-template",
+        default=DEFAULT_CONFIG_TEMPLATE.relative_to(PROJECT_ROOT).as_posix(),
+        help="Config template used for new city bootstrap.",
+    )
     args = parser.parse_args()
 
-    out_path = Path(args.out) if args.out else _default_output_path(args.place)
+    city_slug = args.city_slug or _default_city_slug(args.place)
+    out_path = Path(args.out) if args.out else _default_output_path(args.place, city_slug)
+    config_out = Path(args.config_out) if args.config_out else _default_config_path(city_slug)
+    config_template = _resolve_template_path(Path(args.config_template))
 
     try:
+        if args.bootstrap_layout:
+            _bootstrap_city_layout(
+                city_slug=city_slug,
+                place=args.place,
+                out_path=out_path,
+                config_out=config_out,
+                config_template=config_template,
+                bootstrap_config=args.bootstrap_config,
+            )
+            print(f"City scaffold ready: data/cities/{city_slug} and {config_out}")
+
         if None not in {args.south, args.west, args.north, args.east}:
             display_name = args.place
             south, west, north, east = (
@@ -270,6 +378,7 @@ def main() -> None:
 
         size_mb = out_path.stat().st_size / 1_048_576
         print(f"Saved {size_mb:.1f} MB -> {out_path}")
+        _write_city_metadata(city_slug, display_name, out_path, config_out)
         print("Attribution: OpenStreetMap contributors (ODbL)")
     except Exception as exc:
         print(f"❌  {exc}")
