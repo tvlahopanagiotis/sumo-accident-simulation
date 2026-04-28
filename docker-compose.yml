@@ -4,15 +4,6 @@
 # Services:
 #   api      – FastAPI backend (port 12000)
 #   frontend – React + nginx reverse proxy (port 80 → 8080 on host)
-#
-# Usage:
-#   docker compose up --build          # first run
-#   docker compose up -d               # subsequent starts
-#   docker compose logs -f api         # tail backend logs
-#
-# Environment:
-#   Copy .env.example to .env and fill in ANTHROPIC_API_KEY if you use
-#   the AI-assisted report feature.
 # =============================================================================
 
 services:
