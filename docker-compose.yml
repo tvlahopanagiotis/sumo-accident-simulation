@@ -1,0 +1,55 @@
+# =============================================================================
+# SAS – Docker Compose
+# =============================================================================
+# Services:
+#   api      – FastAPI backend (port 12000)
+#   frontend – React + nginx reverse proxy (port 80 → 8080 on host)
+#
+# Usage:
+#   docker compose up --build          # first run
+#   docker compose up -d               # subsequent starts
+#   docker compose logs -f api         # tail backend logs
+#
+# Environment:
+#   Copy .env.example to .env and fill in ANTHROPIC_API_KEY if you use
+#   the AI-assisted report feature.
+# =============================================================================
+
+services:
+
+  # ── Backend ─────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    environment:
+      API_HOST: "0.0.0.0"
+      API_PORT: "12000"
+    volumes:
+      # Persist simulation configs, data, and results outside the container
+      - ./configs:/app/configs
+      - ./data:/app/data
+      - ./results:/app/results
+      # Expose branding assets (writable by users)
+      - ./frontend/public/branding:/app/frontend/public/branding
+    ports:
+      - "12000:12000"   # also directly accessible for debugging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:12000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Frontend ────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    ports:
+      - "15555:80"      # http://localhost:15555
+    depends_on:
+      api:
+        condition: service_healthy

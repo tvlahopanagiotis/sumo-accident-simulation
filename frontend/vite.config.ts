@@ -5,6 +5,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    allowedHosts: ["sas.rhoe-api.gr"],
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:12000",
+        changeOrigin: true,
+      },
+    },
   },
 });
 
