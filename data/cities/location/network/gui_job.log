@@ -1,0 +1,7 @@
+City scaffold ready: data/cities/location and configs/location/default.yaml
+Using explicit bounding box overrides for: Θεσσαλονίκη, Δημοτική Ενότητα Θεσαλονίκης, Δήμος Θεσσαλονίκης, Μητροπολιτική Ενότητα Θεσσαλονίκης, Περιφέρεια Κεντρικής Μακεδονίας, Αποκεντρωμένη Διοίκηση Μακεδονίας - Θράκης, 540 12, Ελλάς
+  Matched: Θεσσαλονίκη, Δημοτική Ενότητα Θεσαλονίκης, Δήμος Θεσσαλονίκης, Μητροπολιτική Ενότητα Θεσσαλονίκης, Περιφέρεια Κεντρικής Μακεδονίας, Αποκεντρωμένη Διοίκηση Μακεδονίας - Θράκης, 540 12, Ελλάς
+  Bounding box: south=40.528002, west=22.825906, north=40.704696, east=23.067659
+Downloading OSM XML via Overpass -> data/cities/location/network/location.osm
+Saved 23.2 MB -> data/cities/location/network/location.osm
+Attribution: OpenStreetMap contributors (ODbL)
