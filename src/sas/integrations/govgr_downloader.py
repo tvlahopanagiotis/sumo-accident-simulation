@@ -120,7 +120,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--output-dir",
         default=None,
-        help="Output root dir. Default: data/cities/thessaloniki/govgr/downloads/<timestamp>/",
+        help=(
+            "Output directory. If omitted, the downloader writes under "
+            "data/cities/thessaloniki/govgr/downloads/<timestamp>/. If the "
+            "provided path ends with /downloads, a timestamped run folder is "
+            "created under it; otherwise the exact path is used."
+        ),
     )
     p.add_argument("--dry-run", action="store_true", help="Print planned actions only.")
     p.add_argument(
@@ -139,6 +144,17 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
+
+
+def _resolve_output_root(output_dir: str | None, started: dt.datetime) -> Path:
+    timestamp = started.strftime("%Y-%m-%d_%H-%M-%S")
+    if not output_dir:
+        return Path("data") / "cities" / "thessaloniki" / "govgr" / "downloads" / timestamp
+
+    candidate = Path(output_dir)
+    if candidate.name == "downloads":
+        return candidate / timestamp
+    return candidate
 
 
 def _request_text(
@@ -556,11 +572,7 @@ def main() -> None:
     )
 
     started = dt.datetime.now(dt.timezone.utc)
-    out_root = (
-        Path(args.output_dir)
-        if args.output_dir
-        else Path("data") / "cities" / "thessaloniki" / "govgr" / "downloads" / started.strftime("%Y-%m-%d_%H-%M-%S")
-    )
+    out_root = _resolve_output_root(args.output_dir, started)
     _ensure_dir(out_root)
 
     selected = list(DATASETS.keys()) if args.dataset == "all" else [args.dataset]

@@ -9,6 +9,40 @@ export type WorkflowField = {
   options: string[] | null;
 };
 
+export type CityDemandPreview = {
+  city_slug: string;
+  od_file: string | null;
+  node_file: string | null;
+  supported: boolean;
+  issues: string[];
+  summary: {
+    zone_count: number;
+    od_row_count: number;
+    external_od_row_count: number;
+    total_od: number;
+    intrazonal_raw: number;
+    missing_zone_count: number;
+    mapped_top_flow_count: number;
+  } | null;
+  sample_rows: Array<{
+    origin: string;
+    destination: string;
+    od_number: number;
+    intrazonal: boolean;
+  }>;
+  top_flows: Array<{
+    origin: string;
+    destination: string;
+    od_number: number;
+    origin_coords: [number, number];
+    destination_coords: [number, number];
+  }>;
+  nodes: Array<{
+    zone_id: string;
+    coords: [number, number];
+  }>;
+};
+
 export type WorkflowSpec = {
   id: string;
   category: string;
@@ -126,6 +160,135 @@ export type CityNetworkPreview = {
     connected_road_types: string[];
     connected_road_count: number;
   }>;
+};
+
+export type TrafficFeedSourceRecord = {
+  slug: string;
+  display_name: string;
+  provider: string;
+  provider_label: string;
+  integration_stage: string;
+  coverage_note: string;
+  workflow_slots: Array<{
+    id: string;
+    title: string;
+    status: string;
+    description: string;
+  }>;
+  city_root: string;
+  provider_root: string;
+  catalog_count: number;
+  download_run_count: number;
+  target_export_count: number;
+  metadata: Record<string, unknown>;
+};
+
+export type TrafficFeedPreview = {
+  source: {
+    slug: string;
+    display_name: string;
+    provider: string;
+    provider_label: string;
+    integration_stage: string;
+    coverage_note: string;
+    workflow_slots: Array<{
+      id: string;
+      title: string;
+      status: string;
+      description: string;
+    }>;
+    city_root: string;
+    provider_root: string;
+    metadata: Record<string, unknown>;
+  };
+  target_city: {
+    slug: string;
+    display_name: string;
+    city_root: string;
+    provider_root: string;
+    metadata: Record<string, unknown>;
+  };
+  catalog_datasets: Array<{
+    id: string;
+    title: string;
+    description: string;
+    version: string | null;
+    keywords: string[];
+    path: string;
+    datapackage_path: string;
+    resources: Array<{
+      title: string | null;
+      format: string | null;
+      path: string | null;
+      description: string;
+      source_urls: string[];
+    }>;
+    sample_csv: {
+      path: string;
+      delimiter: string;
+      columns: string[];
+      rows: Array<Record<string, string>>;
+    } | null;
+  }>;
+  download_runs: Array<{
+    name: string;
+    path: string;
+    quality_report_path: string | null;
+    started_utc: string | null;
+    finished_utc: string | null;
+    args: Record<string, unknown>;
+    datasets: Array<{
+      name: string;
+      realtime_rows_clean: number | null;
+      realtime_pages_downloaded: number | null;
+      baseline_files: string[];
+      clean_csv: string | null;
+      historical_files_downloaded: number | null;
+      historical_extracted_dir: string | null;
+    }>;
+    files: string[];
+  }>;
+  target_exports: Array<{
+    name: string;
+    path: string;
+    summary_path: string | null;
+    calibration_year: number | null;
+    validation_year: number | null;
+    sets: Array<{
+      name: string;
+      files: string[];
+      speed_meta: Record<string, unknown>;
+      travel_time_meta: Record<string, unknown>;
+    }>;
+    files: string[];
+  }>;
+  linked_network: {
+    bbox: [number, number, number, number] | null;
+    stats: {
+      network_feature_count: number;
+      feed_speed_link_count: number;
+      feed_congestion_link_count: number;
+      matched_link_count: number;
+      match_ratio: number;
+      unmatched_link_count: number;
+    };
+    features: Array<{
+      id: string;
+      name?: string | null;
+      road_type: string;
+      speed_limit_kph: number | null;
+      coords: Array<[number, number]>;
+      oneway: boolean;
+      reverse_oneway: boolean;
+      speed_current_kph: number | null;
+      congestion_level: string | null;
+      latest_timestamp: string | null;
+      direction_values: {
+        speed: Record<string, Record<string, string>>;
+        congestion: Record<string, Record<string, string>>;
+      };
+    }>;
+  } | null;
 };
 
 export type ResultRunSummary = {

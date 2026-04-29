@@ -33,10 +33,33 @@ Its role is to:
 The OSM workflow uses place search and bounding boxes to produce `.osm`
 extracts that later feed the city generators.
 
+The operator-facing workflow now also includes a pre-generation cleanup step
+for extracted networks:
+
+- road-type-filtered extraction
+- speed-tag inspection
+- multi-group road filtering
+- click and drag-box selection
+- raw OSM road deletion where the extract needs cleanup before generation
+
 ### govgr traffic feeds
 
 The govgr workflow downloads traffic feed files and then converts them into
 target datasets used by Thessaloniki-oriented calibration and validation work.
+
+In the GUI this now appears as a two-stage operator surface:
+
+- `New Feed Pull`
+  - launch downloader and target-building jobs
+- `Exported Feeds`
+  - inspect the published feed bundles
+  - inspect downloader outputs and target exports
+  - browse exported files
+  - view the subset of feed links that currently align to OSM way ids
+
+The GUI traffic-feed surface is also now structured around provider workflow
+slots so additional city-specific adapters can be added later without
+reorganizing the page.
 
 ## Where It Fits In The Full Workflow
 
@@ -54,6 +77,7 @@ Typical chain:
 
 - [`../operations/data-integrations.md`](../operations/data-integrations.md)
 - [`../operations/new-location-workflow.md`](../operations/new-location-workflow.md)
+- [`../PILOT_CITY_TRAFFIC_DATA_FINDINGS.md`](../PILOT_CITY_TRAFFIC_DATA_FINDINGS.md)
 
 ## Recommendations For Improvement
 

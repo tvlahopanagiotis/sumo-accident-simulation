@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sas.gui.cities import _build_preview_cached, _parse_lane_count, _parse_speed_kph, update_city_speed_limits
+from sas.gui.cities import _build_preview_cached, _parse_lane_count, _parse_speed_kph, delete_city_ways, update_city_speed_limits
 
 
 def test_parse_speed_kph_handles_metric_and_mph() -> None:
@@ -124,3 +124,40 @@ def test_update_city_speed_limits_writes_maxspeed_tag(tmp_path: Path, monkeypatc
     text = osm_path.read_text(encoding="utf-8")
     assert 'k="maxspeed"' in text
     assert 'v="50"' in text
+
+
+def test_delete_city_ways_removes_way(tmp_path: Path, monkeypatch) -> None:
+    from sas.gui import cities as cities_module
+
+    data_root = tmp_path / "data" / "cities" / "sample" / "network"
+    data_root.mkdir(parents=True)
+    configs_root = tmp_path / "configs" / "sample"
+    configs_root.mkdir(parents=True)
+    (configs_root / "default.yaml").write_text("sumo: {}\n", encoding="utf-8")
+    (tmp_path / "data" / "cities" / "sample" / "city_metadata.json").write_text("{}", encoding="utf-8")
+    osm_path = data_root / "sample.osm"
+    osm_path.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6">
+  <node id="1" lat="40.0000" lon="22.0000" />
+  <node id="2" lat="40.0005" lon="22.0005" />
+  <way id="100">
+    <nd ref="1" />
+    <nd ref="2" />
+    <tag k="highway" v="primary" />
+  </way>
+</osm>
+""",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cities_module, "_CITIES_ROOT", (tmp_path / "data" / "cities").resolve())
+    monkeypatch.setattr(cities_module, "_CONFIGS_ROOT", (tmp_path / "configs").resolve())
+    monkeypatch.setattr(cities_module, "PROJECT_ROOT", tmp_path.resolve())
+    cities_module._build_preview_cached.cache_clear()
+
+    result = delete_city_ways("sample", ["100"])
+
+    assert result["deleted_way_count"] == 1
+    text = osm_path.read_text(encoding="utf-8")
+    assert '<way id="100">' not in text

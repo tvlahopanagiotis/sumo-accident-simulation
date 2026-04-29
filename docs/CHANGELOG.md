@@ -2,6 +2,73 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.4] - 2026-04-28
+
+### Changed
+- Reworked the generator layer around a generic city generator that can build
+  SUMO assets for any extracted city under `data/cities/<slug>/`, while
+  keeping Sioux Falls and Riverside as separate benchmark/synthetic workflows.
+- Expanded the generator GUI with more informative field-level help and a
+  `View Inputs` tab for OD support-file inspection.
+- Removed duplicated inline help text under workflow fields where the same
+  explanation is already available through the `?` tooltip, and tightened the
+  generator-page narrative around demand selection.
+- Reworked the GUI `Traffic Feeds` page into a two-stage path:
+  - `New Feed Pull`
+  - `Exported Feeds`
+- Adjusted the gov.gr feed workflow so target-city defaults no longer clear a
+  manually chosen downloader output path, and the downloader now treats a
+  `.../downloads` path as a city downloads root that receives timestamped run
+  folders.
+- Reworked the gov.gr preview model so published catalogs can come from one
+  source integration while download runs, target exports, and feed-to-OSM
+  alignment are inspected against a different target city folder.
+- Cleaned up the traffic-feed page layout so export summaries stay in a left
+  operator column while the feed-alignment map and export browser share the
+  right working column.
+- Made the traffic-feed export browser independently scrollable so large export
+  trees and file previews stay usable inside the page.
+- Polished the `Data & Integrations` UI so the OSM and traffic-feed pages use a
+  cleaner operator flow, more consistent controls, and more informative
+  summaries.
+- Refined the OSM extracted-network editor with more granular road grouping,
+  multi-group road filters, and destructive cleanup controls for raw OSM
+  pruning.
+- Reworked OSM extraction from a roads-only toggle into an explicit SUMO-leaning
+  road-type selector with `all-features` kept as an advanced override.
+- Improved `Config Studio` so `sumo.config_file` can be typed manually for a
+  newly bootstrapped city while still offering discovered `.sumocfg`
+  suggestions, and the GUI now refreshes config and `.sumocfg` discovery as
+  jobs create new files.
+
+### Added
+- A new `sas-generate-city` CLI and matching GUI workflow that supports either
+  `randomTrips` or OD-driven demand generation for extracted city folders.
+- A city demand preview API and GUI viewer that can show OD samples and top
+  centroid-to-centroid flows on a map when a city has compatible OD inputs.
+- Backend discovery of published Thessaloniki feed bundles, downloader export
+  runs, and built target folders under `data/cities/<city>/govgr/`.
+- OSM bootstrap of `data/cities/<city>/govgr/downloads/` and
+  `data/cities/<city>/govgr/targets/` alongside the network and config
+  scaffold.
+- A feed-alignment map that overlays the subset of feed `Link_id` values that
+  currently match OSM way ids in the selected city extract.
+- Feed-alignment views for:
+  - current speed
+  - congestion
+  - coverage
+- Provider workflow-slot metadata in the traffic-feed layer so future
+  city-specific adapters can fit the same page structure.
+- Raw OSM cleanup actions in `Extracted Network`, including drag-box selection
+  and selected-road deletion.
+
+### Documentation
+- Updated the GUI and data-integration docs to describe the new traffic-feed
+  workflow, export artifacts, partial feed-to-OSM alignment behavior, and the
+  more capable extracted-network editing flow.
+- Added a pilot-city traffic-data findings note to support later feed
+  integration planning.
+
 ## [0.2.3] - 2026-04-28
 
 ### Changed

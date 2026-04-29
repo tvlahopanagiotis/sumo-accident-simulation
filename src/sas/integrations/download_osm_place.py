@@ -39,6 +39,23 @@ DEFAULT_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 DEFAULT_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 DEFAULT_USER_AGENT = "antifragicity-sas-osm-downloader/0.1"
 DEFAULT_CONFIG_TEMPLATE = PROJECT_ROOT / "configs" / "templates" / "city_default.yaml"
+DEFAULT_ROAD_TYPES = (
+    "motorway",
+    "motorway_link",
+    "trunk",
+    "trunk_link",
+    "primary",
+    "primary_link",
+    "secondary",
+    "secondary_link",
+    "tertiary",
+    "tertiary_link",
+    "unclassified",
+    "residential",
+    "living_street",
+    "service",
+    "road",
+)
 
 
 def _slugify(text: str) -> str:
@@ -76,14 +93,19 @@ def _build_overpass_query(
     west: float,
     north: float,
     east: float,
-    highways_only: bool,
+    road_types: list[str] | tuple[str, ...] | None = None,
+    include_all_features: bool = False,
 ) -> str:
     """Build the Overpass query used to download the OSM XML extract."""
     bbox = f"({south:.6f},{west:.6f},{north:.6f},{east:.6f})"
-    if highways_only:
+    if not include_all_features:
+        selected_types = [item for item in (road_types or DEFAULT_ROAD_TYPES) if item]
+        if not selected_types:
+            selected_types = list(DEFAULT_ROAD_TYPES)
+        joined = "|".join(re.escape(item) for item in selected_types)
         body = f"""
 (
-  way["highway"]{bbox};
+  way["highway"~"^({joined})$"]{bbox};
   relation["type"="restriction"]{bbox};
 );
 (._;>;);
@@ -217,7 +239,10 @@ def _bootstrap_city_layout(
 ) -> None:
     """Create the standard city folder structure and a default config if missing."""
     network_dir = _city_root(city_slug) / "network"
+    govgr_root = _city_root(city_slug) / "govgr"
     network_dir.mkdir(parents=True, exist_ok=True)
+    (govgr_root / "downloads").mkdir(parents=True, exist_ok=True)
+    (govgr_root / "targets").mkdir(parents=True, exist_ok=True)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     if bootstrap_config:
@@ -260,9 +285,15 @@ def main() -> None:
     parser.add_argument("--north", type=float, default=None, help="Optional north latitude override.")
     parser.add_argument("--east", type=float, default=None, help="Optional east longitude override.")
     parser.add_argument(
+        "--road-types",
+        nargs="+",
+        default=list(DEFAULT_ROAD_TYPES),
+        help="OSM highway tag values to include when downloading roads for SUMO.",
+    )
+    parser.add_argument(
         "--all-features",
         action="store_true",
-        help="Download all OSM nodes/ways/relations in the bbox instead of roads-only.",
+        help="Download all OSM nodes/ways/relations in the bbox instead of filtering by road type.",
     )
     parser.add_argument(
         "--nominatim-url",
@@ -366,7 +397,8 @@ def main() -> None:
             west=west,
             north=north,
             east=east,
-            highways_only=not args.all_features,
+            road_types=args.road_types,
+            include_all_features=args.all_features,
         )
         print(f"Downloading OSM XML via Overpass -> {out_path}")
         _download_osm(

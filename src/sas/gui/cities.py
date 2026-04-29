@@ -269,3 +269,37 @@ def update_city_speed_limits(city_slug: str, way_ids: list[str], speed_kph: floa
         "speed_kph": speed_kph,
         "osm_path": str(osm_path),
     }
+
+
+def delete_city_ways(city_slug: str, way_ids: list[str]) -> dict[str, Any]:
+    city = next((item for item in discover_cities() if item["slug"] == city_slug), None)
+    if city is None:
+        raise FileNotFoundError(f"Unknown city slug: {city_slug}")
+    osm_path = city.get("osm_path")
+    if not osm_path:
+        raise FileNotFoundError(f"No OSM extract found for city: {city_slug}")
+    if not way_ids:
+        raise ValueError("At least one way id is required")
+
+    osm_file = (PROJECT_ROOT / str(osm_path)).resolve()
+    tree = ET.parse(osm_file)
+    root = tree.getroot()
+    targets = set(str(way_id) for way_id in way_ids)
+    removed = 0
+
+    for way in list(root.findall("way")):
+        if way.get("id") not in targets:
+            continue
+        root.remove(way)
+        removed += 1
+
+    if removed == 0:
+        raise ValueError("None of the selected way ids were found in the OSM extract")
+
+    tree.write(osm_file, encoding="utf-8", xml_declaration=True)
+    _build_preview_cached.cache_clear()
+    return {
+        "city_slug": city_slug,
+        "deleted_way_count": removed,
+        "osm_path": str(osm_path),
+    }

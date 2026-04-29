@@ -1,7 +1,7 @@
 # Generators Module
 
 This guide covers the workflows that build SUMO-ready networks, route files,
-and `.sumocfg` files for the bundled study areas and benchmarks.
+and `.sumocfg` files for extracted cities plus the benchmark/synthetic cases.
 
 ## Scope
 
@@ -9,10 +9,9 @@ The generators live in:
 
 - `src/sas/generators/`
 
-The current bundled generators are:
+The current active generator paths are:
 
-- Thessaloniki
-- Seattle
+- generic city generation for any extracted city under `data/cities/<slug>/`
 - Sioux Falls
 - Riverside
 
@@ -32,13 +31,27 @@ Depending on the case, they:
 
 ## Generator Types
 
-### Real-city generators
+### Real-city generator
 
-The Thessaloniki and Seattle workflows are closer to production use because
-they start from city-scale network data.
+The main real-city workflow is now the generic city generator.
 
-- Thessaloniki is primarily an OSM-driven build with synthetic demand.
-- Seattle mixes OSM and bundled OD-oriented inputs.
+It starts from the standard city layout created by the OSM extract flow and
+then:
+
+- compiles the `.osm` into a SUMO `.net.xml`
+- generates demand from either:
+  - `randomTrips.py`
+  - OD inputs when the city folder contains compatible support files
+- writes `<city>.sumocfg`
+- optionally patches `configs/<city>/default.yaml`
+
+The GUI now complements that with a generator-side input viewer so operators
+can inspect discovered OD matrices and centroid nodes before building routes.
+
+For random-demand runs, the main density control is the route period. Lower
+period values request departures more often, but the observed number of valid
+trips and simultaneous vehicles still depends on network connectivity and trip
+length, not only on the period itself.
 
 ### Benchmark and synthetic generators
 

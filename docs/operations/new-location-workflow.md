@@ -89,14 +89,39 @@ The minimum decisions are:
 The OSM workflow now creates the starter config automatically, so this step is
 mainly a review-and-adjust pass rather than a blank-file creation step.
 
+In the GUI, this review is currently split across two places:
+
+- `Data & Integrations -> OSM Extract -> Extracted Network`
+  - review the raw city `.osm`
+  - inspect road classes, speed tags, lanes, directions, and signals
+  - optionally delete or clean road segments before network generation
+- `Config Studio`
+  - open `configs/<city>/default.yaml`
+  - review output paths, runtime horizon, and the SUMO config target
+  - if the generator has not yet produced the `.sumocfg`, enter the expected
+    future path manually, for example
+    `data/cities/<city>/network/<city>.sumocfg`
+  - adjust scenario parameters before running the generator or simulator
+
 ## 5. Build A Runnable Network And Demand Setup
 
 At this point you have two paths:
 
 ### Path A: reuse an existing generator pattern
 
-If the city is OSM-based and similar to Thessaloniki, create a new generator by
-adapting the city-generator pattern in `src/sas/generators/`.
+For most OSM-based cities, use the generic city generator.
+
+Typical command:
+
+```bash
+sas-generate-city --city-slug athens --update-config
+```
+
+If OD support files exist under the city folder, you can also use:
+
+```bash
+sas-generate-city --city-slug seattle --demand-source od --update-config
+```
 
 What the generator should do:
 
@@ -105,6 +130,10 @@ What the generator should do:
 3. generate demand
 4. write a `.sumocfg`
 5. optionally patch the YAML config
+
+In the GUI, the generator page now also has a `View Inputs` tab so you can
+inspect whether a city already has OD and node support files before deciding
+between `random` and `od` demand generation.
 
 ### Path B: assemble files manually for a first run
 

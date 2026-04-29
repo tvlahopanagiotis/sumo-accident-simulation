@@ -150,6 +150,27 @@ def build_command(workflow_id: str, payload: dict[str, Any]) -> list[str]:
             command.append("--skip-network")
         return command
 
+    if workflow_id == "generator.city":
+        _append_arg(command, "--city-slug", _value(payload, "city_slug"))
+        _append_arg(command, "--osm-file", _value(payload, "osm_file"))
+        _append_arg(command, "--out-dir", _value(payload, "out_dir"))
+        _append_arg(command, "--period", _value(payload, "period"))
+        _append_arg(command, "--demand-source", _value(payload, "demand_source", "random"))
+        _append_arg(command, "--od-file", _value(payload, "od_file"))
+        _append_arg(command, "--node-file", _value(payload, "node_file"))
+        _append_arg(command, "--od-scale", _value(payload, "od_scale"))
+        _append_arg(command, "--edges-per-zone", _value(payload, "edges_per_zone"))
+        _append_arg(command, "--seed", _value(payload, "seed"))
+        _append_arg(command, "--end", _value(payload, "end"))
+        if _value(payload, "update_config", True):
+            command.append("--update-config")
+        _append_arg(command, "--config", _value(payload, "config"))
+        if _value(payload, "gui", False):
+            command.append("--gui")
+        if _value(payload, "skip_network", False):
+            command.append("--skip-network")
+        return command
+
     if workflow_id == "generator.sioux_falls":
         _append_arg(command, "--out-dir", _value(payload, "out_dir"))
         _append_arg(command, "--period", _value(payload, "period"))
@@ -173,6 +194,7 @@ def build_command(workflow_id: str, payload: dict[str, Any]) -> list[str]:
         _append_arg(command, "--west", _value(payload, "west"))
         _append_arg(command, "--north", _value(payload, "north"))
         _append_arg(command, "--east", _value(payload, "east"))
+        _append_arg(command, "--road-types", _value(payload, "road_types", []))
         if _value(payload, "all_features", False):
             command.append("--all-features")
         if _value(payload, "bootstrap_layout", True) is False:
@@ -264,6 +286,14 @@ def predict_output_dir(workflow_id: str, payload: dict[str, Any]) -> str | None:
         return _predict_simulation_output(payload)
     if workflow_id == "assessment.run":
         return _predict_assessment_output(payload)
+    if workflow_id == "generator.city":
+        explicit = _value(payload, "out_dir")
+        if explicit:
+            return _predict_direct_output(payload, "out_dir")
+        city_slug = _value(payload, "city_slug")
+        if not city_slug:
+            return None
+        return str((PROJECT_ROOT / "data" / "cities" / str(city_slug) / "network").resolve())
     if workflow_id in {
         "generator.thessaloniki",
         "generator.seattle",
@@ -322,44 +352,29 @@ WORKFLOW_SPECS: dict[str, WorkflowSpec] = {
             WorkflowField("log_level", "Log Level", type="choice", default="INFO", options=["DEBUG", "INFO", "WARNING", "ERROR"]),
         ],
     ),
-    "generator.thessaloniki": WorkflowSpec(
-        id="generator.thessaloniki",
+    "generator.city": WorkflowSpec(
+        id="generator.city",
         category="Generators",
-        title="Generate Thessaloniki Network",
-        description="Download/build the Thessaloniki network and optionally patch a config.",
-        module="sas.generators.generate_thessaloniki",
+        title="Generate City Network",
+        description="Build SUMO assets for any extracted city under data/cities/<slug>/ using either randomTrips demand or OD inputs when available.",
+        module="sas.generators.generate_city",
         progress_mode="phase4",
         fields=[
-            WorkflowField("out_dir", "Output Directory", type="text", default="data/cities/thessaloniki/network"),
-            WorkflowField("period", "Route Period", type="number", default=1.0),
-            WorkflowField("update_config", "Update Config", type="boolean", default=True),
-            WorkflowField("config", "Config", type="config", default="configs/thessaloniki/default.yaml"),
-            WorkflowField("gui", "Use sumo-gui", type="boolean", default=False),
-            WorkflowField("skip_download", "Skip Download", type="boolean", default=False),
-        ],
-    ),
-    "generator.seattle": WorkflowSpec(
-        id="generator.seattle",
-        category="Generators",
-        title="Generate Seattle Network",
-        description="Build Seattle demand/network assets and optionally patch a config.",
-        module="sas.generators.generate_seattle",
-        progress_mode="phase4",
-        fields=[
-            WorkflowField("osm_file", "OSM File", type="text", default="data/cities/seattle/bundle/traffic_dataset/02_Seattle/01_Input_data/Seattle.osm"),
-            WorkflowField("out_dir", "Output Directory", type="text", default="data/cities/seattle/network"),
-            WorkflowField("period", "Route Period", type="number", default=1.5),
-            WorkflowField("demand_source", "Demand Source", type="choice", default="od", options=["od", "random"]),
-            WorkflowField("od_file", "OD File", type="text", default="data/cities/seattle/bundle/traffic_dataset/02_Seattle/01_Input_data/Seattle_od.csv"),
-            WorkflowField("node_file", "Node File", type="text", default="data/cities/seattle/bundle/traffic_dataset/02_Seattle/01_Input_data/Seattle_node.csv"),
-            WorkflowField("od_scale", "OD Scale", type="number", default=0.02),
-            WorkflowField("edges_per_zone", "Edges Per Zone", type="number", default=3),
-            WorkflowField("seed", "Seed", type="number", default=42),
-            WorkflowField("end", "End Time (s)", type="number", default=7200),
-            WorkflowField("update_config", "Update Config", type="boolean", default=True),
-            WorkflowField("config", "Config", type="config", default="configs/seattle/default.yaml"),
-            WorkflowField("gui", "Use sumo-gui", type="boolean", default=False),
-            WorkflowField("skip_network", "Skip Network Build", type="boolean", default=False),
+            WorkflowField("city_slug", "City", type="city", required=True, help="Choose the extracted city folder to build. The generator reads from data/cities/<slug>/ and writes the SUMO artifacts back into that city workspace."),
+            WorkflowField("osm_file", "OSM File Override", type="text", placeholder="Leave blank to use the city's default .osm extract", help="Optional explicit OSM input. In normal use, leave this blank so the generator picks the standard city extract automatically. Override it only when a city has more than one candidate OSM file."),
+            WorkflowField("out_dir", "Output Directory", type="text", placeholder="Leave blank to use data/cities/<slug>/network", help="Output directory for the generated .net.xml, .rou.xml, and .sumocfg files. The standard choice is the city's network folder so Config Studio and the simulator discover the files automatically."),
+            WorkflowField("period", "Random Route Period", type="number", default=1.5, help="Vehicle insertion period in seconds when using random demand. Lower values mean denser demand and usually heavier congestion. This field is ignored when demand source is OD."),
+            WorkflowField("demand_source", "Demand Source", type="choice", default="random", options=["random", "od"], help="Choose whether demand is created synthetically with randomTrips or from OD support files. Use OD when a city has a compatible OD matrix and centroid node file; otherwise use random."),
+            WorkflowField("od_file", "OD File Override", type="text", placeholder="Optional *_od.csv path", help="Optional explicit OD matrix. Leave blank to let the generator scan the city folder for a compatible OD CSV. Required only when demand source is OD and auto-discovery is not enough."),
+            WorkflowField("node_file", "Node File Override", type="text", placeholder="Optional *_node.csv path", help="Optional explicit node/centroid CSV. Leave blank to let the generator scan the city folder for a compatible node CSV. Required only when demand source is OD and auto-discovery is not enough."),
+            WorkflowField("od_scale", "OD Scale", type="number", default=0.02, help="Scale factor applied to OD counts before trip generation. Use this to thin or amplify a raw OD matrix for exploratory runs without editing the source file itself."),
+            WorkflowField("edges_per_zone", "Edges Per Zone", type="number", default=3, help="Number of nearby passenger edges used per OD zone when mapping centroids onto the network. Higher values add route diversity but can make OD demand less tightly anchored."),
+            WorkflowField("seed", "OD Seed", type="number", default=42, help="Random seed used for OD trip sampling and centroid-edge assignment choices."),
+            WorkflowField("end", "End Time (s)", type="number", default=7200, help="Simulation end time written into the generated .sumocfg and used as the route-generation horizon."),
+            WorkflowField("update_config", "Update Config", type="boolean", default=True, help="When enabled, patch the selected config so sumo.config_file points at the newly generated .sumocfg."),
+            WorkflowField("config", "Config Override", type="text", placeholder="Leave blank to use configs/<slug>/default.yaml", help="Optional explicit YAML config to patch. In normal city workflows, leave this blank and let the generator use configs/<slug>/default.yaml."),
+            WorkflowField("gui", "Use sumo-gui", type="boolean", default=False, help="When config patching is enabled, switch the configured SUMO binary from sumo to sumo-gui."),
+            WorkflowField("skip_network", "Skip Network Build", type="boolean", default=False, help="Reuse an existing <slug>.net.xml in the output directory and rebuild only demand and .sumocfg. Useful when tuning demand repeatedly against the same compiled network."),
         ],
     ),
     "generator.sioux_falls": WorkflowSpec(
@@ -404,7 +419,8 @@ WORKFLOW_SPECS: dict[str, WorkflowSpec] = {
             WorkflowField("west", "West", type="number"),
             WorkflowField("north", "North", type="number"),
             WorkflowField("east", "East", type="number"),
-            WorkflowField("all_features", "All Features", type="boolean", default=False, help="Off by default. Roads-only extracts stay smaller and are usually enough for SUMO. Turn this on only if downstream processing needs non-road OSM objects."),
+            WorkflowField("road_types", "Road Types", type="choice_list", default=["motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link", "unclassified", "residential", "living_street", "service", "road"], options=["motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link", "unclassified", "residential", "living_street", "service", "road", "track", "busway", "pedestrian", "cycleway", "footway", "path"], help="OSM highway classes to extract. The default set keeps the road classes that are generally useful for SUMO network building and excludes pedestrian-only infrastructure."),
+            WorkflowField("all_features", "All Features", type="boolean", default=False, help="Advanced override. When enabled, the road-type filter is ignored and the full OSM node/way/relation set inside the boundary is downloaded."),
             WorkflowField("bootstrap_layout", "Bootstrap City Layout", type="boolean", default=True, help="Create data/cities/<slug>/network and city metadata before downloading."),
             WorkflowField("bootstrap_config", "Bootstrap Default Config", type="boolean", default=True, help="Create configs/<slug>/default.yaml from the template when missing."),
             WorkflowField("config_out", "Config Output", type="text", placeholder="configs/seattle/default.yaml", help="Default config path for the new city scaffold."),
@@ -434,7 +450,7 @@ WORKFLOW_SPECS: dict[str, WorkflowSpec] = {
             WorkflowField("historical_max_files", "Historical Max Files", type="number"),
             WorkflowField("historical_pattern", "Historical Pattern", type="text"),
             WorkflowField("no_extract_historical", "Skip Historical Extract", type="boolean", default=False),
-            WorkflowField("output_dir", "Output Directory", type="text"),
+            WorkflowField("output_dir", "Output Directory", type="text", placeholder="data/cities/<city>/govgr/downloads", help="City-level downloads root or an explicit run folder. When the path ends with /downloads, the downloader creates a timestamped run folder under it."),
             WorkflowField("dry_run", "Dry Run", type="boolean", default=False),
             WorkflowField("skip_parquet", "Skip Parquet", type="boolean", default=False),
             WorkflowField("log_level", "Log Level", type="choice", default="INFO", options=["DEBUG", "INFO", "WARNING", "ERROR"]),
@@ -448,10 +464,10 @@ WORKFLOW_SPECS: dict[str, WorkflowSpec] = {
         module="sas.integrations.govgr_targets",
         progress_mode="indeterminate",
         fields=[
-            WorkflowField("downloads_root", "Downloads Root", type="text", default="data/cities/thessaloniki/govgr/downloads"),
+            WorkflowField("downloads_root", "Downloads Root", type="text", placeholder="data/cities/<city>/govgr/downloads", help="Root folder containing downloader run subfolders for the selected target city."),
             WorkflowField("calibration_year", "Calibration Year", type="number", default=2025),
             WorkflowField("validation_year", "Validation Year", type="number", default=2026),
-            WorkflowField("output_dir", "Output Directory", type="text", default="data/cities/thessaloniki/govgr/targets/post_metro_2025_2026"),
+            WorkflowField("output_dir", "Output Directory", type="text", placeholder="data/cities/<city>/govgr/targets/calibration_2025_validation_2026", help="Target export folder. The GUI derives a default from the target city plus the calibration and validation years."),
             WorkflowField("chunksize", "Chunk Size", type="number", default=200000),
         ],
     ),

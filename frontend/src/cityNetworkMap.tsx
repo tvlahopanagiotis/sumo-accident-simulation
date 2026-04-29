@@ -1,9 +1,10 @@
-import { useEffect, useMemo } from "react";
-import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
+import { useEffect, useMemo, useState } from "react";
+import { CircleMarker, MapContainer, Polyline, Popup, Rectangle, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { LeafletMouseEvent } from "leaflet";
 import type { CityNetworkPreview } from "./types";
 
 export type NetworkViewMode = "speed" | "road_type" | "lanes" | "signals";
+export type NetworkSelectionMode = "click" | "box";
 
 function formatMetric(value: number | null | undefined, suffix = ""): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
@@ -31,6 +32,88 @@ function FitPreviewBounds({ bbox }: { bbox: [number, number, number, number] | n
   return null;
 }
 
+function SelectionBoxLayer({
+  enabled,
+  onComplete,
+}: {
+  enabled: boolean;
+  onComplete: (bounds: [number, number, number, number], additive: boolean) => void;
+}) {
+  const map = useMap();
+  const [start, setStart] = useState<[number, number] | null>(null);
+  const [current, setCurrent] = useState<[number, number] | null>(null);
+
+  useEffect(() => {
+    if (enabled) {
+      map.dragging.disable();
+      map.boxZoom.disable();
+      map.doubleClickZoom.disable();
+    } else {
+      map.dragging.enable();
+      map.boxZoom.enable();
+      map.doubleClickZoom.enable();
+      setStart(null);
+      setCurrent(null);
+    }
+    return () => {
+      map.dragging.enable();
+      map.boxZoom.enable();
+      map.doubleClickZoom.enable();
+    };
+  }, [enabled, map]);
+
+  useMapEvents({
+    mousedown(event) {
+      if (!enabled) {
+        return;
+      }
+      setStart([event.latlng.lat, event.latlng.lng]);
+      setCurrent([event.latlng.lat, event.latlng.lng]);
+    },
+    mousemove(event) {
+      if (!enabled || !start) {
+        return;
+      }
+      setCurrent([event.latlng.lat, event.latlng.lng]);
+    },
+    mouseup(event) {
+      if (!enabled || !start) {
+        return;
+      }
+      const end: [number, number] = [event.latlng.lat, event.latlng.lng];
+      const south = Math.min(start[0], end[0]);
+      const west = Math.min(start[1], end[1]);
+      const north = Math.max(start[0], end[0]);
+      const east = Math.max(start[1], end[1]);
+      setStart(null);
+      setCurrent(null);
+      if (Math.abs(north - south) < 0.00001 || Math.abs(east - west) < 0.00001) {
+        return;
+      }
+      onComplete([south, west, north, east], Boolean(event.originalEvent.shiftKey));
+    },
+  });
+
+  if (!enabled || !start || !current) {
+    return null;
+  }
+
+  return (
+    <Rectangle
+      bounds={[
+        [Math.min(start[0], current[0]), Math.min(start[1], current[1])],
+        [Math.max(start[0], current[0]), Math.max(start[1], current[1])],
+      ]}
+      pathOptions={{
+        color: "#f93262",
+        weight: 1.6,
+        opacity: 0.95,
+        fillOpacity: 0.12,
+      }}
+    />
+  );
+}
+
 function roadClassGroup(roadType: string): string {
   if (["motorway", "motorway_link"].includes(roadType)) {
     return "motorway";
@@ -47,6 +130,15 @@ function roadClassGroup(roadType: string): string {
   if (["tertiary", "tertiary_link"].includes(roadType)) {
     return "tertiary";
   }
+  if (roadType === "service") {
+    return "service";
+  }
+  if (roadType === "track") {
+    return "track";
+  }
+  if (roadType === "pedestrian") {
+    return "pedestrian";
+  }
   return "local_other";
 }
 
@@ -54,16 +146,22 @@ function colorForSpeed(speedKph: number | null): string {
   if (speedKph === null) {
     return "#8c8c8c";
   }
-  if (speedKph < 30) {
+  if (speedKph <= 20) {
+    return "#0b7fab";
+  }
+  if (speedKph <= 30) {
     return "#1b9e77";
   }
-  if (speedKph < 50) {
+  if (speedKph <= 40) {
     return "#66a61e";
   }
-  if (speedKph < 70) {
+  if (speedKph <= 50) {
     return "#e6ab02";
   }
-  return "#d95f02";
+  if (speedKph <= 70) {
+    return "#f16913";
+  }
+  return "#c51b8a";
 }
 
 function colorForRoadType(roadType: string): string {
@@ -73,6 +171,9 @@ function colorForRoadType(roadType: string): string {
     primary: "#ef6548",
     secondary: "#fc8d59",
     tertiary: "#fdbb84",
+    service: "#9ecae1",
+    track: "#74c476",
+    pedestrian: "#bdbdbd",
     local_other: "#6baed6",
   };
   return palette[roadClassGroup(roadType)] ?? "#7f7f7f";
@@ -118,10 +219,12 @@ function styleForFeature(
 function legendForMode(mode: NetworkViewMode): Array<{ label: string; color: string; note?: string }> {
   if (mode === "speed") {
     return [
-      { label: "< 30 km/h", color: "#1b9e77" },
-      { label: "30-49 km/h", color: "#66a61e" },
-      { label: "50-69 km/h", color: "#e6ab02" },
-      { label: ">= 70 km/h", color: "#d95f02" },
+      { label: "<= 20 km/h", color: "#0b7fab" },
+      { label: "21-30 km/h", color: "#1b9e77" },
+      { label: "31-40 km/h", color: "#66a61e" },
+      { label: "41-50 km/h", color: "#e6ab02" },
+      { label: "51-70 km/h", color: "#f16913" },
+      { label: "> 70 km/h", color: "#c51b8a" },
       { label: "Unknown", color: "#8c8c8c", note: "Dashed" },
       { label: "Selected", color: "#f93262" },
     ];
@@ -133,6 +236,9 @@ function legendForMode(mode: NetworkViewMode): Array<{ label: string; color: str
       { label: "Primary", color: "#ef6548" },
       { label: "Secondary", color: "#fc8d59" },
       { label: "Tertiary", color: "#fdbb84" },
+      { label: "Service", color: "#9ecae1" },
+      { label: "Track", color: "#74c476" },
+      { label: "Pedestrian", color: "#bdbdbd" },
       { label: "Local / Other", color: "#6baed6" },
       { label: "Selected", color: "#f93262" },
     ];
@@ -156,14 +262,20 @@ export function CityNetworkMap({
   preview,
   mode,
   onModeChange,
+  selectionMode,
+  onSelectionModeChange,
   selectedWayIds,
   onFeatureClick,
+  onBoxSelect,
 }: {
   preview: CityNetworkPreview | null;
   mode: NetworkViewMode;
   onModeChange: (mode: NetworkViewMode) => void;
+  selectionMode: NetworkSelectionMode;
+  onSelectionModeChange: (mode: NetworkSelectionMode) => void;
   selectedWayIds: string[];
   onFeatureClick: (featureId: string, additive: boolean) => void;
+  onBoxSelect: (bounds: [number, number, number, number], additive: boolean) => void;
 }) {
   const legend = useMemo(() => legendForMode(mode), [mode]);
   const selectedSet = useMemo(() => new Set(selectedWayIds), [selectedWayIds]);
@@ -208,6 +320,14 @@ export function CityNetworkMap({
           </button>
         </div>
       </div>
+      <div className="network-mode-row">
+        <button className={selectionMode === "click" ? "tab-active" : ""} onClick={() => onSelectionModeChange("click")}>
+          Click Select
+        </button>
+        <button className={selectionMode === "box" ? "tab-active" : ""} onClick={() => onSelectionModeChange("box")}>
+          Box Select
+        </button>
+      </div>
       <div className="network-stat-grid">
         <div className="summary-card">
           <span>Road Segments</span>
@@ -239,6 +359,7 @@ export function CityNetworkMap({
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <FitPreviewBounds bbox={preview.bbox} />
+          <SelectionBoxLayer enabled={selectionMode === "box"} onComplete={onBoxSelect} />
           {preview.features.map((feature) => {
             const selected = selectedSet.has(feature.id);
             return (
@@ -266,7 +387,13 @@ export function CityNetworkMap({
                           ? "One-way"
                           : "Bidirectional / unspecified"}
                     </span>
-                    <span>{selected ? "Selected for editing" : "Click to select · Shift-click to multi-select"}</span>
+                    <span>
+                      {selected
+                        ? "Selected for editing"
+                        : selectionMode === "box"
+                          ? "Box-select mode is active"
+                          : "Click to select · Shift-click to multi-select"}
+                    </span>
                   </div>
                 </Popup>
               </Polyline>

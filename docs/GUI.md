@@ -94,7 +94,8 @@ Config Studio now supports:
 - validating configs through the shared backend validation layer
 - saving in structured mode or raw YAML mode
 - selecting configs from a folder-grouped config picker
-- selecting the network from discovered `.sumocfg` files instead of hand-typing paths
+- selecting the network from discovered `.sumocfg` files while still allowing a
+  manual path for a new city before its generator has written the file
 - selecting the output folder from discovered output roots instead of typing every path manually
 
 Structured mode is now organized into secondary tabs:
@@ -158,7 +159,10 @@ Current capabilities:
   - clicking one road
   - Shift-clicking multiple roads
   - selecting all roads that match a filter set
+  - selecting multiple road groups at once
+  - drag-box selection without moving the map
   - expanding a selected segment to the full connected same-name road
+  - deleting selected road segments from the raw `.osm` extract
 
 Greek traffic-feed tooling is shown separately.
 
@@ -168,14 +172,70 @@ Important current limitation:
   Thessaloniki-specific, because it uses the IMET/CERTH Thessaloniki feed
   sources already wired into `sas.integrations.govgr_downloader`
 
-So the GUI surfaces these workflows only in the Greek-location context and
-marks Thessaloniki as the currently valid operational target.
+The traffic-feed page is now split into:
+
+- `New Feed Pull`
+  - choose the discovered city feed integration
+  - choose the target city folder separately from the feed source
+  - review provider workflow slots
+  - launch the current gov.gr downloader
+  - launch target-building for historical calibration/validation tables
+  - keep or override the derived `data/cities/<city>/govgr/` output paths
+- `Exported Feeds`
+  - inspect published feed catalogs from the selected source integration
+  - inspect downloaded export runs and generated target folders from the
+    selected target city folder
+  - browse exported files in a scrollable in-page browser
+  - view the matched subset of feed `Link_id` values on top of the city OSM
+    network through the feed-alignment map
+
+The feed page is now also structured around provider workflow slots so future
+city-specific traffic-feed adapters can be inserted without changing the page
+layout again.
+
+This matters for network variants such as `thessaloniki_centre`: you can keep
+the Thessaloniki gov.gr feed as the source while writing and reviewing exports
+under the variant city folder.
+
+When the gov.gr downloader output path is left at a city `.../downloads` root,
+the backend creates a timestamped run folder under that root. If you enter a
+more specific folder manually, that exact folder is used.
+
+The feed-alignment map currently works only where feed link identifiers match
+OSM way identifiers in the selected city extract. In Thessaloniki that
+alignment is partial, so the map is diagnostic rather than complete.
 
 ### Generators
 
-Generators now have their own page. The UI still exposes the existing bundled
-generator workflows, but frames them as reusable generation tasks rather than
-as root-level script substitutes.
+Generators now have their own page.
+
+The main real-city path is a generic city generator:
+
+- choose any extracted city under `data/cities/<slug>/`
+- build the network into that city's `network/` folder
+- generate either:
+  - random demand
+  - OD-driven demand when compatible files exist
+- optionally patch the city's default YAML config
+
+The generator page now also includes a `View Inputs` tab for city demand inputs:
+
+- inspect whether the selected city has discovered OD and node support files
+- review a sample of the OD table
+- view the top OD desire lines on a map between centroid nodes
+- identify quickly when a city is currently limited to random-demand generation
+
+The build tab also explains the random-demand control logic directly in the UI:
+
+- the route period is the main request-rate control
+- lower period means more requested departures
+- network size and connectivity still affect how many valid trips survive
+  validation and how many vehicles remain active at once
+
+The benchmark and synthetic generators remain separate:
+
+- Sioux Falls
+- Riverside
 
 ### Simulations
 
@@ -345,6 +405,6 @@ Then open:
 
 The frontend expects the backend at:
 
-`http://127.0.0.1:8000`
+`http://127.0.0.1:12000`
 
 Override with `VITE_API_BASE` if needed.

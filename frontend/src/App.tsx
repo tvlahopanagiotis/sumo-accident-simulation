@@ -4,18 +4,23 @@ import type { ChangeEvent } from "react";
 import type { LeafletMouseEvent } from "leaflet";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { CityNetworkMap, classifyRoadGroup, type NetworkViewMode } from "./cityNetworkMap";
+import { CityNetworkMap, classifyRoadGroup, type NetworkSelectionMode, type NetworkViewMode } from "./cityNetworkMap";
 import { CONFIG_SECTIONS, type ConfigFieldSpec, type ConfigSectionSpec } from "./configStudio";
 import { api } from "./lib/api";
+import { ODDemandMap } from "./odDemandMap";
 import { AccidentImpactScatter, SeverityDistributionChart, TimeSeriesChart } from "./resultsCharts";
+import { TrafficFeedMap } from "./trafficFeedMap";
 import type {
   Branding,
+  CityDemandPreview,
   CityNetworkPreview,
   CityRecord,
   ConfigDocument,
   JobRecord,
   LocationSearchResult,
   ResultRunSummary,
+  TrafficFeedPreview,
+  TrafficFeedSourceRecord,
   TreeNode,
   WorkflowField,
   WorkflowSpec,
@@ -35,6 +40,8 @@ type ConfigMode = "structured" | "raw";
 type ConfigSectionKey = ConfigSectionSpec["key"];
 type BoundaryMode = "locality" | "bbox" | "shape";
 type OSMSubtab = "new" | "extracted";
+type FeedSubtab = "new" | "exported";
+type GeneratorSubtab = "build" | "view";
 type InfoModal = {
   title: string;
   sections: Array<{ heading: string; body: string[] }>;
@@ -134,12 +141,64 @@ function groupPathsByFolder(paths: string[], stripPrefix: string): Array<{ folde
     .sort((a, b) => a.folder.localeCompare(b.folder));
 }
 
+function isBlankValue(value: unknown): boolean {
+  return value === undefined || value === null || String(value).trim() === "";
+}
+
+function buildGovgrDownloadsRoot(citySlug: string): string {
+  return `data/cities/${citySlug}/govgr/downloads`;
+}
+
+function buildGovgrTargetsOutput(citySlug: string, calibrationYear: number, validationYear: number): string {
+  return `data/cities/${citySlug}/govgr/targets/calibration_${calibrationYear}_validation_${validationYear}`;
+}
+
+function isAutoGovgrDownloadsPath(value: unknown): boolean {
+  return typeof value === "string" && /^data\/cities\/[^/]+\/govgr\/downloads\/?$/.test(value.trim());
+}
+
+function isAutoGovgrTargetsPath(value: unknown): boolean {
+  return (
+    typeof value === "string"
+    && /^data\/cities\/[^/]+\/govgr\/targets\/(calibration_\d{4}_validation_\d{4}|post_metro_\d{4}_\d{4})\/?$/.test(value.trim())
+  );
+}
+
+function pickPreferredTrafficFeedSource(
+  feeds: TrafficFeedSourceRecord[],
+  currentSlug: string,
+): string {
+  if (feeds.some((source) => source.slug === currentSlug)) {
+    return currentSlug;
+  }
+  return feeds.find((source) => source.catalog_count > 0)?.slug ?? feeds[0]?.slug ?? "";
+}
+
 function humanizeDocLabel(path: string): string {
   const fileName = path.split("/").slice(-1)[0].replace(/\.md$/i, "");
   return fileName
     .replace(/_/g, " ")
     .replace(/-/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function humanizeRoadGroup(group: string): string {
+  if (group === "local_other") {
+    return "Local / Other";
+  }
+  return group
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function workflowSlotStatusLabel(status: string): string {
+  if (status === "ready") {
+    return "Ready Now";
+  }
+  if (status === "planned") {
+    return "Planned";
+  }
+  return status.replace(/_/g, " ");
 }
 
 const DOC_LABELS = new Map<string, string>([
@@ -364,17 +423,25 @@ function buildCityConfigPath(citySlug: string): string {
   return `configs/${citySlug}/default.yaml`;
 }
 
+function buildCityNetworkDir(citySlug: string): string {
+  return `data/cities/${citySlug}/network`;
+}
+
 function HelpBadge({ field }: { field: ConfigFieldSpec | WorkflowField }) {
-  const hasContent = Boolean(
+  const hasContent = hasTooltipContent(field);
+  if (!hasContent) {
+    return null;
+  }
+  return <span className="help-badge">?</span>;
+}
+
+function hasTooltipContent(field: ConfigFieldSpec | WorkflowField): boolean {
+  return Boolean(
     ("help" in field ? field.help ?? "" : "") ||
       ("description" in field ? field.description : "") ||
       ("example" in field ? field.example ?? "" : "") ||
       ("impact" in field ? field.impact ?? "" : ""),
   );
-  if (!hasContent) {
-    return null;
-  }
-  return <span className="help-badge">?</span>;
 }
 
 function TooltipHelp({
@@ -458,17 +525,24 @@ function StructuredFieldInput({
         <TooltipHelp field={field} />
       </div>
       {field.path === "sumo.config_file" ? (
-        <select value={String(value ?? "")} onChange={(event) => onChange(event.target.value)}>
-          {sumoConfigGroups.map((group) => (
-            <optgroup key={group.folder} label={group.folder}>
-              {group.items.map((path) => (
+        <>
+          <input
+            type="text"
+            list="sumo-config-paths"
+            value={value === undefined || value === null ? "" : String(value)}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="data/cities/<city>/network/<city>.sumocfg"
+          />
+          <datalist id="sumo-config-paths">
+            {sumoConfigGroups.flatMap((group) =>
+              group.items.map((path) => (
                 <option key={path} value={path}>
-                  {path.split("/").slice(-1)[0]}
+                  {group.folder}
                 </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+              )),
+            )}
+          </datalist>
+        </>
       ) : field.path === "output.output_folder" ? (
         <select value={String(value ?? "")} onChange={(event) => onChange(event.target.value)}>
           {outputFolderGroups.map((group) => (
@@ -502,7 +576,6 @@ function StructuredFieldInput({
       ) : (
         <input type="text" value={value === undefined || value === null ? "" : String(value)} onChange={(event) => onChange(event.target.value)} />
       )}
-      <small>{field.description}</small>
     </label>
   );
 }
@@ -512,11 +585,13 @@ function WorkflowInput({
   value,
   onChange,
   configPaths,
+  cities,
 }: {
   field: WorkflowField;
   value: unknown;
   onChange: (value: unknown) => void;
   configPaths: string[];
+  cities: CityRecord[];
 }) {
   const placeholder = field.placeholder ?? field.help ?? "";
   return (
@@ -543,6 +618,15 @@ function WorkflowInput({
             </option>
           ))}
         </select>
+      ) : field.type === "city" ? (
+        <select value={String(value ?? "")} onChange={(event) => onChange(event.target.value)}>
+          <option value="">Select extracted city</option>
+          {cities.map((city) => (
+            <option key={city.slug} value={city.slug}>
+              {city.display_name}
+            </option>
+          ))}
+        </select>
       ) : field.type === "number" ? (
         <input
           type="number"
@@ -550,6 +634,29 @@ function WorkflowInput({
           onChange={(event) => onChange(event.target.value === "" ? undefined : Number(event.target.value))}
           placeholder={placeholder}
         />
+      ) : field.type === "choice_list" ? (
+        <div className="choice-list-grid">
+          {(field.options ?? []).map((option) => {
+            const selected = Array.isArray(value) ? (value as string[]).includes(option) : false;
+            return (
+              <label key={option} className={`choice-pill ${selected ? "is-selected" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={(event) => {
+                    const current = Array.isArray(value) ? [...(value as string[])] : [];
+                    if (event.target.checked) {
+                      onChange([...current, option]);
+                    } else {
+                      onChange(current.filter((item) => item !== option));
+                    }
+                  }}
+                />
+                <span>{option}</span>
+              </label>
+            );
+          })}
+        </div>
       ) : field.type === "number_list" ? (
         <NumberListEditor values={Array.isArray(value) ? (value as number[]) : []} onChange={onChange} />
       ) : (
@@ -560,7 +667,6 @@ function WorkflowInput({
           placeholder={placeholder}
         />
       )}
-      {field.help ? <small>{field.help}</small> : null}
     </label>
   );
 }
@@ -639,6 +745,7 @@ function WorkflowCard({
   onChange,
   onLaunch,
   configPaths,
+  cities,
   extraNote,
   disabled,
 }: {
@@ -647,6 +754,7 @@ function WorkflowCard({
   onChange: (name: string, value: unknown) => void;
   onLaunch: () => void;
   configPaths: string[];
+  cities: CityRecord[];
   extraNote?: string;
   disabled?: boolean;
 }) {
@@ -668,6 +776,7 @@ function WorkflowCard({
             value={values[field.name]}
             onChange={(next) => onChange(field.name, next)}
             configPaths={configPaths}
+            cities={cities}
           />
         ))}
       </div>
@@ -715,12 +824,25 @@ export default function App() {
   const [customShapePoints, setCustomShapePoints] = useState<Array<[number, number]>>([]);
   const [dataTab, setDataTab] = useState<"osm" | "feeds">("osm");
   const [osmSubtab, setOsmSubtab] = useState<OSMSubtab>("new");
+  const [feedSubtab, setFeedSubtab] = useState<FeedSubtab>("new");
+  const [generatorSubtab, setGeneratorSubtab] = useState<GeneratorSubtab>("build");
   const [cities, setCities] = useState<CityRecord[]>([]);
+  const [selectedGeneratorCitySlug, setSelectedGeneratorCitySlug] = useState<string>("");
+  const [selectedGeneratorDemandPreview, setSelectedGeneratorDemandPreview] = useState<CityDemandPreview | null>(null);
   const [selectedCitySlug, setSelectedCitySlug] = useState<string>("");
   const [selectedCityPreview, setSelectedCityPreview] = useState<CityNetworkPreview | null>(null);
+  const [networkSelectionMode, setNetworkSelectionMode] = useState<NetworkSelectionMode>("click");
+  const [trafficFeedSources, setTrafficFeedSources] = useState<TrafficFeedSourceRecord[]>([]);
+  const [selectedTrafficFeedCitySlug, setSelectedTrafficFeedCitySlug] = useState<string>("");
+  const [selectedTrafficFeedTargetCitySlug, setSelectedTrafficFeedTargetCitySlug] = useState<string>("");
+  const [selectedTrafficFeedPreview, setSelectedTrafficFeedPreview] = useState<TrafficFeedPreview | null>(null);
+  const [selectedTrafficFeedPath, setSelectedTrafficFeedPath] = useState<string | null>(null);
+  const [trafficFeedTree, setTrafficFeedTree] = useState<TreeNode[]>([]);
+  const [selectedTrafficFeedFile, setSelectedTrafficFeedFile] = useState<string | null>(null);
+  const [selectedTrafficFeedFileText, setSelectedTrafficFeedFileText] = useState<string>("");
   const [networkViewMode, setNetworkViewMode] = useState<NetworkViewMode>("speed");
   const [selectedWayIds, setSelectedWayIds] = useState<string[]>([]);
-  const [bulkRoadGroup, setBulkRoadGroup] = useState<string>("any");
+  const [bulkRoadGroups, setBulkRoadGroups] = useState<string[]>([]);
   const [bulkSpeedClass, setBulkSpeedClass] = useState<string>("any");
   const [bulkLaneClass, setBulkLaneClass] = useState<string>("any");
   const [bulkDirectionClass, setBulkDirectionClass] = useState<string>("any");
@@ -769,23 +891,35 @@ export default function App() {
     }
     return workflowGroups[WORKFLOW_CATEGORY_BY_VIEW[view as keyof typeof WORKFLOW_CATEGORY_BY_VIEW]] ?? [];
   }, [view, workflowGroups]);
+  const generatorWorkflows = useMemo(
+    () => activeCategoryWorkflows.filter((workflow) => workflow.category === "Generators"),
+    [activeCategoryWorkflows],
+  );
 
   const logoSrc = assetPath(branding.logo_path, "/branding/antifragicity-logo-main-h.svg");
   const euLogoSrc = assetPath(branding.eu_logo_path, "/branding/eu-funded-by-eu.png");
-  const isGreekSelection = selectedLocation?.country_code === "gr";
-  const isThessalonikiSelection = isGreekSelection && `${selectedLocation?.display_name ?? ""}`.toLowerCase().includes("thessaloniki");
   const localityPolygons = useMemo(() => normalizeGeoJsonCoordinates(selectedLocation?.geojson), [selectedLocation]);
   const shapeBounds = useMemo(() => boundsFromPoints(customShapePoints), [customShapePoints]);
   const selectedCity = useMemo(
     () => cities.find((city) => city.slug === selectedCitySlug) ?? null,
     [cities, selectedCitySlug],
   );
+  const selectedTrafficFeedSource = useMemo(
+    () => trafficFeedSources.find((source) => source.slug === selectedTrafficFeedCitySlug) ?? null,
+    [trafficFeedSources, selectedTrafficFeedCitySlug],
+  );
+  const selectedTrafficFeedTargetCity = useMemo(
+    () => cities.find((city) => city.slug === selectedTrafficFeedTargetCitySlug) ?? null,
+    [cities, selectedTrafficFeedTargetCitySlug],
+  );
+  const govgrTargetCalibrationYear = Number(workflowValues["integration.govgr_targets"]?.calibration_year ?? 2025);
+  const govgrTargetValidationYear = Number(workflowValues["integration.govgr_targets"]?.validation_year ?? 2026);
   const extractedRoadGroups = useMemo(() => {
     const groups = new Set<string>();
     for (const feature of selectedCityPreview?.features ?? []) {
       groups.add(classifyRoadGroup(feature.road_type));
     }
-    return ["any", ...Array.from(groups).sort()];
+    return Array.from(groups).sort();
   }, [selectedCityPreview]);
   const extractedSpeedClasses = useMemo(() => {
     const values = new Set<string>();
@@ -838,6 +972,7 @@ export default function App() {
         body: [
           "Config Studio edits the same YAML configuration files used by the CLI.",
           "Use the folder-grouped config picker to open an existing scenario, then save, clone, validate, or delete it from the same page.",
+          "The SUMO config field now accepts both discovered .sumocfg suggestions and a manual future path for a newly bootstrapped city.",
         ],
       },
       {
@@ -863,8 +998,37 @@ export default function App() {
       {
         heading: "Traffic Feeds",
         body: [
-          "The traffic-feed tab currently reflects the Thessaloniki integration already implemented in SAS.",
-          "Additional city sources can be added later without changing the overall page structure.",
+          "Use `New Feed Pull` to launch the current Thessaloniki gov.gr downloader and target-builder workflows while choosing the target city folder separately from the feed source.",
+          "Use `Exported Feeds` to inspect source catalogs separately from target-city download runs and target folders, which is especially useful for alternate Thessaloniki network variants.",
+          "When feed `Link_id` values match OSM way IDs, the page also renders a feed-alignment map so you can inspect current speed, congestion, and coverage directly on the city network.",
+          "The feed page is now structured around provider workflow slots so additional city-specific adapters can be added later without changing the operator flow again.",
+        ],
+      },
+    ],
+  };
+  const generatorInfo = {
+    title: "Generators Guide",
+    sections: [
+      {
+        heading: "What This Page Does",
+        body: [
+          "Use the generic city generator to turn an extracted city .osm into a runnable SUMO network, routes, and .sumocfg inside data/cities/<slug>/network/.",
+          "Use Sioux Falls and Riverside separately, because they are benchmark and synthetic cases rather than extracted city folders.",
+        ],
+      },
+      {
+        heading: "Random Demand",
+        body: [
+          "For random demand, the main volume control is the route period. A smaller period requests departures more often, so the requested trip count grows roughly like end_time divided by period.",
+          "Network size does not directly set the requested departure count, but it does affect how many valid trips can be constructed and how many vehicles remain active at once. Larger or better-connected networks usually sustain more simultaneous vehicles for the same period.",
+          "If a network is sparse or disconnected, randomTrips validation can remove trips, so the final generated trip count can be lower than the rough end_time divided by period estimate.",
+        ],
+      },
+      {
+        heading: "OD Demand",
+        body: [
+          "Use OD demand when the city folder has a compatible OD matrix and centroid node file, or when you explicitly point the generator at those files.",
+          "The View Inputs tab lets you inspect the detected OD files, sample rows, and top centroid-to-centroid flows before launching the build.",
         ],
       },
     ],
@@ -879,17 +1043,32 @@ export default function App() {
     document.documentElement.style.setProperty("--brand-border", branding.colors.border);
   }, [branding]);
 
-  const refreshConfigs = async () => {
-    const configData = await api.get<{ configs: Array<{ path: string }> }>("/api/configs");
+  const refreshConfigMetadata = async () => {
+    const [configData, sumoConfigData, outputFolderData] = await Promise.all([
+      api.get<{ configs: Array<{ path: string }> }>("/api/configs"),
+      api.get<{ sumo_configs: string[] }>("/api/sumo-configs"),
+      api.get<{ output_folders: string[] }>("/api/output-folders"),
+    ]);
     setConfigPaths(configData.configs.map((item) => item.path));
+    setSumoConfigPaths(sumoConfigData.sumo_configs);
+    setOutputFolderPaths(outputFolderData.output_folders);
   };
 
   const refreshCities = async () => {
     const cityData = await api.get<{ cities: CityRecord[] }>("/api/cities");
     setCities(cityData.cities);
     setSelectedCitySlug((current) =>
-      cityData.cities.some((city) => city.slug === current) ? current : cityData.cities[0]?.slug || "",
+      current && cityData.cities.some((city) => city.slug === current) ? current : "",
     );
+    setSelectedGeneratorCitySlug((current) =>
+      current && cityData.cities.some((city) => city.slug === current) ? current : cityData.cities[0]?.slug || "",
+    );
+  };
+
+  const refreshTrafficFeeds = async () => {
+    const feedData = await api.get<{ feeds: TrafficFeedSourceRecord[] }>("/api/traffic-feeds");
+    setTrafficFeedSources(feedData.feeds);
+    setSelectedTrafficFeedCitySlug((current) => pickPreferredTrafficFeedSource(feedData.feeds, current));
   };
 
   const refreshResults = async () => {
@@ -905,11 +1084,12 @@ export default function App() {
       api.get<{ output_folders: string[] }>("/api/output-folders"),
       api.get<{ docs: Array<{ path: string }> }>("/api/docs"),
       api.get<{ cities: CityRecord[] }>("/api/cities"),
+      api.get<{ feeds: TrafficFeedSourceRecord[] }>("/api/traffic-feeds"),
       api.get<Branding>("/api/branding"),
       api.get<{ jobs: JobRecord[] }>("/api/jobs"),
       api.get<{ entries: TreeNode[] }>("/api/results"),
     ])
-      .then(([workflowData, configData, sumoConfigData, outputFolderData, docsData, cityData, brandingData, jobData, resultData]) => {
+      .then(([workflowData, configData, sumoConfigData, outputFolderData, docsData, cityData, feedData, brandingData, jobData, resultData]) => {
         setWorkflowSpecs(workflowData.workflows);
         setConfigPaths(configData.configs.map((item) => item.path));
         setSumoConfigPaths(sumoConfigData.sumo_configs);
@@ -917,7 +1097,17 @@ export default function App() {
         setDocPaths(docsData.docs.map((item) => item.path));
         setCities(cityData.cities);
         setSelectedCitySlug((current) =>
-          cityData.cities.some((city) => city.slug === current) ? current : cityData.cities[0]?.slug || "",
+          current && cityData.cities.some((city) => city.slug === current) ? current : "",
+        );
+        setSelectedGeneratorCitySlug((current) =>
+          current && cityData.cities.some((city) => city.slug === current) ? current : cityData.cities[0]?.slug || "",
+        );
+        setTrafficFeedSources(feedData.feeds);
+        setSelectedTrafficFeedCitySlug((current) => pickPreferredTrafficFeedSource(feedData.feeds, current));
+        setSelectedTrafficFeedTargetCitySlug((current) =>
+          current && cityData.cities.some((city) => city.slug === current)
+            ? current
+            : pickPreferredTrafficFeedSource(feedData.feeds, "") || cityData.cities[0]?.slug || "",
         );
         setBranding(brandingData);
         setJobs(jobData.jobs);
@@ -978,8 +1168,10 @@ export default function App() {
           setSelectedJobId((current) => current ?? data.jobs[0]?.id ?? null);
         })
         .catch(() => undefined);
+      void refreshConfigMetadata().catch(() => undefined);
       void refreshResults().catch(() => undefined);
       void refreshCities().catch(() => undefined);
+      void refreshTrafficFeeds().catch(() => undefined);
     }, 2000);
     return () => window.clearInterval(interval);
   }, []);
@@ -1021,6 +1213,84 @@ export default function App() {
       .then((summary) => setSelectedRunSummary(summary))
       .catch(() => setSelectedRunSummary(null));
   }, [selectedFile]);
+
+  useEffect(() => {
+    if (!selectedTrafficFeedCitySlug) {
+      setSelectedTrafficFeedPreview(null);
+      return;
+    }
+    void api
+      .get<TrafficFeedPreview>(
+        `/api/traffic-feeds/${encodeURIComponent(selectedTrafficFeedCitySlug)}?target_city_slug=${encodeURIComponent(
+          selectedTrafficFeedTargetCitySlug || selectedTrafficFeedCitySlug,
+        )}`,
+      )
+      .then((preview) => {
+        setSelectedTrafficFeedPreview(preview);
+        setSelectedTrafficFeedPath(
+          preview.catalog_datasets[0]?.path
+            ?? preview.download_runs[0]?.path
+            ?? preview.target_exports[0]?.path
+            ?? null,
+        );
+        setSelectedTrafficFeedFile(null);
+      })
+      .catch(() => setSelectedTrafficFeedPreview(null));
+  }, [selectedTrafficFeedCitySlug, selectedTrafficFeedTargetCitySlug]);
+
+  useEffect(() => {
+    if (selectedTrafficFeedTargetCitySlug && cities.some((city) => city.slug === selectedTrafficFeedTargetCitySlug)) {
+      return;
+    }
+    if (selectedTrafficFeedCitySlug && cities.some((city) => city.slug === selectedTrafficFeedCitySlug)) {
+      setSelectedTrafficFeedTargetCitySlug(selectedTrafficFeedCitySlug);
+      return;
+    }
+    if (cities.length > 0) {
+      setSelectedTrafficFeedTargetCitySlug(cities[0].slug);
+    }
+  }, [cities, selectedTrafficFeedCitySlug, selectedTrafficFeedTargetCitySlug]);
+
+  useEffect(() => {
+    if (!selectedTrafficFeedTargetCitySlug) {
+      return;
+    }
+    applyTrafficFeedDefaults(selectedTrafficFeedTargetCitySlug);
+  }, [selectedTrafficFeedTargetCitySlug, govgrTargetCalibrationYear, govgrTargetValidationYear]);
+
+  useEffect(() => {
+    if (!selectedGeneratorCitySlug) {
+      setSelectedGeneratorDemandPreview(null);
+      return;
+    }
+    applyGeneratorCityDefaults(selectedGeneratorCitySlug);
+    void api
+      .get<CityDemandPreview>(`/api/cities/${encodeURIComponent(selectedGeneratorCitySlug)}/demand-preview`)
+      .then((preview) => setSelectedGeneratorDemandPreview(preview))
+      .catch(() => setSelectedGeneratorDemandPreview(null));
+  }, [selectedGeneratorCitySlug]);
+
+  useEffect(() => {
+    if (!selectedTrafficFeedPath) {
+      setTrafficFeedTree([]);
+      return;
+    }
+    void api
+      .get<{ entries: TreeNode[] }>(`/api/fs/tree?path=${encodeURIComponent(selectedTrafficFeedPath)}&depth=3`)
+      .then((data) => setTrafficFeedTree(data.entries))
+      .catch(() => setTrafficFeedTree([]));
+  }, [selectedTrafficFeedPath]);
+
+  useEffect(() => {
+    if (!selectedTrafficFeedFile) {
+      setSelectedTrafficFeedFileText("");
+      return;
+    }
+    void fetch(api.textUrl(selectedTrafficFeedFile))
+      .then((response) => response.text())
+      .then((text) => setSelectedTrafficFeedFileText(text))
+      .catch(() => setSelectedTrafficFeedFileText("Unable to load feed file preview."));
+  }, [selectedTrafficFeedFile]);
 
   const updateWorkflowValue = (workflowId: string, name: string, value: unknown) => {
     setWorkflowValues((current) => ({
@@ -1109,7 +1379,7 @@ export default function App() {
         path: computedNewConfigPath,
         source_path: mode === "clone" ? selectedConfigPath : null,
       });
-      await refreshConfigs();
+      await refreshConfigMetadata();
       setSelectedConfigPath(result.path);
       setMessage(mode === "clone" ? `Cloned config into ${result.path}` : `Created clean starter config at ${result.path}`);
     } catch (error) {
@@ -1126,7 +1396,7 @@ export default function App() {
     }
     try {
       await api.post("/api/config/delete", { path: selectedConfigPath });
-      await refreshConfigs();
+      await refreshConfigMetadata();
       const remaining = configPaths.filter((path) => path !== selectedConfigPath);
       setSelectedConfigPath(remaining[0] ?? "");
       setConfigDoc(null);
@@ -1170,6 +1440,59 @@ export default function App() {
     updateWorkflowValue("integration.fetch_osm", "config_out", buildCityConfigPath(citySlug));
   };
 
+  const applyGeneratorCityDefaults = (citySlug: string) => {
+    if (!citySlug) {
+      return;
+    }
+    setWorkflowValues((current) => {
+      const nextValues = { ...current };
+      const generatorValues = { ...(nextValues["generator.city"] ?? {}) };
+      const currentOutDir = generatorValues.out_dir;
+      const currentConfig = generatorValues.config;
+      if (isBlankValue(currentOutDir) || /^data\/cities\/[^/]+\/network\/?$/.test(String(currentOutDir))) {
+        generatorValues.out_dir = buildCityNetworkDir(citySlug);
+      }
+      if (isBlankValue(currentConfig) || /^configs\/[^/]+\/default\.yaml$/.test(String(currentConfig))) {
+        generatorValues.config = buildCityConfigPath(citySlug);
+      }
+      generatorValues.city_slug = citySlug;
+      nextValues["generator.city"] = generatorValues;
+      return nextValues;
+    });
+  };
+
+  const applyTrafficFeedDefaults = (citySlug: string) => {
+    if (!citySlug) {
+      return;
+    }
+    setWorkflowValues((current) => {
+      const nextValues = { ...current };
+      const downloadValues = { ...(nextValues["integration.govgr_download"] ?? {}) };
+      const targetValues = { ...(nextValues["integration.govgr_targets"] ?? {}) };
+      const calibrationYear = Number(targetValues.calibration_year ?? 2025);
+      const validationYear = Number(targetValues.validation_year ?? 2026);
+      const nextDownloadsRoot = buildGovgrDownloadsRoot(citySlug);
+      const nextTargetsOutput = buildGovgrTargetsOutput(citySlug, calibrationYear, validationYear);
+      const currentDownloadOutput = downloadValues.output_dir;
+      const currentDownloadsRoot = targetValues.downloads_root;
+      const currentTargetsOutput = targetValues.output_dir;
+
+      if (isBlankValue(currentDownloadOutput) || isAutoGovgrDownloadsPath(currentDownloadOutput)) {
+        downloadValues.output_dir = nextDownloadsRoot;
+      }
+      if (isBlankValue(currentDownloadsRoot) || isAutoGovgrDownloadsPath(currentDownloadsRoot)) {
+        targetValues.downloads_root = nextDownloadsRoot;
+      }
+      if (isBlankValue(currentTargetsOutput) || isAutoGovgrTargetsPath(currentTargetsOutput)) {
+        targetValues.output_dir = nextTargetsOutput;
+      }
+
+      nextValues["integration.govgr_download"] = downloadValues;
+      nextValues["integration.govgr_targets"] = targetValues;
+      return nextValues;
+    });
+  };
+
   const toggleWaySelection = (featureId: string, additive: boolean) => {
     setSelectedWayIds((current) => {
       if (!additive) {
@@ -1179,9 +1502,23 @@ export default function App() {
     });
   };
 
+  const selectWaysInBounds = (bounds: [number, number, number, number], additive: boolean) => {
+    const matched = (selectedCityPreview?.features ?? []).filter((feature) =>
+      feature.coords.some(([lat, lon]) => lat >= bounds[0] && lat <= bounds[2] && lon >= bounds[1] && lon <= bounds[3]),
+    );
+    const matchedIds = matched.map((feature) => feature.id);
+    setSelectedWayIds((current) => {
+      if (!additive) {
+        return matchedIds;
+      }
+      return Array.from(new Set([...current, ...matchedIds]));
+    });
+    setMessage(`Selected ${matchedIds.length} road segment(s) from the map box`);
+  };
+
   const selectWaysByFilters = () => {
     const matched = (selectedCityPreview?.features ?? []).filter((feature) => {
-      if (bulkRoadGroup !== "any" && classifyRoadGroup(feature.road_type) !== bulkRoadGroup) {
+      if (bulkRoadGroups.length > 0 && !bulkRoadGroups.includes(classifyRoadGroup(feature.road_type))) {
         return false;
       }
       if (
@@ -1307,6 +1644,34 @@ export default function App() {
       setMessage(`Updated ${result.updated_way_count} road segment(s) to ${Number(bulkSpeedValue)} km/h`);
     } catch (error) {
       setMessage(`Speed limit update failed: ${String(error)}`);
+    }
+  };
+
+  const deleteSelectedWays = async () => {
+    if (!selectedCitySlug) {
+      setMessage("Select an extracted city first");
+      return;
+    }
+    if (selectedWayIds.length === 0) {
+      setMessage("Select one or more road segments first");
+      return;
+    }
+    if (!window.confirm(`Delete ${selectedWayIds.length} selected road segment(s) from the raw OSM extract?`)) {
+      return;
+    }
+    try {
+      const result = await api.post<{ deleted_way_count: number }>(
+        `/api/cities/${encodeURIComponent(selectedCitySlug)}/delete-ways`,
+        { way_ids: selectedWayIds },
+      );
+      const preview = await api.get<CityNetworkPreview>(
+        `/api/cities/${encodeURIComponent(selectedCitySlug)}/network-preview`,
+      );
+      setSelectedCityPreview(preview);
+      setSelectedWayIds([]);
+      setMessage(`Deleted ${result.deleted_way_count} road segment(s) from the OSM extract`);
+    } catch (error) {
+      setMessage(`Road deletion failed: ${String(error)}`);
     }
   };
 
@@ -1470,6 +1835,7 @@ export default function App() {
               onChange={(name, value) => updateWorkflowValue(workflow.id, name, value)}
               onLaunch={() => void launchWorkflow(workflow.id)}
               configPaths={configPaths}
+              cities={cities}
             />
           ))}
         </div>
@@ -1477,8 +1843,193 @@ export default function App() {
     </section>
   );
 
+  const renderGeneratorViewSection = () => (
+    <>
+      <div className="section-header">
+        <div>
+          <h2>Generator Inputs</h2>
+          <p className="muted">Inspect OD support files before generating routes. When no OD files exist for a city, the generic generator can still run with random demand.</p>
+        </div>
+        <span className="chip">{selectedGeneratorDemandPreview?.supported ? "OD ready" : "Random only"}</span>
+      </div>
+      <div className="generator-view-stack">
+        <div className="structured-fields-grid">
+          <label className="field">
+            <div className="field-heading">
+              <span>City</span>
+            </div>
+            <select value={selectedGeneratorCitySlug} onChange={(event) => setSelectedGeneratorCitySlug(event.target.value)}>
+              <option value="">Select extracted city</option>
+              {cities.map((city) => (
+                <option key={city.slug} value={city.slug}>
+                  {city.display_name}
+                </option>
+              ))}
+            </select>
+            <small>Choose the city folder whose OD and node support files you want to inspect.</small>
+          </label>
+          <div className="workflow-note-box">
+            <strong>Detected Inputs</strong>
+            <p>
+              OD file: {selectedGeneratorDemandPreview?.od_file ?? "Not found"}
+              <br />
+              Node file: {selectedGeneratorDemandPreview?.node_file ?? "Not found"}
+            </p>
+          </div>
+        </div>
+
+        {selectedGeneratorDemandPreview?.issues.length ? (
+          <div className="workflow-note-grid">
+            {selectedGeneratorDemandPreview.issues.map((issue) => (
+              <div key={issue} className="workflow-note-box danger-note">
+                <strong>Input Issue</strong>
+                <p>{issue}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {selectedGeneratorDemandPreview?.summary ? (
+          <div className="network-stat-grid">
+            <div className="summary-card">
+              <span>OD Rows</span>
+              <strong>{selectedGeneratorDemandPreview.summary.od_row_count.toLocaleString()}</strong>
+            </div>
+            <div className="summary-card">
+              <span>Zones</span>
+              <strong>{selectedGeneratorDemandPreview.summary.zone_count.toLocaleString()}</strong>
+            </div>
+            <div className="summary-card">
+              <span>Total OD</span>
+              <strong>{formatNumber(selectedGeneratorDemandPreview.summary.total_od, 0)}</strong>
+            </div>
+            <div className="summary-card">
+              <span>Top Mapped Flows</span>
+              <strong>{selectedGeneratorDemandPreview.summary.mapped_top_flow_count.toLocaleString()}</strong>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="generator-view-grid">
+          <section className="structured-group-card">
+            <h4>OD Sample Table</h4>
+            {selectedGeneratorDemandPreview?.sample_rows.length ? (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Origin</th>
+                      <th>Destination</th>
+                      <th>OD Number</th>
+                      <th>Intrazonal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedGeneratorDemandPreview.sample_rows.map((row, index) => (
+                      <tr key={`${row.origin}-${row.destination}-${index}`}>
+                        <td>{row.origin}</td>
+                        <td>{row.destination}</td>
+                        <td>{formatNumber(row.od_number, 2)}</td>
+                        <td>{row.intrazonal ? "Yes" : "No"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="muted">No OD rows are available for the selected city.</p>
+            )}
+          </section>
+          <ODDemandMap preview={selectedGeneratorDemandPreview} />
+        </div>
+      </div>
+    </>
+  );
+
+  const renderGeneratorsSection = () => (
+    <section className="workflow-stack">
+      <article className="panel">
+        <div className="section-header">
+          <div>
+            <h2>Generators</h2>
+            <p className="muted">Use the generic city generator for extracted locations under data/cities/, and keep the benchmark/synthetic generators separate for Sioux Falls and Riverside.</p>
+          </div>
+          <div className="button-row">
+            <span className="chip">{generatorWorkflows.length} workflows</span>
+            <button className="secondary-button" onClick={() => setInfoModal(generatorInfo)}>
+              About This Page
+            </button>
+          </div>
+        </div>
+        <div className="subtab-row" aria-label="Generator tabs">
+          <button className={`subtab-button ${generatorSubtab === "build" ? "is-active" : ""}`} onClick={() => setGeneratorSubtab("build")}>
+            Build
+          </button>
+          <button className={`subtab-button ${generatorSubtab === "view" ? "is-active" : ""}`} onClick={() => setGeneratorSubtab("view")}>
+            View Inputs
+          </button>
+        </div>
+        {generatorSubtab === "build" ? (
+          <>
+            <div className="workflow-note-grid">
+              <div className="workflow-note-box">
+                <strong>Random Demand Logic</strong>
+                <p>
+                  Lower `Random Route Period` means more requested departures. With the current settings, the rough requested trip count is about {estimatedRandomTrips?.toLocaleString() ?? "n/a"} over {cityGeneratorEnd.toLocaleString()} seconds.
+                </p>
+              </div>
+              <div className="workflow-note-box">
+                <strong>Why Network Size Still Matters</strong>
+                <p>
+                  The request rate comes from time and period, but the final generated count and simultaneous vehicles still depend on connectivity, valid routes, and average trip length. Larger or better-connected networks often keep more vehicles active for the same period.
+                </p>
+              </div>
+              <div className={`workflow-note-box ${selectedGeneratorDemandPreview?.supported ? "" : "danger-note"}`}>
+                <strong>Current City Input Status</strong>
+                <p>
+                  {selectedGeneratorDemandPreview?.supported
+                    ? `OD support files are available for ${selectedGeneratorCitySlug || "the selected city"}. You can use the View Inputs tab to inspect them before switching demand source to OD.`
+                    : `No complete OD support set is currently detected for ${selectedGeneratorCitySlug || "the selected city"}, so random demand is the practical default unless you provide OD and node files explicitly.`}
+                </p>
+              </div>
+            </div>
+            <div className="workflow-grid">
+              {generatorWorkflows.map((workflow) => (
+                <WorkflowCard
+                  key={workflow.id}
+                  workflow={workflow}
+                  values={workflowValues[workflow.id] ?? {}}
+                  onChange={(name, value) => {
+                    updateWorkflowValue(workflow.id, name, value);
+                    if (workflow.id === "generator.city" && name === "city_slug" && typeof value === "string") {
+                      setSelectedGeneratorCitySlug(value);
+                      applyGeneratorCityDefaults(value);
+                    }
+                  }}
+                  onLaunch={() => void launchWorkflow(workflow.id)}
+                  configPaths={configPaths}
+                  cities={cities}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          renderGeneratorViewSection()
+        )}
+      </article>
+    </section>
+  );
+
   const osmWorkflow = workflowsById["integration.fetch_osm"];
   const osmValues = workflowValues["integration.fetch_osm"] ?? {};
+  const cityGeneratorValues = workflowValues["generator.city"] ?? {};
+  const cityGeneratorDemandSource = String(cityGeneratorValues.demand_source ?? "random");
+  const cityGeneratorPeriod = Number(cityGeneratorValues.period ?? 1.5);
+  const cityGeneratorEnd = Number(cityGeneratorValues.end ?? 7200);
+  const estimatedRandomTrips =
+    cityGeneratorDemandSource === "random" && cityGeneratorPeriod > 0
+      ? Math.round(cityGeneratorEnd / cityGeneratorPeriod)
+      : null;
   const metricsStats = selectedRunSummary?.metrics.stats;
   const metricsRows = selectedRunSummary?.metrics.rows ?? [];
   const simulationNetworkSummary =
@@ -1768,6 +2319,7 @@ export default function App() {
                                     }
                                   }}
                                   configPaths={configPaths}
+                                  cities={cities}
                                 />
                               );
                             })}
@@ -1781,7 +2333,7 @@ export default function App() {
                         <section className="structured-group-card">
                           <h4>Extraction Settings</h4>
                           <div className="structured-fields-grid">
-                            {["pad_km", "all_features", "bootstrap_layout", "bootstrap_config", "email"].map((name) => {
+                            {["pad_km", "road_types", "all_features", "bootstrap_layout", "bootstrap_config", "email"].map((name) => {
                               const field = osmFieldsByName[name];
                               if (!field) {
                                 return null;
@@ -1793,14 +2345,19 @@ export default function App() {
                                   value={osmValues[name]}
                                   onChange={(next) => updateWorkflowValue("integration.fetch_osm", name, next)}
                                   configPaths={configPaths}
+                                  cities={cities}
                                 />
                               );
                             })}
                           </div>
                           <div className="workflow-note-grid">
                             <div className="workflow-note-box">
-                              <strong>Roads-only vs All Features</strong>
-                              <p>Keep `All Features` off for normal SAS work. It keeps the extract smaller and focused on the road network. Enable it only if later tooling truly needs non-road OSM objects.</p>
+                              <strong>Road Type Filter</strong>
+                              <p>The default road-type set keeps the highway classes that are usually useful for SUMO network generation, such as arterials, local streets, and service roads. Pedestrian-only classes stay out by default to keep the extract focused and lighter.</p>
+                            </div>
+                            <div className="workflow-note-box">
+                              <strong>All Features Override</strong>
+                              <p>Keep `All Features` off for normal SAS work. Turn it on only when you explicitly want the full raw OSM node, way, and relation set and do not want the road-type filter to apply.</p>
                             </div>
                             <div className="workflow-note-box">
                               <strong>Endpoint Defaults</strong>
@@ -1823,6 +2380,7 @@ export default function App() {
                                   value={osmValues[name]}
                                   onChange={(next) => updateWorkflowValue("integration.fetch_osm", name, next)}
                                   configPaths={configPaths}
+                                  cities={cities}
                                 />
                               );
                             })}
@@ -1917,7 +2475,7 @@ export default function App() {
                           <div className="workflow-head">
                             <div>
                               <h3>Extracted Cities</h3>
-                              <p className="workflow-description">Choose an already extracted city and inspect or clean up its OSM speed-limit tags before moving to network generation.</p>
+                              <p className="workflow-description">Choose an already extracted city and inspect or clean up the raw OSM network before moving to network generation.</p>
                             </div>
                           </div>
                           <label className="field">
@@ -1929,6 +2487,7 @@ export default function App() {
                                 setSelectedWayIds([]);
                               }}
                             >
+                              <option value="">Select an extracted city…</option>
                               {cities.map((city) => (
                                 <option key={city.slug} value={city.slug}>
                                   {city.display_name}
@@ -1941,23 +2500,56 @@ export default function App() {
                                 : "No default config found for this city yet."}
                             </small>
                           </label>
+                          {selectedCityPreview ? (
+                            <div className="integration-snapshot-grid">
+                              <div className="summary-card">
+                                <span>Road Segments</span>
+                                <strong>{selectedCityPreview.stats.feature_count.toLocaleString()}</strong>
+                              </div>
+                              <div className="summary-card">
+                                <span>Speed Tagged</span>
+                                <strong>{selectedCityPreview.stats.with_speed_limit.toLocaleString()}</strong>
+                              </div>
+                              <div className="summary-card">
+                                <span>Signalized Nodes</span>
+                                <strong>{selectedCityPreview.stats.signalized_intersection_count.toLocaleString()}</strong>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="muted">The map preview stays unloaded until you choose a city from the dropdown.</p>
+                          )}
                         </section>
                         <section className="structured-group-card">
                           <h4>Select Roads</h4>
                           <div className="structured-fields-grid">
                             <label className="field">
                               <span>Road Group</span>
-                              <select value={bulkRoadGroup} onChange={(event) => setBulkRoadGroup(event.target.value)}>
-                                {extractedRoadGroups.map((option) => (
-                                  <option key={option} value={option}>
-                                    {option === "any"
-                                      ? "Any"
-                                      : option === "local_other"
-                                        ? "Local / Other"
-                                        : option.charAt(0).toUpperCase() + option.slice(1)}
-                                  </option>
-                                ))}
-                              </select>
+                              <div className="choice-list-grid">
+                                {extractedRoadGroups.map((option) => {
+                                  const selected = bulkRoadGroups.includes(option);
+                                  return (
+                                    <label key={option} className={`choice-pill ${selected ? "is-selected" : ""}`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={selected}
+                                        onChange={(event) => {
+                                          if (event.target.checked) {
+                                            setBulkRoadGroups((current) => [...current, option]);
+                                          } else {
+                                            setBulkRoadGroups((current) => current.filter((item) => item !== option));
+                                          }
+                                        }}
+                                      />
+                                      <span>{humanizeRoadGroup(option)}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              <small>
+                                {bulkRoadGroups.length > 0
+                                  ? `Filtering by: ${bulkRoadGroups.map(humanizeRoadGroup).join(", ")}`
+                                  : "No road-group filter applied."}
+                              </small>
                             </label>
                             <label className="field">
                               <span>Current Speed</span>
@@ -1988,18 +2580,24 @@ export default function App() {
                               </select>
                             </label>
                           </div>
-                          <div className="button-row">
+                          <div className="filter-action-row">
                             <button className="secondary-button" onClick={selectWaysByFilters}>
                               Select Matches
+                            </button>
+                            <button className="secondary-button" onClick={() => setBulkRoadGroups([])}>
+                              Reset Road Groups
                             </button>
                             <button className="secondary-button" onClick={expandSelectionToNamedRoad} disabled={selectedWayIds.length === 0}>
                               Select Connected Named Road
                             </button>
-                            <button className="secondary-button" onClick={() => setSelectedWayIds([])}>
+                            <button className="secondary-button" onClick={() => setNetworkSelectionMode(networkSelectionMode === "box" ? "click" : "box")}>
+                              {networkSelectionMode === "box" ? "Exit Box Select" : "Enter Box Select"}
+                            </button>
+                            <button className="secondary-button" onClick={() => setSelectedWayIds([])} disabled={selectedWayIds.length === 0}>
                               Clear Selection
                             </button>
                           </div>
-                          <p className="muted">Use the filters for bulk selection, click a road on the map, hold Shift to add or remove multiple roads, or expand the current selection to the full connected road when the segments share the same name.</p>
+                          <p className="muted">Use the filters for bulk selection, click a road on the map, hold Shift to add or remove multiple roads, drag a box in `Box Select` mode without moving the map, or expand the current selection to the full connected road when the segments share the same name.</p>
                         </section>
                         <section className="structured-group-card">
                           <h4>Edit Speed Limits</h4>
@@ -2025,10 +2623,17 @@ export default function App() {
                             <button className="primary-button" onClick={() => void applySpeedLimitUpdate()}>
                               Apply To Selected
                             </button>
+                            <button className="secondary-button danger-button" onClick={() => void deleteSelectedWays()} disabled={selectedWayIds.length === 0}>
+                              Delete Selected
+                            </button>
                           </div>
                           <div className="workflow-note-box">
                             <strong>Typical Cleanup Pattern</strong>
                             <p>Example: choose `Road Group = Local / Other` and `Current Speed = Unknown`, click `Select Matches`, then set a default speed and apply it to the selected roads.</p>
+                          </div>
+                          <div className="workflow-note-box danger-note">
+                            <strong>Deletion Is Destructive</strong>
+                            <p>Deleting selected road segments removes those OSM ways from the raw city extract. Use this when you intentionally want to exclude links before network generation.</p>
                           </div>
                         </section>
                       </section>
@@ -2037,63 +2642,392 @@ export default function App() {
                         preview={selectedCityPreview}
                         mode={networkViewMode}
                         onModeChange={setNetworkViewMode}
+                        selectionMode={networkSelectionMode}
+                        onSelectionModeChange={setNetworkSelectionMode}
                         selectedWayIds={selectedWayIds}
                         onFeatureClick={toggleWaySelection}
+                        onBoxSelect={selectWaysInBounds}
                       />
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="workflow-stack">
-                  <section className="workflow-card">
-                    <h3>Traffic Feeds</h3>
-                    <p className="muted">
-                      The feed structure is intentionally split into its own tab so future cities can be added under the same pattern. At the moment, the active operational source remains Thessaloniki.
-                    </p>
-                  </section>
-                  <section className="structured-group-card">
-                    <h4>Thessaloniki</h4>
-                    <p className="muted">
-                      The current gov.gr integration in this repository is backed by IMET/CERTH Thessaloniki feeds. It is appropriate for Thessaloniki today; other Greek cities need a new source mapping before this becomes generic.
-                    </p>
-                    <div className="workflow-grid">
-                      {["integration.govgr_download", "integration.govgr_targets"].map((id) => {
-                        const workflow = workflowsById[id];
-                        if (!workflow) {
-                          return null;
-                        }
-                        return (
-                          <WorkflowCard
-                            key={workflow.id}
-                            workflow={workflow}
-                            values={workflowValues[workflow.id] ?? {}}
-                            onChange={(name, value) => updateWorkflowValue(workflow.id, name, value)}
-                            onLaunch={() => void launchWorkflow(workflow.id)}
-                            configPaths={configPaths}
-                            disabled={!isThessalonikiSelection}
-                            extraNote={
-                              isThessalonikiSelection
-                                ? "Current feed/source alignment matches Thessaloniki."
-                                : "Select Thessaloniki in the OSM tab before launching this workflow."
+                  <div className="subtab-row" aria-label="Traffic feed tabs">
+                    <button className={`subtab-button ${feedSubtab === "new" ? "is-active" : ""}`} onClick={() => setFeedSubtab("new")}>
+                      New Feed Pull
+                    </button>
+                    <button className={`subtab-button ${feedSubtab === "exported" ? "is-active" : ""}`} onClick={() => setFeedSubtab("exported")}>
+                      Exported Feeds
+                    </button>
+                  </div>
+
+                  {feedSubtab === "new" ? (
+                    <>
+                      <section className="workflow-card">
+                        <div className="workflow-head">
+                          <div>
+                            <h3>Feed Source Setup</h3>
+                            <p className="workflow-description">
+                              The current operational feed integration is the Thessaloniki gov.gr source. The page is now structured around provider workflow slots so additional city adapters can be added later without changing the operator flow.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="structured-fields-grid">
+                          <label className="field">
+                            <span>City Feed Integration</span>
+                            <select
+                              value={selectedTrafficFeedCitySlug}
+                              onChange={(event) => {
+                                setSelectedTrafficFeedCitySlug(event.target.value);
+                                if (!selectedTrafficFeedTargetCitySlug) {
+                                  setSelectedTrafficFeedTargetCitySlug(event.target.value);
+                                  applyTrafficFeedDefaults(event.target.value);
+                                }
+                              }}
+                            >
+                              {trafficFeedSources.map((source) => (
+                                <option key={source.slug} value={source.slug}>
+                                  {source.display_name}
+                                </option>
+                              ))}
+                            </select>
+                            <small>
+                              {selectedTrafficFeedSource
+                                ? `${selectedTrafficFeedSource.provider.toUpperCase()} · ${selectedTrafficFeedSource.provider_root}`
+                                : "No feed integrations discovered yet."}
+                            </small>
+                          </label>
+                          <label className="field">
+                            <span>Target Network / Output City</span>
+                            <select
+                              value={selectedTrafficFeedTargetCitySlug}
+                              onChange={(event) => {
+                                setSelectedTrafficFeedTargetCitySlug(event.target.value);
+                                applyTrafficFeedDefaults(event.target.value);
+                              }}
+                            >
+                              {cities.map((city) => (
+                                <option key={city.slug} value={city.slug}>
+                                  {city.display_name}
+                                </option>
+                              ))}
+                            </select>
+                            <small>
+                              {selectedTrafficFeedTargetCity
+                                ? `Feed outputs will be written under data/cities/${selectedTrafficFeedTargetCity.slug}/govgr/`
+                                : "Choose the city folder whose network/config this feed should support."}
+                            </small>
+                          </label>
+                        </div>
+                        <div className="chip-list">
+                          <span className="chip">Published catalogs: {selectedTrafficFeedSource?.catalog_count ?? 0}</span>
+                          <span className="chip">Downloaded runs: {selectedTrafficFeedSource?.download_run_count ?? 0}</span>
+                          <span className="chip">Target exports: {selectedTrafficFeedSource?.target_export_count ?? 0}</span>
+                        </div>
+                        {selectedTrafficFeedSource ? (
+                          <div className="workflow-note-box">
+                            <strong>{selectedTrafficFeedSource.provider_label}</strong>
+                            <p>{selectedTrafficFeedSource.coverage_note}</p>
+                          </div>
+                        ) : null}
+                        {selectedTrafficFeedSource && selectedTrafficFeedTargetCitySlug && selectedTrafficFeedTargetCitySlug !== selectedTrafficFeedSource.slug ? (
+                          <div className="workflow-note-box danger-note">
+                            <strong>Cross-Network Feed Reuse</strong>
+                            <p>
+                              You are using the {selectedTrafficFeedSource.display_name} feed workflow for a different target city folder. This is allowed for alternate network variants such as smaller or metropolitan Thessaloniki extracts, but you should validate the spatial and operational fit carefully.
+                            </p>
+                          </div>
+                        ) : null}
+                      </section>
+                      <section className="structured-group-card">
+                        <h4>Provider Workflow Slots</h4>
+                        <div className="provider-slot-grid">
+                          {(selectedTrafficFeedSource?.workflow_slots ?? []).map((slot) => (
+                            <article key={slot.id} className="provider-slot-card">
+                              <header>
+                                <h4>{slot.title}</h4>
+                                <span className={`status-chip ${slot.status}`}>{workflowSlotStatusLabel(slot.status)}</span>
+                              </header>
+                              <p>{slot.description}</p>
+                            </article>
+                          ))}
+                        </div>
+                        <div className="workflow-note-grid">
+                          <div className="workflow-note-box">
+                            <strong>Current Scope</strong>
+                            <p>
+                              Today the downloader and target builder are aligned to Thessaloniki IMET/CERTH feeds. The GUI keeps the city selector anyway so the same operator pattern can be reused when another feed source is added.
+                            </p>
+                          </div>
+                          <div className="workflow-note-box">
+                            <strong>Export Layout</strong>
+                            <p>
+                              Downloader runs normally write timestamped folders under `data/cities/&lt;city&gt;/govgr/downloads/`, unless you override the output path with a more specific run folder. Target-building writes scenario folders under `data/cities/&lt;city&gt;/govgr/targets/`.
+                            </p>
+                          </div>
+                        </div>
+                      </section>
+                      <section className="structured-group-card">
+                        <h4>Thessaloniki gov.gr Workflows</h4>
+                        <p className="muted">
+                          Use the downloader first for realtime and/or historical pulls, then build calibration and validation targets from the historical exports.
+                        </p>
+                        <div className="workflow-grid">
+                          {["integration.govgr_download", "integration.govgr_targets"].map((id) => {
+                            const workflow = workflowsById[id];
+                            if (!workflow) {
+                              return null;
                             }
-                          />
-                        );
-                      })}
+                            return (
+                              <WorkflowCard
+                                key={workflow.id}
+                                workflow={workflow}
+                                values={workflowValues[workflow.id] ?? {}}
+                                onChange={(name, value) => updateWorkflowValue(workflow.id, name, value)}
+                                onLaunch={() => void launchWorkflow(workflow.id)}
+                                configPaths={configPaths}
+                                cities={cities}
+                                disabled={selectedTrafficFeedSource?.provider !== "govgr" || !selectedTrafficFeedTargetCitySlug}
+                                extraNote={
+                                  selectedTrafficFeedSource?.provider === "govgr"
+                                    ? selectedTrafficFeedTargetCitySlug === selectedTrafficFeedSource.slug
+                                      ? "This provider currently matches the selected target city directly."
+                                      : "This provider is currently Thessaloniki-specific, but it can still be used for alternate target-network variants with caution."
+                                    : "This workflow is not ready for the selected provider yet."
+                                }
+                              />
+                            );
+                          })}
+                        </div>
+                      </section>
+                    </>
+                  ) : (
+                    <div className="feed-workspace">
+                      <section className="workflow-stack feed-left-stack">
+                        <section className="workflow-card">
+                          <div className="workflow-head">
+                            <div>
+                              <h3>Feed Exports</h3>
+                              <p className="workflow-description">
+                                Inspect the current feed catalogs from the selected source integration, then compare them with the download runs and target exports stored under the selected target city folder.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="structured-fields-grid">
+                            <label className="field">
+                              <span>Catalog Source Integration</span>
+                              <select
+                                value={selectedTrafficFeedCitySlug}
+                                onChange={(event) => {
+                                  setSelectedTrafficFeedCitySlug(event.target.value);
+                                  setSelectedTrafficFeedPath(null);
+                                  setSelectedTrafficFeedFile(null);
+                                }}
+                              >
+                                {trafficFeedSources.map((source) => (
+                                  <option key={source.slug} value={source.slug}>
+                                    {source.display_name}
+                                  </option>
+                                ))}
+                              </select>
+                              <small>
+                                {selectedTrafficFeedPreview
+                                  ? `${selectedTrafficFeedPreview.source.provider_root}`
+                                  : "Select a discovered feed source to inspect its published catalog."}
+                              </small>
+                            </label>
+                            <label className="field">
+                              <span>Target City Exports</span>
+                              <select
+                                value={selectedTrafficFeedTargetCitySlug}
+                                onChange={(event) => {
+                                  setSelectedTrafficFeedTargetCitySlug(event.target.value);
+                                  setSelectedTrafficFeedPath(null);
+                                  setSelectedTrafficFeedFile(null);
+                                }}
+                              >
+                                {cities.map((city) => (
+                                  <option key={city.slug} value={city.slug}>
+                                    {city.display_name}
+                                  </option>
+                                ))}
+                              </select>
+                              <small>
+                                {selectedTrafficFeedPreview
+                                  ? selectedTrafficFeedPreview.target_city.provider_root
+                                  : "Select the city folder whose download runs and target exports you want to inspect."}
+                              </small>
+                            </label>
+                          </div>
+                          {selectedTrafficFeedPreview ? (
+                            <div className="workflow-note-box">
+                              <strong>{selectedTrafficFeedPreview.source.provider_label}</strong>
+                              <p>{selectedTrafficFeedPreview.source.coverage_note}</p>
+                            </div>
+                          ) : null}
+                          {selectedTrafficFeedPreview && selectedTrafficFeedPreview.source.slug !== selectedTrafficFeedPreview.target_city.slug ? (
+                            <div className="workflow-note-box danger-note">
+                              <strong>Source / Target Split</strong>
+                              <p>
+                                Published catalog bundles are being read from {selectedTrafficFeedPreview.source.display_name}, while download runs, target exports, and the alignment map are being inspected against {selectedTrafficFeedPreview.target_city.display_name}.
+                              </p>
+                            </div>
+                          ) : null}
+                          <div className="chip-list">
+                            <span className="chip">Catalogs: {selectedTrafficFeedPreview?.catalog_datasets.length ?? 0}</span>
+                            <span className="chip">Download runs: {selectedTrafficFeedPreview?.download_runs.length ?? 0}</span>
+                            <span className="chip">Target exports: {selectedTrafficFeedPreview?.target_exports.length ?? 0}</span>
+                          </div>
+                        </section>
+
+                        <section className="structured-group-card">
+                          <h4>Published Feed Catalog</h4>
+                          {selectedTrafficFeedPreview?.catalog_datasets.length ? (
+                            <div className="feed-card-list">
+                              {selectedTrafficFeedPreview.catalog_datasets.map((dataset) => (
+                                <button
+                                  key={dataset.id}
+                                  type="button"
+                                  className={`feed-summary-card ${selectedTrafficFeedPath === dataset.path ? "is-selected" : ""}`}
+                                  onClick={() => {
+                                    setSelectedTrafficFeedPath(dataset.path);
+                                    setSelectedTrafficFeedFile(dataset.sample_csv?.path ?? dataset.datapackage_path);
+                                  }}
+                                >
+                                  <div className="feed-summary-head">
+                                    <strong>{dataset.title}</strong>
+                                    {dataset.version ? <span className="chip">{dataset.version}</span> : null}
+                                  </div>
+                                  <p>{dataset.description.split("\n")[0]}</p>
+                                  <div className="chip-list">
+                                    <span className="chip">{dataset.resources.length} resources</span>
+                                    <span className="chip">{dataset.sample_csv?.columns.length ?? 0} columns</span>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="muted">No published feed catalog bundles were found under the selected source integration.</p>
+                          )}
+                        </section>
+
+                        <section className="structured-group-card">
+                          <h4>Downloaded Export Runs</h4>
+                          {selectedTrafficFeedPreview?.download_runs.length ? (
+                            <div className="feed-card-list">
+                              {selectedTrafficFeedPreview.download_runs.map((run) => (
+                                <button
+                                  key={run.path}
+                                  type="button"
+                                  className={`feed-summary-card ${selectedTrafficFeedPath === run.path ? "is-selected" : ""}`}
+                                  onClick={() => {
+                                    setSelectedTrafficFeedPath(run.path);
+                                    setSelectedTrafficFeedFile(run.quality_report_path);
+                                  }}
+                                >
+                                  <div className="feed-summary-head">
+                                    <strong>{run.name}</strong>
+                                    <span className="chip">{run.datasets.length} datasets</span>
+                                  </div>
+                                  <p>
+                                    {run.started_utc
+                                      ? `Started ${run.started_utc}`
+                                      : "Timestamped downloader export folder"}
+                                  </p>
+                                  <div className="feed-metric-grid">
+                                    {run.datasets.map((dataset) => (
+                                      <div key={dataset.name}>
+                                        <span>{dataset.name}</span>
+                                        <strong>{dataset.realtime_rows_clean ?? dataset.historical_files_downloaded ?? 0}</strong>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="muted">No downloader run folders were found yet under the selected target city’s `govgr/downloads` root.</p>
+                          )}
+                        </section>
+
+                        <section className="structured-group-card">
+                          <h4>Built Target Exports</h4>
+                          {selectedTrafficFeedPreview?.target_exports.length ? (
+                            <div className="feed-card-list">
+                              {selectedTrafficFeedPreview.target_exports.map((targetExport) => (
+                                <button
+                                  key={targetExport.path}
+                                  type="button"
+                                  className={`feed-summary-card ${selectedTrafficFeedPath === targetExport.path ? "is-selected" : ""}`}
+                                  onClick={() => {
+                                    setSelectedTrafficFeedPath(targetExport.path);
+                                    setSelectedTrafficFeedFile(targetExport.summary_path);
+                                  }}
+                                >
+                                  <div className="feed-summary-head">
+                                    <strong>{targetExport.name}</strong>
+                                    <span className="chip">{targetExport.sets.length} sets</span>
+                                  </div>
+                                  <p>
+                                    Calibration {targetExport.calibration_year ?? "?"} · Validation {targetExport.validation_year ?? "?"}
+                                  </p>
+                                  <div className="chip-list">
+                                    {targetExport.sets.map((setInfo) => (
+                                      <span key={setInfo.name} className="chip">
+                                        {setInfo.name}: {setInfo.files.length} files
+                                      </span>
+                                    ))}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="muted">No target-export folders were found yet under the selected target city’s `govgr/targets` root.</p>
+                          )}
+                        </section>
+                      </section>
+
+                      <section className="workflow-stack feed-right-stack">
+                        <TrafficFeedMap preview={selectedTrafficFeedPreview} />
+                        <section className="workflow-card feed-browser-card">
+                          <div className="workflow-head">
+                            <div>
+                              <h3>Export Browser</h3>
+                              <p className="workflow-description">
+                                Select a catalog, downloader run, or target export on the left to inspect its file tree and preview the generated files here.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="feed-browser-grid">
+                            <div className="feed-browser-tree">
+                              <h4>{selectedTrafficFeedPath ?? "No export selected"}</h4>
+                              {trafficFeedTree.length ? (
+                                <TreeView nodes={trafficFeedTree} onSelect={setSelectedTrafficFeedFile} />
+                              ) : (
+                                <p className="muted">Select an export card on the left to load its files.</p>
+                              )}
+                            </div>
+                            <div className="feed-browser-preview">
+                              <h4>{selectedTrafficFeedFile ?? "File preview"}</h4>
+                              {selectedTrafficFeedFile ? (
+                                <pre className="file-preview">{selectedTrafficFeedFileText || "Loading…"}</pre>
+                              ) : (
+                                <p className="muted">Select a file from the export browser to preview it here.</p>
+                              )}
+                            </div>
+                          </div>
+                        </section>
+                      </section>
                     </div>
-                  </section>
+                  )}
                 </div>
               )}
             </article>
           </section>
         ) : null}
 
-        {view === "generators"
-          ? renderWorkflowSection(
-              activeCategoryWorkflows,
-              "Generators",
-              "Bundled generator workflows remain available, but the page is framed around reusable generation tasks rather than city-specific one-off scripts.",
-            )
-          : null}
+        {view === "generators" ? renderGeneratorsSection() : null}
 
         {view === "simulations"
           ? renderWorkflowSection(

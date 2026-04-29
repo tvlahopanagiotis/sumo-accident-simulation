@@ -12,10 +12,12 @@ from pydantic import BaseModel, Field
 import yaml
 
 from ..app.config import CONFIGS_DIR, PROJECT_ROOT, load_config_raw, prepare_runtime_config, resolve_config_path, save_config, validate_config
-from .cities import build_city_network_preview, discover_cities, update_city_speed_limits
+from .cities import build_city_network_preview, delete_city_ways, discover_cities, update_city_speed_limits
+from .generator_inputs import build_city_demand_preview
 from .jobs import job_manager
 from .locations import search_locations
 from .results import build_run_summary
+from .traffic_feeds import build_traffic_feed_preview, discover_traffic_feeds
 from .workflows import WORKFLOW_SPECS
 
 
@@ -47,6 +49,10 @@ class JobCreatePayload(BaseModel):
 class CitySpeedLimitUpdatePayload(BaseModel):
     way_ids: list[str] = Field(default_factory=list)
     speed_kph: float
+
+
+class CityWaySelectionPayload(BaseModel):
+    way_ids: list[str] = Field(default_factory=list)
 
 
 app = FastAPI(title="SAS GUI API", version="0.2.3")
@@ -344,6 +350,14 @@ def get_city_network_preview(city_slug: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@app.get("/api/cities/{city_slug}/demand-preview")
+def get_city_demand_preview(city_slug: str) -> dict[str, Any]:
+    try:
+        return build_city_demand_preview(city_slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.post("/api/cities/{city_slug}/speed-limits")
 def update_city_speed_limit_tags(city_slug: str, payload: CitySpeedLimitUpdatePayload) -> dict[str, Any]:
     try:
@@ -352,6 +366,32 @@ def update_city_speed_limit_tags(city_slug: str, payload: CitySpeedLimitUpdatePa
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/cities/{city_slug}/delete-ways")
+def delete_city_way_tags(city_slug: str, payload: CityWaySelectionPayload) -> dict[str, Any]:
+    try:
+        return delete_city_ways(city_slug, payload.way_ids)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/traffic-feeds")
+def list_traffic_feeds() -> dict[str, Any]:
+    return {"feeds": discover_traffic_feeds()}
+
+
+@app.get("/api/traffic-feeds/{city_slug}")
+def get_traffic_feed_preview(
+    city_slug: str,
+    target_city_slug: str | None = Query(default=None),
+) -> dict[str, Any]:
+    try:
+        return build_traffic_feed_preview(city_slug, target_city_slug=target_city_slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/api/fs/tree")

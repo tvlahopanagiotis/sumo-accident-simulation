@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import datetime as dt
+
 import pandas as pd
 
-from sas.integrations.govgr_downloader import DATASETS, _clean_dataframe, _extract_archive, _parse_ftp_url
+from sas.integrations.govgr_downloader import DATASETS, _clean_dataframe, _extract_archive, _parse_ftp_url, _resolve_output_root
 
 
 def test_parse_ftp_url() -> None:
@@ -44,3 +46,15 @@ def test_extract_archive_non_archive(tmp_path) -> None:
     out = _extract_archive(p, tmp_path / "out")
     assert out["extracted"] is False
     assert out["error"] == "Not an archive type requiring extraction."
+
+
+def test_resolve_output_root_uses_timestamp_under_downloads_root() -> None:
+    started = dt.datetime(2026, 4, 29, 12, 30, 0, tzinfo=dt.timezone.utc)
+    path = _resolve_output_root("data/cities/thermi/govgr/downloads", started)
+    assert path.as_posix() == "data/cities/thermi/govgr/downloads/2026-04-29_12-30-00"
+
+
+def test_resolve_output_root_preserves_explicit_run_directory() -> None:
+    started = dt.datetime(2026, 4, 29, 12, 30, 0, tzinfo=dt.timezone.utc)
+    path = _resolve_output_root("data/cities/thermi/govgr/downloads/manual_run", started)
+    assert path.as_posix() == "data/cities/thermi/govgr/downloads/manual_run"
