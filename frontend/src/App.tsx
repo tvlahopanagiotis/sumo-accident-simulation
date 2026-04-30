@@ -42,11 +42,12 @@ type BoundaryMode = "locality" | "bbox" | "shape";
 type OSMSubtab = "new" | "extracted";
 type FeedSubtab = "new" | "exported";
 type GeneratorSubtab = "build" | "view";
+type GeneratorFamily = "city" | "benchmark" | "synthetic";
 type InfoModal = {
   title: string;
   sections: Array<{ heading: string; body: string[] }>;
 } | null;
-const APP_VERSION = "0.2.3";
+const APP_VERSION = "0.2.4";
 
 const DEFAULT_BRANDING: Branding = {
   name: "AntifragiCity SAS",
@@ -199,6 +200,16 @@ function workflowSlotStatusLabel(status: string): string {
     return "Planned";
   }
   return status.replace(/_/g, " ");
+}
+
+function classifyGeneratorFamily(workflowId: string): GeneratorFamily {
+  if (workflowId === "generator.city") {
+    return "city";
+  }
+  if (workflowId === "generator.sioux_falls") {
+    return "benchmark";
+  }
+  return "synthetic";
 }
 
 const DOC_LABELS = new Map<string, string>([
@@ -826,6 +837,7 @@ export default function App() {
   const [osmSubtab, setOsmSubtab] = useState<OSMSubtab>("new");
   const [feedSubtab, setFeedSubtab] = useState<FeedSubtab>("new");
   const [generatorSubtab, setGeneratorSubtab] = useState<GeneratorSubtab>("build");
+  const [generatorFamily, setGeneratorFamily] = useState<GeneratorFamily>("city");
   const [cities, setCities] = useState<CityRecord[]>([]);
   const [selectedGeneratorCitySlug, setSelectedGeneratorCitySlug] = useState<string>("");
   const [selectedGeneratorDemandPreview, setSelectedGeneratorDemandPreview] = useState<CityDemandPreview | null>(null);
@@ -894,6 +906,10 @@ export default function App() {
   const generatorWorkflows = useMemo(
     () => activeCategoryWorkflows.filter((workflow) => workflow.category === "Generators"),
     [activeCategoryWorkflows],
+  );
+  const generatorFamilyWorkflows = useMemo(
+    () => generatorWorkflows.filter((workflow) => classifyGeneratorFamily(workflow.id) === generatorFamily),
+    [generatorFamily, generatorWorkflows],
   );
 
   const logoSrc = assetPath(branding.logo_path, "/branding/antifragicity-logo-main-h.svg");
@@ -1012,6 +1028,7 @@ export default function App() {
       {
         heading: "What This Page Does",
         body: [
+          "Use the top generator-family tabs to switch between the generic city builder, the benchmark workflow, and the synthetic workflow.",
           "Use the generic city generator to turn an extracted city .osm into a runnable SUMO network, routes, and .sumocfg inside data/cities/<slug>/network/.",
           "Use Sioux Falls and Riverside separately, because they are benchmark and synthetic cases rather than extracted city folders.",
         ],
@@ -1946,6 +1963,53 @@ export default function App() {
     </>
   );
 
+  const renderGeneratorReferenceSection = (
+    family: GeneratorFamily,
+    workflows: WorkflowSpec[],
+  ) => {
+    const familyLabel =
+      family === "benchmark" ? "Benchmark" : family === "synthetic" ? "Synthetic" : "City";
+    const familyDescription =
+      family === "benchmark"
+        ? "Benchmark generators use compact, controlled reference networks. They are useful for faster experiments and regression checks."
+        : "Synthetic generators build development and demonstration networks that are not tied to an extracted real-city folder."
+    const viewDescription =
+      family === "benchmark"
+        ? "These workflows ship with their own spatial definitions, so there is no city-folder OD preview step. Use the build tab to produce the runnable network artifacts directly."
+        : "These workflows use bundled synthetic definitions rather than extracted city inputs, so the main operator task is to build and then inspect the generated outputs.";
+
+    return (
+      <div className="generator-reference-stack">
+        <section className="structured-group-card">
+          <h4>{familyLabel} Workflow Notes</h4>
+          <div className="workflow-note-grid">
+            <div className="workflow-note-box">
+              <strong>Purpose</strong>
+              <p>{familyDescription}</p>
+            </div>
+            <div className="workflow-note-box">
+              <strong>Inputs</strong>
+              <p>{viewDescription}</p>
+            </div>
+          </div>
+        </section>
+        <div className="workflow-grid">
+          {workflows.map((workflow) => (
+            <WorkflowCard
+              key={workflow.id}
+              workflow={workflow}
+              values={workflowValues[workflow.id] ?? {}}
+              onChange={(name, value) => updateWorkflowValue(workflow.id, name, value)}
+              onLaunch={() => void launchWorkflow(workflow.id)}
+              configPaths={configPaths}
+              cities={cities}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderGeneratorsSection = () => (
     <section className="workflow-stack">
       <article className="panel">
@@ -1961,7 +2025,18 @@ export default function App() {
             </button>
           </div>
         </div>
-        <div className="subtab-row" aria-label="Generator tabs">
+        <div className="secondary-tab-row generator-family-row" aria-label="Generator family tabs">
+          <button className={generatorFamily === "city" ? "tab-active" : ""} onClick={() => setGeneratorFamily("city")}>
+            City
+          </button>
+          <button className={generatorFamily === "benchmark" ? "tab-active" : ""} onClick={() => setGeneratorFamily("benchmark")}>
+            Benchmark
+          </button>
+          <button className={generatorFamily === "synthetic" ? "tab-active" : ""} onClick={() => setGeneratorFamily("synthetic")}>
+            Synthetic
+          </button>
+        </div>
+        <div className="subtab-row generator-subtab-row" aria-label="Generator task tabs">
           <button className={`subtab-button ${generatorSubtab === "build" ? "is-active" : ""}`} onClick={() => setGeneratorSubtab("build")}>
             Build
           </button>
@@ -1969,52 +2044,107 @@ export default function App() {
             View Inputs
           </button>
         </div>
-        {generatorSubtab === "build" ? (
+        {generatorFamily === "city" && generatorSubtab === "build" ? (
           <>
-            <div className="workflow-note-grid">
-              <div className="workflow-note-box">
-                <strong>Random Demand Logic</strong>
-                <p>
-                  Lower `Random Route Period` means more requested departures. With the current settings, the rough requested trip count is about {estimatedRandomTrips?.toLocaleString() ?? "n/a"} over {cityGeneratorEnd.toLocaleString()} seconds.
-                </p>
+            <div className="generator-workspace">
+              <div className="workflow-stack">
+                <section className="structured-group-card">
+                  <h4>City Build Guidance</h4>
+                  <div className="workflow-note-grid">
+                    <div className="workflow-note-box">
+                      <strong>Random Demand Logic</strong>
+                      <p>
+                        Lower `Random Route Period` means more requested departures. With the current settings, the rough requested trip count is about {estimatedRandomTrips?.toLocaleString() ?? "n/a"} over {cityGeneratorEnd.toLocaleString()} seconds.
+                      </p>
+                    </div>
+                    <div className="workflow-note-box">
+                      <strong>Why Network Size Still Matters</strong>
+                      <p>
+                        The request rate comes from time and period, but the final generated count and simultaneous vehicles still depend on connectivity, valid routes, and average trip length. Larger or better-connected networks often keep more vehicles active for the same period.
+                      </p>
+                    </div>
+                    <div className={`workflow-note-box ${selectedGeneratorDemandPreview?.supported ? "" : "danger-note"}`}>
+                      <strong>Current City Input Status</strong>
+                      <p>
+                        {selectedGeneratorDemandPreview?.supported
+                          ? `OD support files are available for ${selectedGeneratorCitySlug || "the selected city"}. You can use the View Inputs tab to inspect them before switching demand source to OD.`
+                          : `No complete OD support set is currently detected for ${selectedGeneratorCitySlug || "the selected city"}, so random demand is the practical default unless you provide OD and node files explicitly.`}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+                <div className="workflow-grid generator-workflow-grid">
+                  {generatorFamilyWorkflows.map((workflow) => (
+                    <WorkflowCard
+                      key={workflow.id}
+                      workflow={workflow}
+                      values={workflowValues[workflow.id] ?? {}}
+                      onChange={(name, value) => {
+                        updateWorkflowValue(workflow.id, name, value);
+                        if (workflow.id === "generator.city" && name === "city_slug" && typeof value === "string") {
+                          setSelectedGeneratorCitySlug(value);
+                          applyGeneratorCityDefaults(value);
+                        }
+                      }}
+                      onLaunch={() => void launchWorkflow(workflow.id)}
+                      configPaths={configPaths}
+                      cities={cities}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="workflow-note-box">
-                <strong>Why Network Size Still Matters</strong>
-                <p>
-                  The request rate comes from time and period, but the final generated count and simultaneous vehicles still depend on connectivity, valid routes, and average trip length. Larger or better-connected networks often keep more vehicles active for the same period.
-                </p>
+              <div className="workflow-stack">
+                <section className="structured-group-card generator-tip-card">
+                  <h4>Build Outputs</h4>
+                  <div className="chip-list">
+                    <span className="chip">`&lt;city&gt;.net.xml`</span>
+                    <span className="chip">`&lt;city&gt;.rou.xml`</span>
+                    <span className="chip">`&lt;city&gt;.sumocfg`</span>
+                  </div>
+                  <p className="muted">
+                    The generic city generator writes back into the selected city&apos;s `network/` folder and can optionally patch `configs/&lt;city&gt;/default.yaml`.
+                  </p>
+                </section>
+                <section className="structured-group-card generator-tip-card">
+                  <h4>When To Use OD</h4>
+                  <p className="muted">
+                    Use OD demand when the city folder has a compatible OD matrix and centroid node file. Otherwise start with random demand for a quick proof-of-concept and calibrate later.
+                  </p>
+                </section>
               </div>
-              <div className={`workflow-note-box ${selectedGeneratorDemandPreview?.supported ? "" : "danger-note"}`}>
-                <strong>Current City Input Status</strong>
-                <p>
-                  {selectedGeneratorDemandPreview?.supported
-                    ? `OD support files are available for ${selectedGeneratorCitySlug || "the selected city"}. You can use the View Inputs tab to inspect them before switching demand source to OD.`
-                    : `No complete OD support set is currently detected for ${selectedGeneratorCitySlug || "the selected city"}, so random demand is the practical default unless you provide OD and node files explicitly.`}
-                </p>
-              </div>
-            </div>
-            <div className="workflow-grid">
-              {generatorWorkflows.map((workflow) => (
-                <WorkflowCard
-                  key={workflow.id}
-                  workflow={workflow}
-                  values={workflowValues[workflow.id] ?? {}}
-                  onChange={(name, value) => {
-                    updateWorkflowValue(workflow.id, name, value);
-                    if (workflow.id === "generator.city" && name === "city_slug" && typeof value === "string") {
-                      setSelectedGeneratorCitySlug(value);
-                      applyGeneratorCityDefaults(value);
-                    }
-                  }}
-                  onLaunch={() => void launchWorkflow(workflow.id)}
-                  configPaths={configPaths}
-                  cities={cities}
-                />
-              ))}
             </div>
           </>
-        ) : (
+        ) : generatorFamily === "city" && generatorSubtab === "view" ? (
           renderGeneratorViewSection()
+        ) : generatorSubtab === "build" ? (
+          renderGeneratorReferenceSection(generatorFamily, generatorFamilyWorkflows)
+        ) : (
+          <div className="generator-reference-stack">
+            <section className="structured-group-card">
+              <h4>{generatorFamily === "benchmark" ? "Benchmark Inputs" : "Synthetic Inputs"}</h4>
+              <p className="muted">
+                {generatorFamily === "benchmark"
+                  ? "Sioux Falls uses bundled benchmark definitions rather than an extracted city folder. Use the build workflow to regenerate its SUMO artifacts, then inspect the output files from Results or Jobs."
+                  : "Riverside uses a bundled synthetic network definition. Use the build workflow to recreate its SUMO artifacts, then inspect the generated files from Results or Jobs."}
+              </p>
+            </section>
+            <section className="structured-group-card">
+              <h4>Available Workflows</h4>
+              <div className="workflow-grid generator-workflow-grid">
+                {generatorFamilyWorkflows.map((workflow) => (
+                  <WorkflowCard
+                    key={workflow.id}
+                    workflow={workflow}
+                    values={workflowValues[workflow.id] ?? {}}
+                    onChange={(name, value) => updateWorkflowValue(workflow.id, name, value)}
+                    onLaunch={() => void launchWorkflow(workflow.id)}
+                    configPaths={configPaths}
+                    cities={cities}
+                  />
+                ))}
+              </div>
+            </section>
+          </div>
         )}
       </article>
     </section>

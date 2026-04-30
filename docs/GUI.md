@@ -211,6 +211,13 @@ Generators now have their own page.
 
 The main real-city path is a generic city generator:
 
+- use the family tabs to switch between:
+  - `City`
+  - `Benchmark`
+  - `Synthetic`
+- use the secondary task tabs to switch between:
+  - `Build`
+  - `View Inputs`
 - choose any extracted city under `data/cities/<slug>/`
 - build the network into that city's `network/` folder
 - generate either:

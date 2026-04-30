@@ -278,6 +278,18 @@ button {
   align-items: start;
 }
 
+.generator-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.28fr) minmax(18rem, 0.72fr);
+  gap: 1.15rem;
+  align-items: start;
+}
+
+.generator-reference-stack {
+  display: grid;
+  gap: 1rem;
+}
+
 .feed-left-stack,
 .feed-right-stack {
   display: grid;
@@ -893,12 +905,28 @@ button {
 .workflow-card,
 .structured-group-card {
   display: grid;
-  gap: 0.95rem;
+  gap: 1rem;
 }
 
 .workflow-card .button-row:last-child,
 .structured-group-card .button-row:last-child {
   margin-top: 0.1rem;
+}
+
+.panel > .section-header {
+  margin-bottom: 0.2rem;
+}
+
+.generator-family-row {
+  margin-top: 0.35rem;
+}
+
+.generator-subtab-row {
+  margin-top: -0.15rem;
+}
+
+.generator-tip-card p {
+  margin: 0;
 }
 
 .network-map-frame {
@@ -1348,6 +1376,7 @@ button {
   .osm-workspace,
   .extracted-workspace,
   .feed-workspace,
+  .generator-workspace,
   .generator-view-grid,
   .results-detail-grid,
   .config-topbar,

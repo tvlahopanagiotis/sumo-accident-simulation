@@ -55,7 +55,7 @@ class CityWaySelectionPayload(BaseModel):
     way_ids: list[str] = Field(default_factory=list)
 
 
-app = FastAPI(title="SAS GUI API", version="0.2.3")
+app = FastAPI(title="SAS GUI API", version="0.2.4")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

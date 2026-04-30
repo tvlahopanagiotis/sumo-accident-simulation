@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 - Reworked the generator layer around a generic city generator that can build
   SUMO assets for any extracted city under `data/cities/<slug>/`, while
   keeping Sioux Falls and Riverside as separate benchmark/synthetic workflows.
+- Reworked the generator page UI into family tabs (`City`, `Benchmark`,
+  `Synthetic`) plus task tabs (`Build`, `View Inputs`) so it follows the same
+  operator flow pattern as the rest of the console.
 - Expanded the generator GUI with more informative field-level help and a
   `View Inputs` tab for OD support-file inspection.
 - Removed duplicated inline help text under workflow fields where the same

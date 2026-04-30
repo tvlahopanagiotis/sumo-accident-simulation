@@ -20,7 +20,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "antifragicity-sas"
-version = "0.2.3"
+version = "0.2.4"
 description = "Probabilistic traffic accident simulator for SUMO with Antifragility Index measurement"
 readme = "README.md"
 license = {text = "MIT"}
