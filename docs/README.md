@@ -3,8 +3,8 @@
 This directory contains the long-form project documentation. The root
 `README.md` is intentionally kept as the high-level overview and quick-start.
 From version `0.3.0`, the visible application name is AntifragiCity SUMA
-(Simulator for Urban Mobility Antifragility). The internal Python package still
-uses the historical `sas` namespace for compatibility.
+(Simulator for Urban Mobility Antifragility). The canonical Python package is
+now `suma`; the old `sas` namespace remains as a compatibility shim.
 
 All links in this directory use repository-relative paths so they render
 correctly on GitHub.

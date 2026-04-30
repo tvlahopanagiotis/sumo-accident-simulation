@@ -1,10 +1,10 @@
 # Data And Integrations Operations
 
-This guide covers the commands that fetch external data and prepare it for SAS.
+This guide covers the commands that fetch external data and prepare it for SUMA.
 
 ## OSM Extracts
 
-### `sas-fetch-osm`
+### `suma-fetch-osm`
 
 Download a raw OSM XML extract for a named place.
 
@@ -24,13 +24,13 @@ What it does:
 Typical usage:
 
 ```bash
-sas-fetch-osm \
+suma-fetch-osm \
   --place "Seattle, Washington, USA" \
   --out data/cities/seattle/bundle/traffic_dataset/02_Seattle/01_Input_data/Seattle.osm
 ```
 
 ```bash
-sas-fetch-osm \
+suma-fetch-osm \
   --place "Athens, Greece" \
   --city-slug athens \
   --pad-km 1.5
@@ -72,21 +72,21 @@ GUI workflow:
 
 ## govgr Downloads
 
-### `sas-fetch-govgr`
+### `suma-fetch-govgr`
 
 Download govgr traffic feeds used for Thessaloniki calibration and validation.
 
 Typical usage:
 
 ```bash
-sas-fetch-govgr \
+suma-fetch-govgr \
   --source realtime \
   --dataset all \
   --output-dir data/cities/thessaloniki/govgr/downloads/realtime_latest
 ```
 
 ```bash
-sas-fetch-govgr \
+suma-fetch-govgr \
   --source historical \
   --dataset speed \
   --historical-pattern _2025 \
@@ -117,14 +117,14 @@ Output-directory behavior:
 
 ## govgr Targets
 
-### `sas-build-govgr-targets`
+### `suma-build-govgr-targets`
 
-Build SAS-ready calibration and validation targets from downloaded govgr data.
+Build SUMA-ready calibration and validation targets from downloaded govgr data.
 
 Typical usage:
 
 ```bash
-sas-build-govgr-targets \
+suma-build-govgr-targets \
   --downloads-root data/cities/thessaloniki/govgr/downloads \
   --calibration-year 2025 \
   --validation-year 2026 \

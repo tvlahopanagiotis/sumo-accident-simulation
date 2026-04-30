@@ -7,7 +7,7 @@ change so it always matches the current on-disk layout.
 
 ## Goals
 
-- Keep reusable code in `src/sas/`.
+- Keep reusable code in `src/suma/`.
 - Keep configuration in `configs/`.
 - Keep large city / benchmark / synthetic assets in `data/`.
 - Keep generated run outputs in `results/`.
@@ -51,16 +51,18 @@ change so it always matches the current on-disk layout.
 │   └── ...
 ├── results/
 ├── src/
+│   ├── suma/
+│   │   ├── analysis/
+│   │   ├── app/
+│   │   ├── core/
+│   │   ├── generators/
+│   │   ├── gui/
+│   │   ├── integrations/
+│   │   ├── simulation/
+│   │   ├── tools/
+│   │   └── visualization/
 │   └── sas/
-│       ├── analysis/
-│       ├── app/
-│       ├── core/
-│       ├── generators/
-│       ├── gui/
-│       ├── integrations/
-│       ├── simulation/
-│       ├── tools/
-│       └── visualization/
+│       └── compatibility shim for legacy imports
 ├── tests/
 ├── Makefile
 ├── README.md
@@ -73,7 +75,7 @@ source.
 
 ## Directory Responsibilities
 
-### `src/sas/`
+### `src/suma/`
 
 Application code only.
 
@@ -164,30 +166,18 @@ After `pip install -e .`:
 - `suma-merge-report`
 - `suma-compare-seattle-real`
 - `suma-gui-api`
-- `sas`
-- `sas-assess`
-- `sas-generate-city`
-- `sas-generate-thessaloniki`
-- `sas-generate-seattle`
-- `sas-generate-sioux-falls`
-- `sas-generate-riverside`
-- `sas-fetch-osm`
-- `sas-fetch-govgr`
-- `sas-build-govgr-targets`
-- `sas-analyse-batch`
-- `sas-sweep`
-- `sas-visualise-sweep`
-- `sas-merge-report`
-- `sas-compare-seattle-real`
+- legacy `sas` / `sas-*` aliases for backward compatibility
 
-The `sas-*` names are retained for compatibility. The visible app and new
-operator-facing command aliases use the SUMA name.
+The `suma` and `suma-*` names are canonical. The `sas` package and command
+aliases are retained only as a transition layer for older scripts.
 
 ## Structure Notes
 
 - There are no root-level Python compatibility wrappers anymore.
+- `src/sas/` is intentionally small and only forwards legacy imports to
+  `src/suma/`.
 - The only root-level markdown file is `README.md`.
-- The GUI spans `src/sas/gui/` and `frontend/`; keep their contracts aligned.
+- The GUI spans `src/suma/gui/` and `frontend/`; keep their contracts aligned.
 - If a new city is added, prefer `data/cities/<city>/...` and
   `configs/<city>/...`.
 - If a new benchmark is added, prefer `data/benchmarks/<name>/...`.

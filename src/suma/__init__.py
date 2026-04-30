@@ -1,0 +1,5 @@
+"""AntifragiCity SUMA application package."""
+
+from .app.config import CONFIGS_DIR, DEFAULT_CONFIG_PATH, PROJECT_ROOT
+
+__all__ = ["PROJECT_ROOT", "CONFIGS_DIR", "DEFAULT_CONFIG_PATH"]

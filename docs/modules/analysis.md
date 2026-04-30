@@ -7,9 +7,9 @@ findings, figures, comparative summaries, and validation artifacts.
 
 The analysis layer is mainly implemented in:
 
-- `src/sas/analysis/`
-- `src/sas/tools/`
-- parts of `src/sas/visualization/`
+- `src/suma/analysis/`
+- `src/suma/tools/`
+- parts of `src/suma/visualization/`
 
 ## What The Analysis Module Does
 

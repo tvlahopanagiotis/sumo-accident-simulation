@@ -5,7 +5,7 @@ the CLI, and what the operator interface currently does.
 
 The GUI ships as:
 
-- a FastAPI backend in `src/sas/gui/`
+- a FastAPI backend in `src/suma/gui/`
 - a React frontend in `frontend/`
 
 The CLI remains fully supported. The GUI is an additional operator interface,
@@ -13,25 +13,25 @@ not a replacement runtime.
 
 ## What It Is
 
-The GUI is an operator console over the same SUMA/SAS workflows that already
+The GUI is an operator console over the same SUMA workflows that already
 power:
 
 - `suma` / `sas`
-- `suma-assess` / `sas-assess`
+- `suma-assess`
 - the generator commands
 - the OSM / gov.gr integration commands
 - the analysis scripts
 
 It does not introduce a separate simulation engine. It orchestrates the same
-Python modules and subprocess flows already used by the CLI. The Python package
-namespace remains `sas` for compatibility, while the product/API branding is now
-SUMA.
+Python modules and subprocess flows already used by the CLI. The canonical
+Python package namespace is `suma`; `sas` remains only as a compatibility shim
+for older scripts.
 
 ## How It Works
 
 ### Backend
 
-The backend lives in `src/sas/gui/`.
+The backend lives in `src/suma/gui/`.
 
 Main pieces:
 
@@ -40,7 +40,7 @@ Main pieces:
   - exposes config, workflow, location-search, result-summary, job, and file APIs
 - `workflows.py`
   - workflow registry used by both the launcher UI and the subprocess runner
-  - maps form values to `python -m sas...` commands
+  - maps form values to `python -m suma...` commands
 - `jobs.py`
   - managed background subprocess execution
   - captures logs, progress hints, return codes, and key output files
@@ -61,22 +61,26 @@ It is a React app that:
 - searches OSM locations and previews extract boundaries
 - launches workflows as managed jobs
 - polls jobs and results
-- renders interactive post-run metrics from existing SUMA/SAS output files
+- renders interactive post-run metrics from existing SUMA output files
 
 ### Shell And Navigation
 
 The operator shell is organized around a consistent dashboard pattern:
 
-- a collapsible left sidebar for the main workflow pages
-- a sticky compact top bar with the product title, running-job summary, and
-  user/settings placeholder
+- a collapsible left sidebar for the main workflow pages, with filled icons and
+  compact labels when collapsed
+- a sticky compact top bar with `Simulator for Urban Mobility Antifragility`,
+  `AntifragiCity`, running-job summary, and user/settings placeholder
 - primary tabs for major page families, such as `OSM Extract` versus
   `Traffic Feeds`
 - secondary tabs for methods or tasks inside a page, such as `New Extract` and
   `Extracted Network`
-- guide buttons with consistent labels: `Page Guide`, `Method Guide`,
-  `Model Guide`, and `Tool Guide`
+- page-level guide buttons shown as small round information buttons next to the
+  page title
+- method, model, and tool guides kept as action buttons on the upper-right of
+  their active page or section
 - responsive card layouts that collapse to one column on smaller screens
+- a mobile bottom navigation bar with icons and short labels
 
 The current settings menu includes a light/dark theme toggle and a disabled
 language selector. These are interface placeholders for later user-preference
@@ -199,7 +203,7 @@ Important current limitation:
 
 - the present gov.gr integration in this repository is still effectively
   Thessaloniki-specific, because it uses the IMET/CERTH Thessaloniki feed
-  sources already wired into `sas.integrations.govgr_downloader`
+  sources already wired into `suma.integrations.govgr_downloader`
 
 The traffic-feed page is now split into:
 
@@ -326,7 +330,7 @@ It now has two layers:
 - an interactive run dashboard when the selected file or folder belongs to a
   valid run directory
 
-The interactive layer parses existing SUMA/SAS outputs such as:
+The interactive layer parses existing SUMA outputs such as:
 
 - `metadata.json`
 - `network_metrics.csv`
@@ -392,7 +396,6 @@ The UI footer now includes:
 
 - AntifragiCity monogram branding
 - SUMA subtitle: Simulator for Urban Mobility Antifragility
-- project navigation links
 - `https://antifragicity.eu`
 - Rhoé as the development partner responsible for SUMA
 - the Horizon Europe funding disclaimer
@@ -442,7 +445,7 @@ suma-gui-api
 or without the entry point:
 
 ```bash
-PYTHONPATH=src python -m sas.gui.app
+PYTHONPATH=src python -m suma.gui.app
 ```
 
 Frontend:

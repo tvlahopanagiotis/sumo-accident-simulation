@@ -46,10 +46,10 @@ This decision affects:
 
 ## 3. Fetch The Base OSM Data
 
-Use `sas-fetch-osm` to get a raw `.osm` file:
+Use `suma-fetch-osm` to get a raw `.osm` file:
 
 ```bash
-sas-fetch-osm \
+suma-fetch-osm \
   --place "Athens, Greece" \
   --city-slug athens \
   --pad-km 1.5
@@ -114,13 +114,13 @@ For most OSM-based cities, use the generic city generator.
 Typical command:
 
 ```bash
-sas-generate-city --city-slug athens --update-config
+suma-generate-city --city-slug athens --update-config
 ```
 
 If OD support files exist under the city folder, you can also use:
 
 ```bash
-sas-generate-city --city-slug seattle --demand-source od --update-config
+suma-generate-city --city-slug seattle --demand-source od --update-config
 ```
 
 What the generator should do:
@@ -183,7 +183,7 @@ For scientific reference runs, keep:
 Use:
 
 ```bash
-sas --config configs/athens/default.yaml
+suma --config configs/athens/default.yaml
 ```
 
 Start with one single run and verify:
@@ -224,7 +224,7 @@ See:
 ## 11. Decide Whether The Location Needs A Dedicated Generator
 
 If the location will be used repeatedly, it is worth adding a real dedicated
-generator under `src/sas/generators/` and a stable config under
+generator under `src/suma/generators/` and a stable config under
 `configs/<city>/`.
 
 If it is only exploratory, the manual or lightly adapted setup may be enough.

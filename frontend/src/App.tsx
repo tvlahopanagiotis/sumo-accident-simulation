@@ -10,6 +10,7 @@ import { api } from "./lib/api";
 import { ODDemandMap } from "./odDemandMap";
 import { AccidentImpactScatter, SeverityDistributionChart, TimeSeriesChart } from "./resultsCharts";
 import { TrafficFeedMap } from "./trafficFeedMap";
+import { GuideButton, Icon, TitleWithInfo, type IconName } from "./ui";
 import type {
   Branding,
   CityDemandPreview,
@@ -75,16 +76,16 @@ const DEFAULT_BRANDING: Branding = {
   copyright: "© AntifragiCity. All rights reserved.",
 };
 
-const VIEW_LABELS: Array<{ key: ViewKey; label: string }> = [
-  { key: "overview", label: "Overview" },
-  { key: "documentation", label: "Documentation" },
-  { key: "configs", label: "Config Studio" },
-  { key: "data_integrations", label: "Data & Integrations" },
-  { key: "generators", label: "OD Generators" },
-  { key: "simulations", label: "Simulations" },
-  { key: "analysis", label: "Analysis" },
-  { key: "results", label: "Results" },
-  { key: "jobs", label: "Jobs" },
+const VIEW_LABELS: Array<{ key: ViewKey; label: string; icon: IconName }> = [
+  { key: "overview", label: "Overview", icon: "overview" },
+  { key: "documentation", label: "Documentation", icon: "docs" },
+  { key: "configs", label: "Config Studio", icon: "config" },
+  { key: "data_integrations", label: "Data & Integrations", icon: "data" },
+  { key: "generators", label: "OD Generators", icon: "generators" },
+  { key: "simulations", label: "Simulations", icon: "simulations" },
+  { key: "analysis", label: "Analysis", icon: "analysis" },
+  { key: "results", label: "Results", icon: "results" },
+  { key: "jobs", label: "Jobs", icon: "jobs" },
 ];
 
 const WORKFLOW_CATEGORY_BY_VIEW: Record<Exclude<ViewKey, "overview" | "configs" | "jobs" | "results" | "documentation">, string> = {
@@ -452,20 +453,6 @@ function HelpBadge({ field }: { field: ConfigFieldSpec | WorkflowField }) {
     return null;
   }
   return <span className="help-badge">?</span>;
-}
-
-function GuideButton({
-  label = "Guide",
-  onClick,
-}: {
-  label?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" className="secondary-button guide-button" onClick={onClick}>
-      {label}
-    </button>
-  );
 }
 
 function hasTooltipContent(field: ConfigFieldSpec | WorkflowField): boolean {
@@ -968,6 +955,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
+  const [headerCompact, setHeaderCompact] = useState<boolean>(false);
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null,
@@ -1360,6 +1348,13 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.toggle("theme-dark", themeMode === "dark");
   }, [themeMode]);
+
+  useEffect(() => {
+    const onScroll = () => setHeaderCompact(window.scrollY > 28);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const refreshConfigMetadata = async () => {
     const [configData, sumoConfigData, outputFolderData, dataOutputFolderData] = await Promise.all([
@@ -2259,13 +2254,13 @@ export default function App() {
         : activeCategoryWorkflows.filter((workflow) => workflow.id === "assessment.run");
     return (
       <section className="workflow-stack">
-        <article className="panel">
-          <div className="section-header">
-            <div>
-              <h2>Simulations</h2>
-              <p className="muted">Run the SUMA simulation engine directly or launch the broader resilience-assessment matrix.</p>
-            </div>
-            <GuideButton label="Method Guide" onClick={() => setInfoModal(simulationInfo)} />
+          <article className="panel">
+            <div className="section-header">
+              <div>
+                <h2>Simulations</h2>
+                <p className="muted">Run the SUMA simulation engine directly or launch the broader resilience-assessment matrix.</p>
+              </div>
+              <GuideButton label="Method Guide" onClick={() => setInfoModal(simulationInfo)} />
           </div>
           <div className="subtab-row" aria-label="Simulation tabs">
             <button className={`subtab-button ${simulationSubtab === "run" ? "is-active" : ""}`} onClick={() => setSimulationSubtab("run")}>
@@ -2299,13 +2294,13 @@ export default function App() {
     const workflows = activeCategoryWorkflows.filter((workflow) => workflowByTab[analysisSubtab].includes(workflow.id));
     return (
       <section className="workflow-stack">
-        <article className="panel">
-          <div className="section-header">
-            <div>
-              <h2>Analysis</h2>
-              <p className="muted">Turn completed runs and batches into comparison tables, sweep figures, reports, and validation checks.</p>
-            </div>
-            <GuideButton label="Tool Guide" onClick={() => setInfoModal(analysisInfo)} />
+          <article className="panel">
+            <div className="section-header">
+              <div>
+                <h2>Analysis</h2>
+                <p className="muted">Turn completed runs and batches into comparison tables, sweep figures, reports, and validation checks.</p>
+              </div>
+              <GuideButton label="Tool Guide" onClick={() => setInfoModal(analysisInfo)} />
           </div>
           <div className="subtab-row" aria-label="Analysis tabs">
             <button className={`subtab-button ${analysisSubtab === "batch" ? "is-active" : ""}`} onClick={() => setAnalysisSubtab("batch")}>
@@ -2545,12 +2540,15 @@ export default function App() {
       <article className="panel">
         <div className="section-header">
           <div>
-            <h2>OD Generators</h2>
+            <h2>
+              <TitleWithInfo label="OD Generators guide" onClick={() => setInfoModal(generatorInfo)}>
+                OD Generators
+              </TitleWithInfo>
+            </h2>
             <p className="muted">Build SUMO demand and network inputs from extracted city folders, benchmark definitions, or synthetic reference networks.</p>
           </div>
           <div className="button-row">
             <span className="chip">{generatorWorkflows.length} workflows</span>
-            <GuideButton label="Page Guide" onClick={() => setInfoModal(generatorInfo)} />
           </div>
         </div>
         <div className="primary-tab-row generator-family-row" aria-label="Generator family tabs">
@@ -2703,31 +2701,34 @@ export default function App() {
       <aside className="sidebar">
         <div className="sidebar-brand-row">
           <img src={sidebarCollapsed ? monogramSrc : logoSrc} alt="AntifragiCity" className={sidebarCollapsed ? "brand-logo brand-logo-compact" : "brand-logo"} />
-          <button
-            type="button"
-            className="icon-button sidebar-toggle"
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-expanded={!sidebarCollapsed}
-            onClick={() => setSidebarCollapsed((current) => !current)}
-          >
-            {sidebarCollapsed ? "›" : "‹"}
-          </button>
         </div>
         <nav className="nav-list">
           {VIEW_LABELS.map((item) => (
             <button key={item.key} className={`nav-item ${view === item.key ? "is-active" : ""}`} onClick={() => setView(item.key)}>
-              <span className="nav-initial">{item.label.slice(0, 1)}</span>
+              <span className="nav-icon">
+                <Icon name={item.icon} />
+              </span>
               <span className="nav-label">{item.label}</span>
             </button>
           ))}
         </nav>
+        <button
+          type="button"
+          className="sidebar-collapse-control"
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!sidebarCollapsed}
+          onClick={() => setSidebarCollapsed((current) => !current)}
+        >
+          <Icon name="menu" />
+          <span>{sidebarCollapsed ? "Expand" : "Collapse"}</span>
+        </button>
       </aside>
 
       <main className="main-panel">
-        <header className="hero">
+        <header className={`hero ${headerCompact ? "is-compact" : ""}`}>
           <div>
-            <p className="eyebrow">Urban Mobility Antifragility Console</p>
-            <h1>{branding.name}</h1>
+            <p className="eyebrow">Simulator For Urban Mobility Antifragility</p>
+            <h1>AntifragiCity</h1>
             <p className="hero-copy">
               Configure city inputs, generate demand and networks, run SUMO-based incident scenarios, and inspect resilience outputs from one operator workspace.
             </p>
@@ -2777,8 +2778,11 @@ export default function App() {
           <section className="content-grid overview-grid">
             <article className="panel metric-panel">
               <div className="section-header">
-                <h2>SUMA Workspace</h2>
-                <GuideButton label="Page Guide" onClick={() => setInfoModal(overviewInfo)} />
+                <h2>
+                  <TitleWithInfo label="Overview guide" onClick={() => setInfoModal(overviewInfo)}>
+                    SUMA Workspace
+                  </TitleWithInfo>
+                </h2>
               </div>
               <div className="metric-list">
                 <div>
@@ -2864,11 +2868,12 @@ export default function App() {
             <article className="panel">
               <div className="section-header">
                 <div>
-                  <h2>Config Studio</h2>
+                  <h2>
+                    <TitleWithInfo label="Config Studio guide" onClick={() => setInfoModal(configStudioInfo)}>
+                      Config Studio
+                    </TitleWithInfo>
+                  </h2>
                   <p className="muted">Create new scenario files from a clean starter template or from an existing config, then edit them in structured or raw YAML mode.</p>
-                </div>
-                <div className="button-row">
-                  <GuideButton label="Page Guide" onClick={() => setInfoModal(configStudioInfo)} />
                 </div>
               </div>
               <div className="config-topbar">
@@ -2974,11 +2979,14 @@ export default function App() {
             <article className="panel">
               <div className="section-header">
                 <div>
-                  <h2>Data & Integrations</h2>
+                  <h2>
+                    <TitleWithInfo label="Data and integrations guide" onClick={() => setInfoModal(dataIntegrationInfo)}>
+                      Data & Integrations
+                    </TitleWithInfo>
+                  </h2>
                   <p className="muted">Search a place in OpenStreetMap, preview and tune its boundary, then launch the acquisition pipeline. Greek traffic-data integration is surfaced separately below.</p>
                 </div>
                 <div className="button-row">
-                  <GuideButton label="Page Guide" onClick={() => setInfoModal(dataIntegrationInfo)} />
                   <GuideButton label="Method Guide" onClick={() => setInfoModal(dataTab === "osm" ? osmIntegrationInfo : trafficFeedInfo)} />
                 </div>
               </div>
@@ -3780,11 +3788,14 @@ export default function App() {
             <article className="panel">
               <div className="section-header">
                 <div>
-                  <h2>Job Queue</h2>
+                  <h2>
+                    <TitleWithInfo label="Jobs guide" onClick={() => setInfoModal(jobsInfo)}>
+                      Job Queue
+                    </TitleWithInfo>
+                  </h2>
                   <p className="muted">Completed jobs are persisted by the API so browser refreshes keep the registry.</p>
                 </div>
                 <div className="button-row">
-                  <GuideButton label="Page Guide" onClick={() => setInfoModal(jobsInfo)} />
                   <button className="secondary-button" onClick={() => void clearFinishedJobs()}>
                     Clear Finished
                   </button>
@@ -3856,12 +3867,15 @@ export default function App() {
             <article className="panel results-tree-panel">
               <div className="section-header">
                 <div>
-                  <h2>Run Registry</h2>
+                  <h2>
+                    <TitleWithInfo label="Results guide" onClick={() => setInfoModal(resultsInfo)}>
+                      Run Registry
+                    </TitleWithInfo>
+                  </h2>
                   <p className="muted">Filter completed runs by city, run name, or config path.</p>
                 </div>
                 <div className="button-row">
                   <span className="chip">{filteredResultRuns.length} runs</span>
-                  <GuideButton label="Page Guide" onClick={() => setInfoModal(resultsInfo)} />
                 </div>
               </div>
               <div className="structured-fields-grid">
@@ -4212,10 +4226,13 @@ export default function App() {
             <article className="panel docs-nav-panel">
               <div className="section-header">
                 <div>
-                  <h2>Documentation</h2>
+                  <h2>
+                    <TitleWithInfo label="Documentation guide" onClick={() => setInfoModal(documentationInfo)}>
+                      Documentation
+                    </TitleWithInfo>
+                  </h2>
                   <p className="muted">Browse the project guides in reading order. The library panel and the open document now scroll independently.</p>
                 </div>
-                <GuideButton label="Page Guide" onClick={() => setInfoModal(documentationInfo)} />
               </div>
               <div className="docs-nav-scroll">
                 <div className="docs-group-stack">
@@ -4265,23 +4282,8 @@ export default function App() {
               <strong>{branding.name}</strong>
               <span>Simulator for Urban Mobility Antifragility</span>
             </div>
-          </div>
-          <div className="footer-body">
-            <div className="footer-links">
-              {VIEW_LABELS.filter((item) => item.key !== "overview").map((item) => (
-                <button key={item.key} className="footer-link" onClick={() => setView(item.key)}>
-                  {item.label}
-                </button>
-              ))}
-              <a className="footer-link external-link" href={branding.project_url} target="_blank" rel="noreferrer">
-                Project Website
-              </a>
-            </div>
             <div className="footer-partners">
-              <div>
-                <span>Development partner</span>
-                <strong>Rhoé</strong>
-              </div>
+              <span>Development partner</span>
               <img src={rhoeLogoSrc} alt="Rhoé" className="rhoe-logo" />
             </div>
           </div>

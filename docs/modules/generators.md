@@ -9,7 +9,7 @@ class part of the workflow, even when the selected demand source is random.
 
 The generators live in:
 
-- `src/sas/generators/`
+- `src/suma/generators/`
 
 The current active generator paths are:
 
@@ -29,7 +29,7 @@ Depending on the case, they:
 - generate demand from `randomTrips.py` or city-specific inputs
 - write route files
 - write `.sumocfg` files
-- optionally patch SUMA/SAS YAML configs to point at the generated artifacts
+- optionally patch SUMA YAML configs to point at the generated artifacts
 
 ## Generator Types
 

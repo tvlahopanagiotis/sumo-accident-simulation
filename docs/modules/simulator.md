@@ -8,16 +8,16 @@ the resilience workflows.
 
 The simulator module is mainly implemented in:
 
-- `src/sas/simulation/`
-- `src/sas/core/`
-- `src/sas/app/config.py`
+- `src/suma/simulation/`
+- `src/suma/core/`
+- `src/suma/app/config.py`
 
 The most important files are:
 
-- `src/sas/simulation/runner.py`
-- `src/sas/core/risk_model.py`
-- `src/sas/core/accident_manager.py`
-- `src/sas/core/metrics.py`
+- `src/suma/simulation/runner.py`
+- `src/suma/core/risk_model.py`
+- `src/suma/core/accident_manager.py`
+- `src/suma/core/metrics.py`
 
 ## What The Simulator Does
 
@@ -91,7 +91,7 @@ Typical chain:
 
 1. fetch or prepare data
 2. generate network and demand
-3. run `sas`
+3. run `suma`
 4. run resilience or post-processing analysis
 
 ## Related Command Guides

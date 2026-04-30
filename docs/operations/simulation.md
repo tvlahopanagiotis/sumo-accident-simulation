@@ -4,7 +4,7 @@ This guide covers the simulator-facing command layer.
 
 ## Main Command
 
-### `sas`
+### `suma`
 
 This is the main SUMA simulator entry point. It runs SUMO, injects incidents
 through the SUMA risk and accident layers, records metrics, and writes the run
@@ -15,25 +15,25 @@ artifacts under the configured output folder.
 Default Thessaloniki run:
 
 ```bash
-sas
+suma
 ```
 
 Run a different config:
 
 ```bash
-sas --config configs/seattle/default.yaml
+suma --config configs/seattle/default.yaml
 ```
 
 Repeat the same setup multiple times with different seeds:
 
 ```bash
-sas --config configs/thessaloniki/default.yaml --runs 10
+suma --config configs/thessaloniki/default.yaml --runs 10
 ```
 
 Enable the Python live dashboard:
 
 ```bash
-sas --live-progress
+suma --live-progress
 ```
 
 #### Main outputs

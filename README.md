@@ -9,13 +9,14 @@ current implementation is an orchestration layer around
 [SUMO](https://sumo.dlr.de/) for city data preparation, demand/network
 generation, incident simulation, resilience assessment, and result inspection.
 
-The historical Python package and CLI namespace is still `sas` for backward
-compatibility. New `suma-*` command aliases are provided where practical.
+The canonical Python package and CLI namespace is now `suma`. A small `sas`
+compatibility shim remains so older notebooks, scripts, and command aliases can
+continue to run during the transition.
 
 The repository is organized around a package-first layout:
 
-- code in `src/sas/`
-- GUI backend in `src/sas/gui/`
+- code in `src/suma/`
+- GUI backend in `src/suma/gui/`
 - React frontend in `frontend/`
 - configs in `configs/`
 - city and benchmark assets in `data/`
@@ -102,12 +103,10 @@ Node `20+` is recommended.
 After installation:
 
 ```bash
-sas
 suma
-sas --runs 10
-sas --config configs/thessaloniki/postmetro_50kph.yaml
-sas --config configs/seattle/default.yaml
-sas-assess
+suma --runs 10
+suma --config configs/thessaloniki/postmetro_50kph.yaml
+suma --config configs/seattle/default.yaml
 suma-assess
 ```
 
@@ -115,22 +114,21 @@ Generator and data commands:
 
 ```bash
 suma-generate-city
-sas-generate-city
-sas-generate-sioux-falls
-sas-generate-riverside
-sas-fetch-osm
-sas-fetch-govgr
-sas-build-govgr-targets
+suma-generate-sioux-falls
+suma-generate-riverside
+suma-fetch-osm
+suma-fetch-govgr
+suma-build-govgr-targets
 ```
 
 Analysis commands:
 
 ```bash
-sas-analyse-batch
-sas-sweep
-sas-visualise-sweep
-sas-merge-report
-sas-compare-seattle-real
+suma-analyse-batch
+suma-sweep
+suma-visualise-sweep
+suma-merge-report
+suma-compare-seattle-real
 ```
 
 GUI backend:
@@ -144,31 +142,31 @@ suma-gui-api
 Default Thessaloniki run:
 
 ```bash
-sas
+suma
 ```
 
 Batch run:
 
 ```bash
-sas --runs 10
+suma --runs 10
 ```
 
 Seattle run:
 
 ```bash
-sas --config configs/seattle/default.yaml
+suma --config configs/seattle/default.yaml
 ```
 
 Thessaloniki post-metro variant:
 
 ```bash
-sas --config configs/thessaloniki/postmetro_50kph.yaml
+suma --config configs/thessaloniki/postmetro_50kph.yaml
 ```
 
 Headless run with the Python dashboard:
 
 ```bash
-sas --live-progress
+suma --live-progress
 ```
 
 ## Workflows
@@ -176,8 +174,8 @@ sas --live-progress
 ### Thessaloniki
 
 ```bash
-sas-generate-thessaloniki --update-config
-sas
+suma-generate-thessaloniki --update-config
+suma
 ```
 
 ### Seattle
@@ -188,7 +186,7 @@ committed to git because they exceed GitHub's file size limit.
 Download the missing OSM extract if needed:
 
 ```bash
-sas-fetch-osm \
+suma-fetch-osm \
   --place "Seattle, Washington, USA" \
   --out data/cities/seattle/bundle/traffic_dataset/02_Seattle/01_Input_data/Seattle.osm
 ```
@@ -196,8 +194,8 @@ sas-fetch-osm \
 Then:
 
 ```bash
-sas-generate-seattle --update-config --config configs/seattle/default.yaml
-sas --config configs/seattle/default.yaml
+suma-generate-seattle --update-config --config configs/seattle/default.yaml
+suma --config configs/seattle/default.yaml
 ```
 
 This generates local `data/cities/seattle/network/seattle.osm` and
@@ -206,21 +204,21 @@ This generates local `data/cities/seattle/network/seattle.osm` and
 ### Sioux Falls
 
 ```bash
-sas-generate-sioux-falls --update-config
-sas
+suma-generate-sioux-falls --update-config
+suma
 ```
 
 ### Riverside
 
 ```bash
-sas-generate-riverside --update-config
-sas
+suma-generate-riverside --update-config
+suma
 ```
 
 ## Repository Layout
 
-- `src/sas/`: application package
-- `src/sas/gui/`: FastAPI backend for the GUI
+- `src/suma/`: application package
+- `src/suma/gui/`: FastAPI backend for the GUI
 - `frontend/`: React operator interface
 - `configs/`: simulation configs grouped by city
 - `data/cities/`: real-city networks and datasets
@@ -232,7 +230,7 @@ sas
 ## Docs
 
 - [docs/README.md](docs/README.md): documentation index
-- [docs/modules/README.md](docs/modules/README.md): narrative guides for the major SAS modules
+- [docs/modules/README.md](docs/modules/README.md): narrative guides for the major SUMA modules
 - [docs/operations/README.md](docs/operations/README.md): consolidated operator and analyst workflow docs
 - [docs/STRUCTURE.md](docs/STRUCTURE.md): canonical repository layout
 - [docs/REFERENCE.md](docs/REFERENCE.md): outputs, risk model, severity model, development notes
@@ -247,14 +245,14 @@ sas
 
 The first GUI version is now in place:
 
-- `src/sas/gui/` provides the FastAPI backend, workflow registry, and job manager.
+- `src/suma/gui/` provides the FastAPI backend, workflow registry, and job manager.
 - `frontend/` provides the React operator console.
-- `src/sas/app/config.py` still centralizes config loading, saving, and validation.
+- `src/suma/app/config.py` still centralizes config loading, saving, and validation.
 - The CLI remains intact; the GUI is an additional interface over the same workflows.
 - Workflow pages are now split into `Data & Integrations`, `Generators`, `Simulations`, and `Analysis`.
 - The GUI can create configs from a clean starter template or by cloning an existing config.
 - `Data & Integrations` now includes OSM place search, boundary preview, and explicit bbox overrides.
-- `Results` now parses SAS run artifacts into interactive charts and tables instead of only static file previews.
+- `Results` now parses SUMA run artifacts into interactive charts and tables instead of only static file previews.
 - The GUI also includes a `Documentation` page for tabbed preview of the markdown docs under `docs/`.
 - `Data & Integrations` now supports map-based locality boundaries, bbox editing, and custom drawn shapes for OSM extract setup.
 

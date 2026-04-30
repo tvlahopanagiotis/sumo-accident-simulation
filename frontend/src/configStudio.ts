@@ -123,7 +123,7 @@ export const CONFIG_SECTIONS: ConfigSectionSpec[] = [
     key: "sumo",
     title: "SUMO Runtime",
     intro:
-      "Core simulation engine settings. Use this tab to point SAS to the network, define the run length, and control reproducibility.",
+      "Core simulation engine settings. Use this tab to point SUMA to the network, define the run length, and control reproducibility.",
     fields: [
       {
         path: "sumo.config_file",
@@ -181,7 +181,7 @@ export const CONFIG_SECTIONS: ConfigSectionSpec[] = [
     guide: {
       title: "Risk Model Guide",
       overview: [
-        "The SAS risk model is a weighted trigger model. At each simulation step, vehicle and road context are converted into a risk score, and that score is compared against the trigger settings in the config.",
+        "The SUMA risk model is a weighted trigger model. At each simulation step, vehicle and road context are converted into a risk score, and that score is compared against the trigger settings in the config.",
         "The important mental model is that `base_probability` sets the global background rate, while the weights and thresholds decide which traffic states become more dangerous than others.",
         "So if you raise `base_probability` you usually raise accidents everywhere; if you change the weights and thresholds you change where and why accidents appear.",
         "In practice, this tab is where you decide whether the simulation should behave like a mostly random incident process or like a traffic-state-sensitive incident process.",
@@ -197,7 +197,7 @@ export const CONFIG_SECTIONS: ConfigSectionSpec[] = [
       ],
       references: [
         "See `docs/REFERENCE.md` for the current risk-model and output conventions.",
-        "See `src/sas/core/risk_model.py` for the actual implementation that turns these values into per-vehicle risk.",
+        "See `src/suma/core/risk_model.py` for the actual implementation that turns these values into per-vehicle risk.",
       ],
     },
     fields: [
@@ -342,7 +342,7 @@ export const CONFIG_SECTIONS: ConfigSectionSpec[] = [
         "If results feel too catastrophic, the first places to inspect are concurrency, lane-capacity fraction, and long-duration major/critical ranges.",
       ],
       references: [
-        "See `src/sas/core/accident_manager.py` for the lifecycle implementation.",
+        "See `src/suma/core/accident_manager.py` for the lifecycle implementation.",
         "See `docs/REFERENCE.md` for output artifacts that reflect these choices, including accident reports and antifragility summaries.",
       ],
     },
@@ -513,7 +513,7 @@ export const CONFIG_SECTIONS: ConfigSectionSpec[] = [
       title: "Resilience Assessment Guide",
       overview: [
         "The resilience assessment runs structured batches instead of a single scenario. It varies demand and incident settings, then aggregates behaviour into resilience and antifragility outputs.",
-        "This part of the config is less about one simulation and more about the design of the experiment you want SAS to execute.",
+        "This part of the config is less about one simulation and more about the design of the experiment you want SUMA to execute.",
         "A good way to read this tab is: execution settings, stress ladder, incident ladder, and reporting weights.",
         "If the normal simulation config defines one world, the resilience-assessment config defines the matrix of worlds that the assessment will generate and compare.",
         "Demand levels are intentionally a variable-length list because different studies need different stress ladders. A quick check may use three values; a failure-point study may use seven or more values to locate the capacity break.",
@@ -530,7 +530,7 @@ export const CONFIG_SECTIONS: ConfigSectionSpec[] = [
         "The incident-scenario rows should usually move from baseline to progressively harsher conditions so the resulting report reads as a clear stress progression.",
       ],
       references: [
-        "See `src/sas/analysis/resilience_assessment.py` for the batch orchestration and summary logic.",
+        "See `src/suma/analysis/resilience_assessment.py` for the batch orchestration and summary logic.",
         "See the generated assessment report and `docs/REFERENCE.md` for the result artifacts produced by these runs.",
       ],
     },

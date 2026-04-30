@@ -1,8 +1,9 @@
 # Operations
 
 This section is the operator-facing workflow map for the CLI tools in SUMA.
-The historical `sas-*` commands remain available; new work should prefer the
-matching `suma-*` aliases where they exist.
+The canonical commands are `suma` and `suma-*`. Historical `sas` and `sas-*`
+aliases remain available for older scripts, but new work should use the SUMA
+names.
 It is intentionally consolidated so the command documentation is easier to
 browse and less fragmented.
 
@@ -24,7 +25,7 @@ semantics, or output definitions.
 - [generators.md](generators.md):
   all bundled network and demand generation commands
 - [simulation.md](simulation.md):
-  simulator command layer, centered on `sas`
+  simulator command layer, centered on `suma`
 - [analysis.md](analysis.md):
   resilience, batch, sweep, and validation analysis commands
 

@@ -1,5 +1,5 @@
 # =============================================================================
-# AntifragiCity / SAS — SUMO Accident Simulation
+# AntifragiCity SUMA — Simulator for Urban Mobility Antifragility
 # =============================================================================
 # PEP 621 project metadata + tool configuration.
 #
@@ -71,39 +71,42 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
+suma = ["py.typed"]
 sas = ["py.typed"]
 
 [project.scripts]
-suma = "sas.simulation.runner:main"
-suma-assess = "sas.analysis.resilience_assessment:main"
-suma-fetch-govgr = "sas.integrations.govgr_downloader:main"
-suma-build-govgr-targets = "sas.integrations.govgr_targets:main"
-suma-fetch-osm = "sas.integrations.download_osm_place:main"
-suma-analyse-batch = "sas.analysis.analyse_batch:main"
-suma-generate-city = "sas.generators.generate_city:main"
-suma-generate-sioux-falls = "sas.generators.generate_sioux_falls:main"
-suma-generate-riverside = "sas.generators.generate_network:main"
-suma-compare-seattle-real = "sas.tools.compare_seattle_real:main"
-suma-sweep = "sas.tools.experiment_sweep:main"
-suma-visualise-sweep = "sas.tools.visualise_sweep:main"
-suma-merge-report = "sas.tools.merge_mfd_and_update_report:main"
-suma-gui-api = "sas.gui.app:main"
-sas = "sas.simulation.runner:main"
-sas-assess = "sas.analysis.resilience_assessment:main"
-sas-fetch-govgr = "sas.integrations.govgr_downloader:main"
-sas-build-govgr-targets = "sas.integrations.govgr_targets:main"
-sas-fetch-osm = "sas.integrations.download_osm_place:main"
-sas-analyse-batch = "sas.analysis.analyse_batch:main"
-sas-generate-city = "sas.generators.generate_city:main"
-sas-generate-thessaloniki = "sas.generators.generate_thessaloniki:main"
-sas-generate-seattle = "sas.generators.generate_seattle:main"
-sas-generate-sioux-falls = "sas.generators.generate_sioux_falls:main"
-sas-generate-riverside = "sas.generators.generate_network:main"
-sas-compare-seattle-real = "sas.tools.compare_seattle_real:main"
-sas-sweep = "sas.tools.experiment_sweep:main"
-sas-visualise-sweep = "sas.tools.visualise_sweep:main"
-sas-merge-report = "sas.tools.merge_mfd_and_update_report:main"
-sas-gui-api = "sas.gui.app:main"
+suma = "suma.simulation.runner:main"
+suma-assess = "suma.analysis.resilience_assessment:main"
+suma-fetch-govgr = "suma.integrations.govgr_downloader:main"
+suma-build-govgr-targets = "suma.integrations.govgr_targets:main"
+suma-fetch-osm = "suma.integrations.download_osm_place:main"
+suma-analyse-batch = "suma.analysis.analyse_batch:main"
+suma-generate-city = "suma.generators.generate_city:main"
+suma-generate-thessaloniki = "suma.generators.generate_thessaloniki:main"
+suma-generate-seattle = "suma.generators.generate_seattle:main"
+suma-generate-sioux-falls = "suma.generators.generate_sioux_falls:main"
+suma-generate-riverside = "suma.generators.generate_network:main"
+suma-compare-seattle-real = "suma.tools.compare_seattle_real:main"
+suma-sweep = "suma.tools.experiment_sweep:main"
+suma-visualise-sweep = "suma.tools.visualise_sweep:main"
+suma-merge-report = "suma.tools.merge_mfd_and_update_report:main"
+suma-gui-api = "suma.gui.app:main"
+sas = "suma.simulation.runner:main"
+sas-assess = "suma.analysis.resilience_assessment:main"
+sas-fetch-govgr = "suma.integrations.govgr_downloader:main"
+sas-build-govgr-targets = "suma.integrations.govgr_targets:main"
+sas-fetch-osm = "suma.integrations.download_osm_place:main"
+sas-analyse-batch = "suma.analysis.analyse_batch:main"
+sas-generate-city = "suma.generators.generate_city:main"
+sas-generate-thessaloniki = "suma.generators.generate_thessaloniki:main"
+sas-generate-seattle = "suma.generators.generate_seattle:main"
+sas-generate-sioux-falls = "suma.generators.generate_sioux_falls:main"
+sas-generate-riverside = "suma.generators.generate_network:main"
+sas-compare-seattle-real = "suma.tools.compare_seattle_real:main"
+sas-sweep = "suma.tools.experiment_sweep:main"
+sas-visualise-sweep = "suma.tools.visualise_sweep:main"
+sas-merge-report = "suma.tools.merge_mfd_and_update_report:main"
+sas-gui-api = "suma.gui.app:main"
 
 [project.urls]
 Homepage = "https://github.com/tvlahopanagiotis/sumo-accident-simulation"
@@ -135,7 +138,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["sas"]
+known-first-party = ["suma", "sas"]
 
 
 # ── Mypy (type checker) ─────────────────────────────────────────────────────

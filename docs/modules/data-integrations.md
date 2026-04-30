@@ -7,7 +7,7 @@ before network generation, calibration, or validation.
 
 The main integration code lives in:
 
-- `src/sas/integrations/`
+- `src/suma/integrations/`
 
 The current workflows cover:
 

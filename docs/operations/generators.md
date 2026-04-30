@@ -5,7 +5,7 @@ practical runbook for creating networks, demand, and `.sumocfg` files.
 
 ## Generic City Generator
 
-### `suma-generate-city` / `sas-generate-city`
+### `suma-generate-city`
 
 Build a runnable SUMO network for any extracted city under `data/cities/<slug>/`.
 
@@ -22,23 +22,23 @@ What it does:
 Typical usage:
 
 ```bash
-sas-generate-city --city-slug thermi
+suma-generate-city --city-slug thermi
 ```
 
 ```bash
-sas-generate-city --city-slug thermi --update-config
+suma-generate-city --city-slug thermi --update-config
 ```
 
 ```bash
-sas-generate-city --city-slug thermi --demand-source random --period 2.0
+suma-generate-city --city-slug thermi --demand-source random --period 2.0
 ```
 
 ```bash
-sas-generate-city --city-slug seattle --demand-source od --od-scale 0.02
+suma-generate-city --city-slug seattle --demand-source od --od-scale 0.02
 ```
 
-The `suma-generate-city` alias is preferred for new SUMA-facing workflows. The
-`sas-generate-city` command remains supported for existing scripts.
+Use `suma-generate-city` for new SUMA-facing workflows. The older
+`sas-generate-city` command remains available as a compatibility alias.
 
 Random-demand note:
 
@@ -68,7 +68,7 @@ Operational note:
 
 ## Benchmark Generators
 
-### `sas-generate-sioux-falls`
+### `suma-generate-sioux-falls`
 
 Generate compact benchmark networks for SUMO. Sioux Falls is the current
 implemented benchmark workflow.
@@ -76,20 +76,20 @@ implemented benchmark workflow.
 Typical usage:
 
 ```bash
-sas-generate-sioux-falls
+suma-generate-sioux-falls
 ```
 
 ```bash
-sas-generate-sioux-falls --update-config
+suma-generate-sioux-falls --update-config
 ```
 
 ```bash
-sas-generate-sioux-falls --period 2.0
+suma-generate-sioux-falls --period 2.0
 ```
 
 ## Synthetic Generators
 
-### `sas-generate-riverside`
+### `suma-generate-riverside`
 
 Generate synthetic development networks. Riverside is the current implemented
 synthetic workflow.
@@ -97,15 +97,15 @@ synthetic workflow.
 Typical usage:
 
 ```bash
-sas-generate-riverside
+suma-generate-riverside
 ```
 
 ```bash
-sas-generate-riverside --out-dir /tmp/riverside-test
+suma-generate-riverside --out-dir /tmp/riverside-test
 ```
 
 ```bash
-sas-generate-riverside --update-config
+suma-generate-riverside --update-config
 ```
 
 ## After Generation

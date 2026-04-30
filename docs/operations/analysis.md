@@ -1,10 +1,10 @@
 # Analysis Operations
 
-This guide covers the analyst-facing command layer in SAS.
+This guide covers the analyst-facing command layer in SUMA.
 
 ## Resilience Assessment
 
-### `sas-assess`
+### `suma-assess`
 
 Run the one-click resilience assessment workflow across multiple demand levels,
 incident settings, and seeds.
@@ -12,20 +12,20 @@ incident settings, and seeds.
 Typical usage:
 
 ```bash
-sas-assess
+suma-assess
 ```
 
 ```bash
-sas-assess --quick
+suma-assess --quick
 ```
 
 ```bash
-sas-assess --workers 4 --demand-levels 1.0 2.0 5.0 --seeds 5
+suma-assess --workers 4 --demand-levels 1.0 2.0 5.0 --seeds 5
 ```
 
 ## Batch Post-Processing
 
-### `sas-analyse-batch`
+### `suma-analyse-batch`
 
 Analyse an existing batch or assessment directory and produce comparative
 figures and summary outputs.
@@ -33,46 +33,46 @@ figures and summary outputs.
 Typical usage:
 
 ```bash
-sas-analyse-batch --batch-dir results/Thessaloniki_Batch_2026-03-05_16:53
+suma-analyse-batch --batch-dir results/Thessaloniki_Batch_2026-03-05_16:53
 ```
 
 ## Parameter Sweep
 
-### `sas-sweep`
+### `suma-sweep`
 
 Run the parameter-grid sweep for failure-point and regime analysis.
 
 Typical usage:
 
 ```bash
-sas-sweep
+suma-sweep
 ```
 
 ```bash
-sas-sweep --periods 2.0 1.0 0.5
+suma-sweep --periods 2.0 1.0 0.5
 ```
 
 ```bash
-sas-sweep --probs 0 1.5e-4 1e-3
+suma-sweep --probs 0 1.5e-4 1e-3
 ```
 
-### `sas-visualise-sweep`
+### `suma-visualise-sweep`
 
 Turn the sweep CSV into failure-point and phase-diagram figures.
 
 Typical usage:
 
 ```bash
-sas-visualise-sweep
+suma-visualise-sweep
 ```
 
 ```bash
-sas-visualise-sweep --csv results/sweep/sweep_results.csv --out-dir results/sweep/figs
+suma-visualise-sweep --csv results/sweep/sweep_results.csv --out-dir results/sweep/figs
 ```
 
 ## Report Regeneration
 
-### `sas-merge-report`
+### `suma-merge-report`
 
 Merge supplementary MFD data into an existing assessment and rebuild the MFD
 figures and report without re-running simulations.
@@ -80,21 +80,21 @@ figures and report without re-running simulations.
 Typical usage:
 
 ```bash
-sas-merge-report \
+suma-merge-report \
   --main results/resilience_2026-03-06_1418 \
   --extra results/resilience_low_demand_0p1_0p3
 ```
 
 ## Seattle Historical Comparison
 
-### `sas-compare-seattle-real`
+### `suma-compare-seattle-real`
 
 Compare Seattle simulation outputs against historical Seattle collision data.
 
 Typical usage:
 
 ```bash
-sas-compare-seattle-real \
+suma-compare-seattle-real \
   --sim-dir results/Seattle_Batch_2026-03-06_11:10 \
   --real-csv data/cities/seattle/bundle/crash_data/sdot_collisions_all_years.csv
 ```

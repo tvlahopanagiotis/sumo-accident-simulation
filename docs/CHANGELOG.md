@@ -6,8 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Renamed the visible application and API branding from AntifragiCity SAS to
-  AntifragiCity SUMA, while keeping the existing `sas` Python package namespace
-  and CLI commands for compatibility.
+  AntifragiCity SUMA.
+- Moved the canonical Python package from `src/sas/` to `src/suma/`, with a
+  small `sas` shim retained for backward-compatible imports and legacy CLI
+  aliases.
 - Added preferred `suma-*` command aliases for the main simulator, assessment,
   data, generator, analysis, and GUI API entry points.
 - Reworked the Overview page into a more useful operator dashboard with current
@@ -15,6 +17,12 @@ All notable changes to this project will be documented in this file.
 - Standardized the GUI shell with a sticky compact top bar, collapsible sidebar,
   user/settings placeholder, page/method/model/tool guide buttons, and clearer
   primary versus secondary tab hierarchy.
+- Polished the GUI shell with rounder cards/controls, filled navigation icons,
+  a bottom mobile navigation bar, compact scroll header, smaller footer, and
+  stronger light/dark contrast defaults.
+- Reworked page-level guides into compact information buttons next to titles,
+  while keeping method/model/tool guide actions in the upper-right of active
+  pages or sections.
 - Reworked Config Studio with a two-step config picker: target folder first,
   config file second.
 - Moved Config Studio validate/delete/save actions into a dedicated action bar
@@ -50,6 +58,9 @@ All notable changes to this project will be documented in this file.
   branding.
 - Initial light/dark theme toggle and responsive dashboard layout foundation for
   narrower screens.
+- FastAPI Swagger/OpenAPI tags, summaries, and application description for the
+  SUMA operator API.
+- Dedicated GUI API schema module for request payload models.
 
 ### Documentation
 - Updated the README, GUI guide, generator module guide, generator operations
@@ -57,6 +68,8 @@ All notable changes to this project will be documented in this file.
   behavior.
 - Refreshed the GUI guide to describe the final 0.3.0 shell layout, guide
   hierarchy, responsive behavior, and branding/footer structure.
+- Updated README, structure, GUI, module, and operation docs so canonical paths
+  and examples use `suma` / `src/suma`.
 
 ## [0.2.4] - 2026-04-28
 
