@@ -2767,7 +2767,7 @@ export default function App() {
                 aria-expanded={settingsOpen}
                 onClick={() => setSettingsOpen((current) => !current)}
               >
-                KG
+                RH
               </button>
               {settingsOpen ? (
                 <div className="settings-popover">
