@@ -1,6 +1,6 @@
 # Simulator Module
 
-This guide covers the runtime core of SAS: the part that launches SUMO,
+This guide covers the runtime core of SUMA: the part that launches SUMO,
 injects incidents, evolves them through time, and records the outputs used by
 the resilience workflows.
 
@@ -21,7 +21,7 @@ The most important files are:
 
 ## What The Simulator Does
 
-At runtime, SAS is a control layer on top of a normal SUMO simulation.
+At runtime, SUMA is a control layer on top of a normal SUMO simulation.
 
 The process is:
 

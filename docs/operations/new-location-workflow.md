@@ -1,6 +1,6 @@
 # New Location Workflow
 
-This guide is the end-to-end path for adding a new study area to SAS and
+This guide is the end-to-end path for adding a new study area to SUMA and
 taking it from zero data to runnable analysis.
 
 It is written for a user who is starting a new location rather than using one
@@ -8,7 +8,7 @@ of the bundled cases.
 
 ## 1. Prepare The Environment
 
-Install SUMO, create a Python environment, and install SAS:
+Install SUMO, create a Python environment, and install SUMA:
 
 ```bash
 python3 -m venv .venv

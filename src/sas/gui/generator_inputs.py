@@ -37,6 +37,7 @@ def build_city_demand_preview(city_slug: str, row_limit: int = 50, flow_limit: i
         "sample_rows": [],
         "top_flows": [],
         "nodes": [],
+        "zone_demands": [],
     }
 
     if od_file is None:
@@ -63,9 +64,13 @@ def build_city_demand_preview(city_slug: str, row_limit: int = 50, flow_limit: i
     missing_zone_ids: set[str] = set()
     sample_rows: list[dict[str, Any]] = []
     external_rows: list[tuple[str, str, float]] = []
+    origin_totals: dict[str, float] = {}
+    destination_totals: dict[str, float] = {}
 
     for index, (origin, destination, od_number) in enumerate(od_rows):
         total_od += od_number
+        origin_totals[origin] = origin_totals.get(origin, 0.0) + od_number
+        destination_totals[destination] = destination_totals.get(destination, 0.0) + od_number
         if origin == destination:
             intrazonal_raw += od_number
         else:
@@ -109,6 +114,17 @@ def build_city_demand_preview(city_slug: str, row_limit: int = 50, flow_limit: i
         }
         for zone_id, (lon, lat) in sorted(centroids.items())
     ]
+    zone_demands = [
+        {
+            "zone_id": zone_id,
+            "origin_demand": origin_totals.get(zone_id, 0.0),
+            "destination_demand": destination_totals.get(zone_id, 0.0),
+            "total_demand": origin_totals.get(zone_id, 0.0) + destination_totals.get(zone_id, 0.0),
+            "coords": [lat, lon],
+        }
+        for zone_id, (lon, lat) in sorted(centroids.items())
+    ]
+    zone_demands.sort(key=lambda item: item["total_demand"], reverse=True)
 
     preview["supported"] = True
     preview["summary"] = {
@@ -123,6 +139,7 @@ def build_city_demand_preview(city_slug: str, row_limit: int = 50, flow_limit: i
     preview["sample_rows"] = sample_rows
     preview["top_flows"] = top_flows
     preview["nodes"] = node_rows
+    preview["zone_demands"] = zone_demands
     if missing_zone_ids:
         sample = ", ".join(sorted(missing_zone_ids)[:8])
         preview["issues"].append(

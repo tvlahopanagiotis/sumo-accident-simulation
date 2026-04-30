@@ -25,4 +25,5 @@ export const api = {
     }),
   fileUrl: (path: string) => `${API_BASE}/api/files/content?path=${encodeURIComponent(path)}`,
   textUrl: (path: string) => `${API_BASE}/api/files/text?path=${encodeURIComponent(path)}`,
+  url: (path: string) => `${API_BASE}${path}`,
 };

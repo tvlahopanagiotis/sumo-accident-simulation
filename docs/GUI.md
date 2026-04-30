@@ -1,7 +1,7 @@
-# GUI Guide
+# SUMA GUI Guide
 
-This document explains the current SAS GUI, how it relates to the CLI, and
-what the present first-generation interface actually does.
+This document explains the current AntifragiCity SUMA GUI, how it relates to
+the CLI, and what the operator interface currently does.
 
 The GUI ships as:
 
@@ -13,16 +13,19 @@ not a replacement runtime.
 
 ## What It Is
 
-The GUI is an operator console over the same SAS workflows that already power:
+The GUI is an operator console over the same SUMA/SAS workflows that already
+power:
 
-- `sas`
-- `sas-assess`
+- `suma` / `sas`
+- `suma-assess` / `sas-assess`
 - the generator commands
 - the OSM / gov.gr integration commands
 - the analysis scripts
 
 It does not introduce a separate simulation engine. It orchestrates the same
-Python modules and subprocess flows already used by the CLI.
+Python modules and subprocess flows already used by the CLI. The Python package
+namespace remains `sas` for compatibility, while the product/API branding is now
+SUMA.
 
 ## How It Works
 
@@ -58,7 +61,7 @@ It is a React app that:
 - searches OSM locations and previews extract boundaries
 - launches workflows as managed jobs
 - polls jobs and results
-- renders interactive post-run metrics from existing SAS output files
+- renders interactive post-run metrics from existing SUMA/SAS output files
 
 ### Execution Model
 
@@ -79,9 +82,11 @@ This keeps GUI and CLI behavior close and avoids duplicating business logic.
 
 High-level landing page with:
 
-- counts for configs, workflows, jobs, and result roots
+- counts for configs, workflows, jobs, and result runs
 - active-job snapshot
 - live progress image when present
+- shortcuts into the main pipeline stages
+- recent result runs
 
 ### Config Studio
 
@@ -94,6 +99,7 @@ Config Studio now supports:
 - validating configs through the shared backend validation layer
 - saving in structured mode or raw YAML mode
 - selecting configs from a folder-grouped config picker
+- opening configs through a two-step folder/name selector
 - selecting the network from discovered `.sumocfg` files while still allowing a
   manual path for a new city before its generator has written the file
 - selecting the output folder from discovered output roots instead of typing every path manually
@@ -121,7 +127,10 @@ documentation files.
 
 The `Resilience Assessment` tab also uses a clearer structure for:
 
-- demand levels as a vertical numeric list
+- demand levels as a vertical numeric list, with the model guide explaining
+  that they are a variable stress ladder. In current random-demand assessment
+  workflows they are route-generation periods, so lower values usually mean
+  heavier demand.
 - incident scenarios as a table with preset ladder, scenario name, and base
   probability side by side
 
@@ -205,9 +214,9 @@ The feed-alignment map currently works only where feed link identifiers match
 OSM way identifiers in the selected city extract. In Thessaloniki that
 alignment is partial, so the map is diagnostic rather than complete.
 
-### Generators
+### OD Generators
 
-Generators now have their own page.
+OD Generators now have their own page.
 
 The main real-city path is a generic city generator:
 
@@ -223,6 +232,7 @@ The main real-city path is a generic city generator:
 - generate either:
   - random demand
   - OD-driven demand when compatible files exist
+- show different build fields for random-demand and OD-demand choices
 - optionally patch the city's default YAML config
 
 The generator page now also includes a `View Inputs` tab for city demand inputs:
@@ -230,6 +240,8 @@ The generator page now also includes a `View Inputs` tab for city demand inputs:
 - inspect whether the selected city has discovered OD and node support files
 - review a sample of the OD table
 - view the top OD desire lines on a map between centroid nodes
+- click/select a zone to inspect origin and destination demand totals
+- estimate rough random-demand trip requests from route period and end time
 - identify quickly when a city is currently limited to random-demand generation
 
 The build tab also explains the random-demand control logic directly in the UI:
@@ -250,6 +262,9 @@ Simulations now have their own page and currently expose:
 
 - single or batch simulation runs
 - resilience assessment runs
+- sub-tabs for the simulator run and resilience assessment tools
+- a shared config picker with folder/name selection
+- a simulator guide dialog that explains both execution modes
 
 ### Analysis
 
@@ -260,6 +275,8 @@ Analysis now has its own page and exposes the current analyst tooling:
 - sweep visualisation
 - merge-report workflow
 - Seattle real-data comparison
+- tabs for batch, sweeps, reports, and validation tools
+- a tool guide dialog for the current analysis families
 
 ### Jobs
 
@@ -273,6 +290,10 @@ Capabilities:
 
 - inspect the exact command being run
 - cancel running jobs
+- clear finished jobs
+- remove individual completed jobs from the visible registry
+- keep completed-job history across browser refreshes while the backend remains
+  available, with persisted history for completed records
 - watch progress and output discovery
 
 ### Results
@@ -281,11 +302,11 @@ Results is no longer just a file browser.
 
 It now has two layers:
 
-- a file/tree browser over result folders
+- a run registry table with city, date, run-name, and search filters
 - an interactive run dashboard when the selected file or folder belongs to a
   valid run directory
 
-The interactive layer parses existing SAS outputs such as:
+The interactive layer parses existing SUMA/SAS outputs such as:
 
 - `metadata.json`
 - `network_metrics.csv`
@@ -300,8 +321,10 @@ It then renders:
 - accident table
 - per-event antifragility table
 - embedded report and figure previews
+- CSV, JSON, and ZIP export actions for selected runs
+- deletion of a selected run folder through the backend API
 
-The underlying source of truth is still the normal SAS run folder.
+The underlying source of truth is still the normal SUMA run folder.
 
 ### Documentation
 
@@ -360,7 +383,7 @@ The UI footer now includes:
   in-progress visualisation.
 - The backend/frontend still use polling rather than WebSockets or SSE.
 - The Results page is now interactive, but it currently reflects the metrics
-  already written by SAS; if a future workflow needs richer post-run views, the
+  already written by SUMA; if a future workflow needs richer post-run views, the
   underlying simulation/analysis outputs should be extended rather than
   bypassed.
 
@@ -389,7 +412,7 @@ Backend:
 
 ```bash
 pip install -e .
-sas-gui-api
+suma-gui-api
 ```
 
 or without the entry point:

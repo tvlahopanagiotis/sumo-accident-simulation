@@ -6,7 +6,7 @@ import requests
 
 from ..integrations.download_osm_place import DEFAULT_NOMINATIM_URL
 
-DEFAULT_GUI_USER_AGENT = "antifragicity-sas-gui/0.2"
+DEFAULT_GUI_USER_AGENT = "antifragicity-suma-gui/0.3"
 
 
 def search_locations(query: str, *, limit: int = 6, nominatim_url: str = DEFAULT_NOMINATIM_URL) -> list[dict[str, Any]]:

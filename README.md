@@ -1,13 +1,16 @@
-# SUMO Accident Simulation (SAS)
+# AntifragiCity SUMA
 
 [![CI](https://github.com/tvlahopanagiotis/sumo-accident-simulation/actions/workflows/ci.yml/badge.svg)](https://github.com/tvlahopanagiotis/sumo-accident-simulation/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-SAS is a probabilistic traffic accident simulation layer for
-[SUMO](https://sumo.dlr.de/). It adds stochastic accident triggering,
-accident lifecycle management, resilience measurement, and reporting on top of
-standard SUMO traffic simulation.
+SUMA is the AntifragiCity Simulator for Urban Mobility Antifragility. The
+current implementation is an orchestration layer around
+[SUMO](https://sumo.dlr.de/) for city data preparation, demand/network
+generation, incident simulation, resilience assessment, and result inspection.
+
+The historical Python package and CLI namespace is still `sas` for backward
+compatibility. New `suma-*` command aliases are provided where practical.
 
 The repository is organized around a package-first layout:
 
@@ -34,7 +37,10 @@ For workflow docs, see
 - Batch execution and aggregate reporting.
 - Live Python dashboard for headless runs.
 - OSM and govgr ingestion tooling.
-- Network generation workflows for Thessaloniki, Seattle, Sioux Falls, and Riverside.
+- OSM-based city bootstrapping, raw-network cleanup, and generic city
+  generation.
+- Network generation workflows for extracted cities plus benchmark and
+  synthetic cases.
 
 ## Installation
 
@@ -97,17 +103,19 @@ After installation:
 
 ```bash
 sas
+suma
 sas --runs 10
 sas --config configs/thessaloniki/postmetro_50kph.yaml
 sas --config configs/seattle/default.yaml
 sas-assess
+suma-assess
 ```
 
 Generator and data commands:
 
 ```bash
-sas-generate-thessaloniki
-sas-generate-seattle
+suma-generate-city
+sas-generate-city
 sas-generate-sioux-falls
 sas-generate-riverside
 sas-fetch-osm
@@ -128,7 +136,7 @@ sas-compare-seattle-real
 GUI backend:
 
 ```bash
-sas-gui-api
+suma-gui-api
 ```
 
 ## Quick Start

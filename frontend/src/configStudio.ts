@@ -516,9 +516,12 @@ export const CONFIG_SECTIONS: ConfigSectionSpec[] = [
         "This part of the config is less about one simulation and more about the design of the experiment you want SAS to execute.",
         "A good way to read this tab is: execution settings, stress ladder, incident ladder, and reporting weights.",
         "If the normal simulation config defines one world, the resilience-assessment config defines the matrix of worlds that the assessment will generate and compare.",
+        "Demand levels are intentionally a variable-length list because different studies need different stress ladders. A quick check may use three values; a failure-point study may use seven or more values to locate the capacity break.",
       ],
       interpretation: [
-        "`demand_levels`: the stress ladder. Wider ranges are useful when you want to detect breakpoints between resilient and failing behaviour.",
+        "`demand_levels`: the stress ladder. In the current random-demand workflows these values are route-generation periods in seconds, so smaller values request vehicles more frequently and usually create heavier demand. Example: 5.0 is light, 1.0 is heavy, 0.5 is very heavy.",
+        "Use a short ladder such as `2.0, 1.0, 0.5` for fast exploratory work. Use a wider ladder such as `5.0, 3.0, 2.0, 1.5, 1.0, 0.75, 0.5` when you want to identify the demand level where network performance collapses.",
+        "If a future OD-demand assessment uses multipliers instead of periods, the same list concept still applies: each value is one demand stress scenario, and the assessment runs every selected demand value against the configured incident scenarios.",
         "`seeds_per_scenario` and `base_seed`: control how much replication you want before trusting aggregate patterns.",
         "`incident_configs`: define the named incident scenarios that will be compared in the assessment outputs.",
         "`resilience_weights`: decide how much speed, throughput, recovery, and robustness contribute to the composite resilience score in reports.",

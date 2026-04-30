@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
 from subprocess import Popen
@@ -14,6 +15,8 @@ from typing import Any
 
 from ..app.config import PROJECT_ROOT, load_config
 from .workflows import build_command, predict_output_dir
+
+_JOB_HISTORY_PATH = PROJECT_ROOT / "results" / "gui_job_history.json"
 
 
 def _utc_now() -> str:
@@ -109,6 +112,7 @@ class JobManager:
     def __init__(self) -> None:
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
+        self._load_history()
 
     def list_jobs(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -133,6 +137,7 @@ class JobManager:
         )
         with self._lock:
             self._jobs[job.id] = job
+            self._save_history_locked()
 
         worker = threading.Thread(target=self._run_job, args=(job.id,), daemon=True)
         worker.start()
@@ -148,7 +153,31 @@ class JobManager:
         job.status = "cancelled"
         job.progress_label = "Cancelled"
         job.finished_at = _utc_now()
+        self._save_history()
         return True
+
+    def forget_job(self, job_id: str) -> bool:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return False
+            if job.status == "running":
+                return False
+            del self._jobs[job_id]
+            self._save_history_locked()
+        return True
+
+    def clear_finished(self) -> int:
+        with self._lock:
+            removable = [
+                job_id
+                for job_id, job in self._jobs.items()
+                if job.status not in {"running", "queued"}
+            ]
+            for job_id in removable:
+                del self._jobs[job_id]
+            self._save_history_locked()
+        return len(removable)
 
     def _run_job(self, job_id: str) -> None:
         with self._lock:
@@ -157,6 +186,7 @@ class JobManager:
             job.started_at = _utc_now()
             job.progress = 0.02
             job.progress_label = "Starting"
+            self._save_history_locked()
 
         env = os.environ.copy()
         src_dir = str(PROJECT_ROOT / "src")
@@ -208,10 +238,12 @@ class JobManager:
                     job.status = "failed"
                     job.progress_label = "Failed"
                     job.error = f"Process exited with code {return_code}"
+                self._save_history_locked()
 
     def _ingest_log_line(self, job: Job, line: str) -> None:
         job.append_log(line)
         self._update_progress(job, line)
+        self._save_history()
 
     def _update_progress(self, job: Job, line: str) -> None:
         if job.workflow_id == "simulation.run":
@@ -228,11 +260,18 @@ class JobManager:
                 job.progress = ratio
                 job.progress_label = f"Simulation minute {match.group(1)}"
                 return
+            step_match = re.search(r"step=(\d+)", line)
+            if step_match and total_steps:
+                current_seconds = float(step_match.group(1))
+                ratio = min(0.95, max(0.05, current_seconds / total_steps))
+                job.progress = ratio
+                job.progress_label = f"Simulation step {int(current_seconds):,} / {int(total_steps):,}"
+                return
             run_match = re.search(r"── Run (\d+) / (\d+)", line)
             if run_match:
                 current = int(run_match.group(1))
                 total = int(run_match.group(2))
-                job.progress = min(0.95, max(0.05, (current - 1) / max(total, 1)))
+                job.progress = min(0.95, max(0.05, current / max(total, 1)))
                 job.progress_label = f"Run {current} of {total}"
                 return
             if "Run complete" in line:
@@ -258,6 +297,55 @@ class JobManager:
         if "saved" in line.lower() or "ready!" in line.lower() or "complete" in line.lower():
             job.progress = max(job.progress or 0.2, 0.9)
             job.progress_label = line.strip()
+
+    def _save_history(self) -> None:
+        with self._lock:
+            self._save_history_locked()
+
+    def _save_history_locked(self) -> None:
+        _JOB_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+        payload = []
+        for job in self._jobs.values():
+            item = job.to_dict()
+            item["log_lines"] = item["log_lines"][-500:]
+            payload.append(item)
+        _JOB_HISTORY_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    def _load_history(self) -> None:
+        if not _JOB_HISTORY_PATH.exists():
+            return
+        try:
+            payload = json.loads(_JOB_HISTORY_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        if not isinstance(payload, list):
+            return
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            status = str(item.get("status", "unknown"))
+            if status in {"running", "queued"}:
+                status = "unknown"
+            job = Job(
+                id=str(item.get("id") or uuid.uuid4().hex),
+                workflow_id=str(item.get("workflow_id") or "unknown"),
+                title=str(item.get("title") or "Recovered Job"),
+                payload=item.get("payload") if isinstance(item.get("payload"), dict) else {},
+                command=list(item.get("command") or []),
+                status=status,
+                progress=item.get("progress") if isinstance(item.get("progress"), (int, float)) else None,
+                progress_label=str(item.get("progress_label") or "Recovered from history"),
+                created_at=str(item.get("created_at") or _utc_now()),
+                started_at=item.get("started_at"),
+                finished_at=item.get("finished_at"),
+                return_code=item.get("return_code") if isinstance(item.get("return_code"), int) else None,
+                output_dir=item.get("output_dir"),
+                log_path=item.get("log_path"),
+                error=item.get("error"),
+                log_lines=deque((str(line) for line in item.get("log_lines", [])), maxlen=3000),
+                phase=item.get("phase"),
+            )
+            self._jobs[job.id] = job
 
 
 job_manager = JobManager()

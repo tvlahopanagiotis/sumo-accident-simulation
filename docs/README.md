@@ -2,6 +2,9 @@
 
 This directory contains the long-form project documentation. The root
 `README.md` is intentionally kept as the high-level overview and quick-start.
+From version `0.3.0`, the visible application name is AntifragiCity SUMA
+(Simulator for Urban Mobility Antifragility). The internal Python package still
+uses the historical `sas` namespace for compatibility.
 
 All links in this directory use repository-relative paths so they render
 correctly on GitHub.
@@ -11,9 +14,11 @@ correctly on GitHub.
 - [README.md](../README.md):
   root project overview and quick start
 - [modules/README.md](modules/README.md):
-  narrative path through the main SAS modules
+  narrative path through the main SUMA modules
 - [operations/README.md](operations/README.md):
   consolidated workflow index
+- [antifragicity/SUMA_Codex_Development_Instructions.md](antifragicity/SUMA_Codex_Development_Instructions.md):
+  project and WP5 development context for SUMA
 
 ## Module Guides
 

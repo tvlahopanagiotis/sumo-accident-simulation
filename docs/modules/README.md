@@ -1,6 +1,6 @@
 # Module Guides
 
-This section is the narrative layer of the SAS documentation.
+This section is the narrative layer of the SUMA documentation.
 
 Use it when you want to understand the project by responsibility rather than
 by individual command. The module guides explain what each major part of the
@@ -27,4 +27,4 @@ Then move to:
 - `simulator.md`: the runtime core, accident logic, outputs, and modeling limits
 - `generators.md`: how city and benchmark networks are built and where demand comes from
 - `data-integrations.md`: how external data enters the repository
-- `analysis.md`: how SAS turns simulation outputs into resilience findings
+- `analysis.md`: how SUMA turns simulation outputs into resilience findings

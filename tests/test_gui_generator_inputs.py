@@ -37,6 +37,9 @@ def test_build_city_demand_preview_reads_od_and_node_inputs(
     assert preview["summary"]["mapped_top_flow_count"] == 1
     assert preview["sample_rows"][0]["origin"] == "10000001"
     assert preview["top_flows"][0]["origin_coords"] == [40.63, 22.95]
+    assert preview["zone_demands"][0]["zone_id"] == "10000002"
+    assert preview["zone_demands"][0]["origin_demand"] == 5
+    assert preview["zone_demands"][0]["destination_demand"] == 17
 
 
 def test_build_city_demand_preview_reports_missing_files(

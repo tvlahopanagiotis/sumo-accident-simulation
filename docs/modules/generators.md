@@ -1,7 +1,9 @@
-# Generators Module
+# OD Generators Module
 
 This guide covers the workflows that build SUMO-ready networks, route files,
 and `.sumocfg` files for extracted cities plus the benchmark/synthetic cases.
+The GUI labels this area `OD Generators` because demand creation is now a first
+class part of the workflow, even when the selected demand source is random.
 
 ## Scope
 
@@ -27,7 +29,7 @@ Depending on the case, they:
 - generate demand from `randomTrips.py` or city-specific inputs
 - write route files
 - write `.sumocfg` files
-- optionally patch SAS YAML configs to point at the generated artifacts
+- optionally patch SUMA/SAS YAML configs to point at the generated artifacts
 
 ## Generator Types
 
@@ -47,6 +49,8 @@ then:
 
 The GUI now complements that with a generator-side input viewer so operators
 can inspect discovered OD matrices and centroid nodes before building routes.
+For cities without OD files, the same tab still explains random-demand settings
+and estimates rough requested trips from the configured period and end time.
 
 For random-demand runs, the main density control is the route period. Lower
 period values request departures more often, but the observed number of valid
@@ -55,8 +59,8 @@ length, not only on the period itself.
 
 ### Benchmark and synthetic generators
 
-Sioux Falls and Riverside are useful for testing, experimentation, and faster
-turnaround.
+Benchmark and synthetic generators are useful for testing, experimentation, and
+faster turnaround.
 
 - Sioux Falls is the compact benchmark case.
 - Riverside is the synthetic development network.

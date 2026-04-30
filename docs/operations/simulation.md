@@ -6,8 +6,8 @@ This guide covers the simulator-facing command layer.
 
 ### `sas`
 
-This is the main SAS simulator entry point. It runs SUMO, injects incidents
-through the SAS risk and accident layers, records metrics, and writes the run
+This is the main SUMA simulator entry point. It runs SUMO, injects incidents
+through the SUMA risk and accident layers, records metrics, and writes the run
 artifacts under the configured output folder.
 
 #### Typical usage

@@ -63,7 +63,7 @@ reorganizing the page.
 
 ## Where It Fits In The Full Workflow
 
-This module is the earliest stage in the full SAS pipeline.
+This module is the earliest stage in the full SUMA pipeline.
 
 Typical chain:
 

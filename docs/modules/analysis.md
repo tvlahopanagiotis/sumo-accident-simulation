@@ -1,6 +1,6 @@
 # Analysis Module
 
-This guide covers the workflows that transform SAS run outputs into resilience
+This guide covers the workflows that transform SUMA run outputs into resilience
 findings, figures, comparative summaries, and validation artifacts.
 
 ## Scope

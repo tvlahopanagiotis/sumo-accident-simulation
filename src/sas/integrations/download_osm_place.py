@@ -37,7 +37,7 @@ import requests
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 DEFAULT_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
-DEFAULT_USER_AGENT = "antifragicity-sas-osm-downloader/0.1"
+DEFAULT_USER_AGENT = "antifragicity-suma-osm-downloader/0.3"
 DEFAULT_CONFIG_TEMPLATE = PROJECT_ROOT / "configs" / "templates" / "city_default.yaml"
 DEFAULT_ROAD_TYPES = (
     "motorway",

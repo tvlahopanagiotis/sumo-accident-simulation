@@ -229,7 +229,8 @@ button {
 .structured-fields-grid,
 .bounds-grid,
 .compact-grid,
-.config-topbar {
+.config-topbar,
+.config-path-picker {
   display: grid;
   gap: 1rem;
 }
@@ -322,7 +323,8 @@ button {
 
 .structured-fields-grid,
 .compact-grid,
-.config-topbar {
+.config-topbar,
+.config-path-picker {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -349,6 +351,26 @@ button {
 
 .config-create-card .button-row {
   margin-top: 0.5rem;
+}
+
+.config-create-card h3 {
+  margin: 0 0 0.75rem;
+}
+
+.config-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0 0.5rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(41, 19, 27, 0.08);
+  border-radius: 1rem;
+  background: rgba(255, 247, 244, 0.72);
+}
+
+.config-action-bar p {
+  margin: 0.25rem 0 0;
 }
 
 .chart-head {
@@ -975,6 +997,40 @@ button {
   padding: 0.9rem;
 }
 
+.job-row {
+  gap: 0.6rem;
+  padding: 0.35rem;
+}
+
+.job-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 0.55rem;
+}
+
+.job-row-main p {
+  margin: 0.2rem 0 0;
+  color: rgba(41, 19, 27, 0.62);
+}
+
+.icon-button {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(175, 32, 54, 0.10);
+  color: #7d1329;
+  font-weight: 700;
+}
+
 .location-row {
   flex-direction: column;
   align-items: flex-start;
@@ -1031,7 +1087,22 @@ button {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
-  align-items: start;
+  align-items: center;
+  justify-items: center;
+}
+
+.job-log-panel {
+  min-height: 0;
+}
+
+.job-log-panel .log-console {
+  max-height: 32rem;
+}
+
+.job-list {
+  max-height: calc(100vh - 16rem);
+  overflow: auto;
+  padding-right: 0.2rem;
 }
 
 .map-frame,
@@ -1097,6 +1168,63 @@ button {
 .results-tree-panel {
   position: sticky;
   top: 1.5rem;
+}
+
+.result-registry-scroll {
+  max-height: calc(100vh - 23rem);
+  overflow: auto;
+  margin-top: 1rem;
+}
+
+.result-registry-table tbody tr {
+  cursor: pointer;
+}
+
+.result-registry-table td:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.result-registry-table small {
+  color: rgba(41, 19, 27, 0.58);
+  white-space: normal;
+}
+
+.is-selected-row {
+  background: rgba(249, 50, 98, 0.08);
+}
+
+.raw-tree-details {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(41, 19, 27, 0.08);
+}
+
+.raw-tree-details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.overview-pipeline,
+.compact-run-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pipeline-step {
+  width: 100%;
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(41, 19, 27, 0.08);
+  border-radius: 1rem;
+  background: rgba(255, 247, 244, 0.76);
+  color: var(--brand-ink);
+}
+
+.pipeline-step span {
+  color: rgba(41, 19, 27, 0.62);
 }
 
 .chart-card-large {
@@ -1172,10 +1300,29 @@ button {
   align-items: start;
 }
 
+.footer-partners {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid rgba(41, 19, 27, 0.08);
+}
+
+.footer-partners span {
+  color: rgba(41, 19, 27, 0.64);
+}
+
 .eu-logo {
   width: 100%;
   max-width: 12rem;
   display: block;
+}
+
+.rhoe-logo {
+  max-width: 9rem;
+  max-height: 3.2rem;
+  object-fit: contain;
 }
 
 .footer-funding p,
@@ -1382,7 +1529,8 @@ button {
   .config-topbar,
   .structured-fields-grid,
   .workflow-note-grid,
-  .network-stat-grid {
+  .network-stat-grid,
+  .config-path-picker {
     grid-template-columns: 1fr;
   }
 
@@ -1428,5 +1576,11 @@ button {
 
   .footer-funding {
     grid-template-columns: 1fr;
+  }
+
+  .config-action-bar,
+  .footer-partners {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

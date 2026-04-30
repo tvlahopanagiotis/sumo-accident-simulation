@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 from pathlib import Path
+import shutil
 from statistics import mean
 from typing import Any
 
@@ -249,6 +250,102 @@ def _load_simulation_summary(path: Path) -> dict[str, Any] | None:
         return None
     payload = _json_load(path)
     return payload if isinstance(payload, dict) else None
+
+
+def _run_sort_key(path: Path) -> tuple[float, str]:
+    metadata = path / "metadata.json"
+    try:
+        return (metadata.stat().st_mtime, path.as_posix())
+    except OSError:
+        return (0.0, path.as_posix())
+
+
+def _infer_city_from_metadata(metadata: dict[str, Any], run_root: Path) -> str:
+    config = metadata.get("config", {}) if isinstance(metadata.get("config"), dict) else {}
+    sumo_cfg = config.get("sumo", {}) if isinstance(config.get("sumo"), dict) else {}
+    config_file = str(sumo_cfg.get("config_file") or "")
+    parts = Path(config_file).parts
+    if "cities" in parts:
+        index = parts.index("cities")
+        if len(parts) > index + 1:
+            return parts[index + 1]
+
+    for part in run_root.parts:
+        if part.lower() in {"thessaloniki", "seattle", "thermi"}:
+            return part
+    return "unknown"
+
+
+def _run_registry_item(run_root: Path) -> dict[str, Any] | None:
+    metadata_path = run_root / "metadata.json"
+    metrics_path = run_root / "network_metrics.csv"
+    if not metadata_path.exists() or not metrics_path.exists():
+        return None
+
+    try:
+        metadata = _json_load(metadata_path)
+    except Exception:
+        metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    summary = metadata.get("summary", {}) if isinstance(metadata.get("summary"), dict) else {}
+    config = metadata.get("config", {}) if isinstance(metadata.get("config"), dict) else {}
+    sumo_cfg = config.get("sumo", {}) if isinstance(config.get("sumo"), dict) else {}
+    output_cfg = config.get("output", {}) if isinstance(config.get("output"), dict) else {}
+
+    accidents_path = run_root / "accident_reports.json"
+    antifragility_path = run_root / "antifragility_index.json"
+    simulation_summary_path = run_root / "simulation_summary.json"
+    stat = metadata_path.stat()
+
+    return {
+        "run_root": _relative(run_root),
+        "name": run_root.name,
+        "city": _infer_city_from_metadata(metadata, run_root),
+        "created_at": metadata.get("created_at") or metadata.get("started_at"),
+        "modified_at": stat.st_mtime,
+        "config_file": sumo_cfg.get("config_file"),
+        "output_folder": output_cfg.get("output_folder"),
+        "total_steps": sumo_cfg.get("total_steps"),
+        "step_length": sumo_cfg.get("step_length"),
+        "seed": sumo_cfg.get("seed"),
+        "total_accidents": summary.get("total_accidents"),
+        "antifragility_index": summary.get("antifragility_index"),
+        "mean_speed_kmh": summary.get("mean_speed_kmh"),
+        "has_accidents": accidents_path.exists(),
+        "has_antifragility": antifragility_path.exists(),
+        "has_simulation_summary": simulation_summary_path.exists(),
+        "raw_file_count": len([path for path in run_root.iterdir() if path.is_file()]),
+    }
+
+
+def list_run_registry() -> list[dict[str, Any]]:
+    if not _RESULTS_ROOT.exists():
+        return []
+
+    runs: list[dict[str, Any]] = []
+    for metadata_path in _RESULTS_ROOT.rglob("metadata.json"):
+        run_root = metadata_path.parent
+        item = _run_registry_item(run_root)
+        if item is not None:
+            runs.append(item)
+
+    runs.sort(key=lambda item: (float(item.get("modified_at") or 0), item.get("run_root", "")), reverse=True)
+    return runs
+
+
+def delete_run(selected_path: Path) -> dict[str, Any]:
+    run_root = find_run_root(selected_path.resolve())
+    if run_root is None:
+        raise FileNotFoundError("No run root found for the selected path")
+    if run_root.resolve() == _RESULTS_ROOT or _RESULTS_ROOT not in run_root.resolve().parents:
+        raise ValueError("Only run folders under results/ can be deleted")
+
+    deleted_path = _relative(run_root)
+    file_count = len([path for path in run_root.rglob("*") if path.is_file()])
+    shutil.rmtree(run_root)
+    return {"deleted": True, "path": deleted_path, "file_count": file_count}
 
 
 def build_run_summary(selected_path: Path) -> dict[str, Any] | None:

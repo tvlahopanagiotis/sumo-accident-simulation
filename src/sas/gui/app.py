@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import io
+import json
 import mimetypes
 from pathlib import Path
 from typing import Any
+import zipfile
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 import yaml
 
@@ -16,7 +19,7 @@ from .cities import build_city_network_preview, delete_city_ways, discover_citie
 from .generator_inputs import build_city_demand_preview
 from .jobs import job_manager
 from .locations import search_locations
-from .results import build_run_summary
+from .results import build_run_summary, delete_run, find_run_root, list_run_registry
 from .traffic_feeds import build_traffic_feed_preview, discover_traffic_feeds
 from .workflows import WORKFLOW_SPECS
 
@@ -55,7 +58,11 @@ class CityWaySelectionPayload(BaseModel):
     way_ids: list[str] = Field(default_factory=list)
 
 
-app = FastAPI(title="SAS GUI API", version="0.2.4")
+class ResultDeletePayload(BaseModel):
+    path: str
+
+
+app = FastAPI(title="AntifragiCity SUMA API", version="0.3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -64,6 +71,7 @@ app.add_middleware(
         "http://localhost:4173",
         "http://127.0.0.1:4173",
         "https://sas.rhoe-api.gr",
+        "https://suma.rhoe-api.gr",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -190,6 +198,24 @@ def list_output_folders() -> dict[str, Any]:
     return {"output_folders": sorted(folders)}
 
 
+@app.get("/api/data-output-folders")
+def list_data_output_folders() -> dict[str, Any]:
+    folders: set[str] = set()
+    for root in [
+        PROJECT_ROOT / "data" / "cities",
+        PROJECT_ROOT / "data" / "benchmarks",
+        PROJECT_ROOT / "data" / "synthetic",
+    ]:
+        if not root.exists():
+            continue
+        for path in root.rglob("*"):
+            if path.is_dir() and path.name in {"network", "outputs", "routes"}:
+                folders.add(_relative_to_root(path))
+        if root.exists():
+            folders.add(_relative_to_root(root))
+    return {"data_output_folders": sorted(folders)}
+
+
 @app.get("/api/docs")
 def list_docs() -> dict[str, Any]:
     docs_root = PROJECT_ROOT / "docs"
@@ -304,6 +330,18 @@ def get_job(job_id: str) -> dict[str, Any]:
     return job
 
 
+@app.delete("/api/jobs/{job_id}")
+def forget_job(job_id: str) -> dict[str, Any]:
+    if not job_manager.forget_job(job_id):
+        raise HTTPException(status_code=404, detail="Job not found or still running")
+    return {"deleted": True}
+
+
+@app.delete("/api/jobs")
+def clear_finished_jobs() -> dict[str, Any]:
+    return {"deleted_count": job_manager.clear_finished()}
+
+
 @app.post("/api/jobs/{job_id}/cancel")
 def cancel_job(job_id: str) -> dict[str, Any]:
     if not job_manager.cancel_job(job_id):
@@ -320,6 +358,11 @@ def list_results(depth: int = Query(2, ge=0, le=5)) -> dict[str, Any]:
     }
 
 
+@app.get("/api/results/runs")
+def list_result_runs() -> dict[str, Any]:
+    return {"runs": list_run_registry()}
+
+
 @app.get("/api/results/summary")
 def get_result_summary(path: str = Query(...)) -> dict[str, Any]:
     resolved = _resolve_safe_path(path)
@@ -327,6 +370,57 @@ def get_result_summary(path: str = Query(...)) -> dict[str, Any]:
     if summary is None:
         raise HTTPException(status_code=404, detail="No run summary found for the selected path")
     return summary
+
+
+@app.get("/api/results/export")
+def export_result(path: str = Query(...), format: str = Query("json", pattern="^(json|csv|zip)$")):
+    resolved = _resolve_safe_path(path)
+    run_root = find_run_root(resolved)
+    if run_root is None:
+        raise HTTPException(status_code=404, detail="No run summary found for the selected path")
+
+    if format == "csv":
+        csv_path = run_root / "network_metrics.csv"
+        if not csv_path.exists():
+            raise HTTPException(status_code=404, detail="network_metrics.csv not found")
+        return FileResponse(
+            csv_path,
+            media_type="text/csv",
+            filename=f"{run_root.name}_network_metrics.csv",
+        )
+
+    if format == "json":
+        summary = build_run_summary(run_root)
+        if summary is None:
+            raise HTTPException(status_code=404, detail="No run summary found for the selected path")
+        payload = json.dumps(summary, indent=2).encode("utf-8")
+        return Response(
+            payload,
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{run_root.name}_summary.json"'},
+        )
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for item in sorted(run_root.rglob("*")):
+            if item.is_file():
+                archive.write(item, item.relative_to(run_root))
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{run_root.name}_artifacts.zip"'},
+    )
+
+
+@app.post("/api/results/delete")
+def delete_result(payload: ResultDeletePayload) -> dict[str, Any]:
+    try:
+        return delete_run(_resolve_safe_path(payload.path))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/locations/search")
@@ -423,7 +517,7 @@ def get_file_text(path: str) -> PlainTextResponse:
 @app.get("/api/branding")
 def branding() -> dict[str, Any]:
     return {
-        "name": "AntifragiCity SAS",
+        "name": "AntifragiCity SUMA",
         "colors": {
             "primary": "#f93262",
             "secondary": "#ffbea1",
@@ -435,6 +529,7 @@ def branding() -> dict[str, Any]:
         "logo_path": "frontend/public/branding/antifragicity-logo-main-h.svg",
         "favicon_path": "frontend/public/branding/antifragicity-favicon.svg",
         "eu_logo_path": "frontend/public/branding/eu-funded-by-eu.png",
+        "rhoe_logo_path": "frontend/public/branding/rhoe-logo-main-on-white.png",
         "project_url": "https://antifragicity.eu",
         "footer_disclaimer": (
             "This project has received funding from the European Union’s Horizon Europe research "

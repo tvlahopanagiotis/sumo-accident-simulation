@@ -1,6 +1,8 @@
 # Operations
 
-This section is the operator-facing workflow map for the CLI tools in SAS.
+This section is the operator-facing workflow map for the CLI tools in SUMA.
+The historical `sas-*` commands remain available; new work should prefer the
+matching `suma-*` aliases where they exist.
 It is intentionally consolidated so the command documentation is easier to
 browse and less fragmented.
 
@@ -33,7 +35,7 @@ For a new city workflow:
 1. start with [new-location-workflow.md](new-location-workflow.md) for a brand-new city
 2. use [data-integrations.md](data-integrations.md) to fetch source data
 3. use [generators.md](generators.md) to build runnable SUMO inputs
-4. use [simulation.md](simulation.md) to run SAS
+4. use [simulation.md](simulation.md) to run SUMA
 5. use [analysis.md](analysis.md) for results and resilience workflows
 
 For parameter semantics and the current incident logic review:

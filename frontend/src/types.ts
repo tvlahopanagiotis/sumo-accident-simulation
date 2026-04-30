@@ -41,6 +41,13 @@ export type CityDemandPreview = {
     zone_id: string;
     coords: [number, number];
   }>;
+  zone_demands: Array<{
+    zone_id: string;
+    origin_demand: number;
+    destination_demand: number;
+    total_demand: number;
+    coords: [number, number];
+  }>;
 };
 
 export type WorkflowSpec = {
@@ -96,6 +103,7 @@ export type Branding = {
   logo_path: string;
   favicon_path: string;
   eu_logo_path: string;
+  rhoe_logo_path?: string;
   project_url: string;
   footer_disclaimer: string;
   copyright: string;
@@ -332,4 +340,24 @@ export type ResultRunSummary = {
     image_paths: string[];
     raw_files: string[];
   };
+};
+
+export type ResultRunRegistryItem = {
+  run_root: string;
+  name: string;
+  city: string;
+  created_at: string | null;
+  modified_at: number;
+  config_file: string | null;
+  output_folder: string | null;
+  total_steps: number | null;
+  step_length: number | null;
+  seed: number | null;
+  total_accidents: number | null;
+  antifragility_index: number | null;
+  mean_speed_kmh: number | null;
+  has_accidents: boolean;
+  has_antifragility: boolean;
+  has_simulation_summary: boolean;
+  raw_file_count: number;
 };

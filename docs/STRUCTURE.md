@@ -152,8 +152,21 @@ root is `README.md`; all other long-form docs belong under `docs/`.
 
 After `pip install -e .`:
 
+- `suma`
+- `suma-assess`
+- `suma-generate-city`
+- `suma-fetch-osm`
+- `suma-fetch-govgr`
+- `suma-build-govgr-targets`
+- `suma-analyse-batch`
+- `suma-sweep`
+- `suma-visualise-sweep`
+- `suma-merge-report`
+- `suma-compare-seattle-real`
+- `suma-gui-api`
 - `sas`
 - `sas-assess`
+- `sas-generate-city`
 - `sas-generate-thessaloniki`
 - `sas-generate-seattle`
 - `sas-generate-sioux-falls`
@@ -166,6 +179,9 @@ After `pip install -e .`:
 - `sas-visualise-sweep`
 - `sas-merge-report`
 - `sas-compare-seattle-real`
+
+The `sas-*` names are retained for compatibility. The visible app and new
+operator-facing command aliases use the SUMA name.
 
 ## Structure Notes
 

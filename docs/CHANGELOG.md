@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-04-30
+
+### Changed
+- Renamed the visible application and API branding from AntifragiCity SAS to
+  AntifragiCity SUMA, while keeping the existing `sas` Python package namespace
+  and CLI commands for compatibility.
+- Added preferred `suma-*` command aliases for the main simulator, assessment,
+  data, generator, analysis, and GUI API entry points.
+- Reworked the Overview page into a more useful operator dashboard with current
+  workspace counts, pipeline shortcuts, active-job state, and recent run links.
+- Reworked Config Studio with a two-step config picker: target folder first,
+  config file second.
+- Moved Config Studio validate/delete/save actions into a dedicated action bar
+  below the open/create controls.
+- Kept Config Studio model families as secondary tabs and expanded the
+  resilience-assessment model guide so demand levels are explained as a
+  variable stress ladder with examples.
+- Renamed the generator area to `OD Generators` and split the city-generator
+  fields according to the selected demand source.
+- Reworked simulator and analysis pages into tabbed tool groups with expanded
+  guide dialogs.
+- Reworked the Results page from a tree-first browser into a run registry with
+  city/date/search filters and tabbed interactive summaries.
+- Improved Jobs so logs are scrollable, live/report media is better centered,
+  progress parsing reads simulation step logs, and completed job history can be
+  cleared or removed item-by-item.
+
+### Added
+- Result export endpoints for selected runs:
+  - summary JSON
+  - `network_metrics.csv`
+  - full run artifact ZIP
+- Result deletion endpoint for removing a selected run folder from `results/`.
+- Persistent GUI job history at `results/gui_job_history.json` for completed
+  job records.
+- OD input preview now includes per-zone origin and destination demand totals,
+  and the map/table can focus on a selected zone.
+- Random-demand preview now estimates requested trips from route period and end
+  time so operators can judge run weight before generating.
+- Rhoé partner logo in the GUI footer.
+- SUMA project-development context added to the in-app documentation library.
+
+### Documentation
+- Updated the README, GUI guide, generator module guide, generator operations
+  guide, documentation index, and changelog for the SUMA naming and 0.3.0 UI/API
+  behavior.
+
 ## [0.2.4] - 2026-04-28
 
 ### Changed

@@ -19,6 +19,7 @@ import type {
   JobRecord,
   LocationSearchResult,
   ResultRunSummary,
+  ResultRunRegistryItem,
   TrafficFeedPreview,
   TrafficFeedSourceRecord,
   TreeNode,
@@ -43,14 +44,17 @@ type OSMSubtab = "new" | "extracted";
 type FeedSubtab = "new" | "exported";
 type GeneratorSubtab = "build" | "view";
 type GeneratorFamily = "city" | "benchmark" | "synthetic";
+type SimulationSubtab = "run" | "assessment";
+type AnalysisSubtab = "batch" | "sweep" | "report" | "validation";
+type ResultsSubtab = "charts" | "accidents" | "artifacts" | "raw";
 type InfoModal = {
   title: string;
   sections: Array<{ heading: string; body: string[] }>;
 } | null;
-const APP_VERSION = "0.2.4";
+const APP_VERSION = "0.3.0";
 
 const DEFAULT_BRANDING: Branding = {
-  name: "AntifragiCity SAS",
+  name: "AntifragiCity SUMA",
   colors: {
     primary: "#f93262",
     secondary: "#ffbea1",
@@ -62,6 +66,7 @@ const DEFAULT_BRANDING: Branding = {
   logo_path: "frontend/public/branding/antifragicity-logo-main-h.svg",
   favicon_path: "frontend/public/branding/antifragicity-favicon.svg",
   eu_logo_path: "frontend/public/branding/eu-funded-by-eu.png",
+  rhoe_logo_path: "frontend/public/branding/rhoe-logo-main-on-white.png",
   project_url: "https://antifragicity.eu",
   footer_disclaimer:
     "This project has received funding from the European Union’s Horizon Europe research and innovation programme under grant agreement No. 101203052. Views and opinions expressed are however those of the author(s) only and do not necessarily reflect those of the European Union or the European Climate, Infrastructure and Environment Executive Agency (CINEA). Neither the European Union nor the granting authority can be held responsible for them.",
@@ -73,7 +78,7 @@ const VIEW_LABELS: Array<{ key: ViewKey; label: string }> = [
   { key: "documentation", label: "Documentation" },
   { key: "configs", label: "Config Studio" },
   { key: "data_integrations", label: "Data & Integrations" },
-  { key: "generators", label: "Generators" },
+  { key: "generators", label: "OD Generators" },
   { key: "simulations", label: "Simulations" },
   { key: "analysis", label: "Analysis" },
   { key: "results", label: "Results" },
@@ -215,6 +220,7 @@ function classifyGeneratorFamily(workflowId: string): GeneratorFamily {
 const DOC_LABELS = new Map<string, string>([
   ["README.md", "Project Overview"],
   ["docs/README.md", "Documentation Index"],
+  ["docs/antifragicity/SUMA_Codex_Development_Instructions.md", "SUMA Development Context"],
   ["docs/STRUCTURE.md", "Repository Structure"],
   ["docs/REFERENCE.md", "Reference"],
   ["docs/GUI.md", "GUI Guide"],
@@ -250,8 +256,8 @@ function groupDocumentationPaths(paths: string[]): Array<{ title: string; descri
     },
     {
       title: "Foundations",
-      description: "Core repository, interface, and reference material that defines how SAS is organized and how it behaves.",
-      items: ["docs/STRUCTURE.md", "docs/REFERENCE.md", "docs/GUI.md"],
+      description: "Core repository, interface, and reference material that defines how SUMA is organized and how it behaves.",
+      items: ["docs/antifragicity/SUMA_Codex_Development_Instructions.md", "docs/STRUCTURE.md", "docs/REFERENCE.md", "docs/GUI.md"],
     },
     {
       title: "Module Guides",
@@ -516,6 +522,54 @@ function NumberListEditor({
   );
 }
 
+function ConfigPathPicker({
+  value,
+  groups,
+  onChange,
+  label = "Config Folder",
+}: {
+  value: string;
+  groups: Array<{ folder: string; items: string[] }>;
+  onChange: (path: string) => void;
+  label?: string;
+}) {
+  const currentGroup =
+    groups.find((group) => group.items.includes(value)) ?? groups[0] ?? { folder: "", items: [] };
+  const selectedFolder = currentGroup.folder;
+  const selectedName = value && currentGroup.items.includes(value) ? value : currentGroup.items[0] ?? "";
+
+  return (
+    <div className="config-path-picker">
+      <div className="field">
+        <span>{label}</span>
+        <select
+          value={selectedFolder}
+          onChange={(event) => {
+            const group = groups.find((item) => item.folder === event.target.value);
+            onChange(group?.items[0] ?? "");
+          }}
+        >
+          {groups.map((group) => (
+            <option key={group.folder} value={group.folder}>
+              {group.folder}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <span>Config Name</span>
+        <select value={selectedName} onChange={(event) => onChange(event.target.value)}>
+          {(currentGroup.items ?? []).map((path) => (
+            <option key={path} value={path}>
+              {path.split("/").slice(-1)[0]}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 function StructuredFieldInput({
   field,
   value,
@@ -596,12 +650,16 @@ function WorkflowInput({
   value,
   onChange,
   configPaths,
+  configPathGroups,
+  dataOutputFolders,
   cities,
 }: {
   field: WorkflowField;
   value: unknown;
   onChange: (value: unknown) => void;
   configPaths: string[];
+  configPathGroups: Array<{ folder: string; items: string[] }>;
+  dataOutputFolders: string[];
   cities: CityRecord[];
 }) {
   const placeholder = field.placeholder ?? field.help ?? "";
@@ -622,13 +680,26 @@ function WorkflowInput({
           ))}
         </select>
       ) : field.type === "config" ? (
-        <select value={String(value ?? field.default ?? "")} onChange={(event) => onChange(event.target.value)}>
-          {configPaths.map((path) => (
-            <option key={path} value={path}>
-              {path}
-            </option>
-          ))}
-        </select>
+        <ConfigPathPicker
+          value={String(value ?? field.default ?? configPaths[0] ?? "")}
+          groups={configPathGroups}
+          onChange={onChange}
+        />
+      ) : field.name === "out_dir" && dataOutputFolders.length > 0 ? (
+        <>
+          <input
+            type="text"
+            list={`data-output-folders-${field.name}`}
+            value={value === undefined || value === null ? "" : String(value)}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={placeholder}
+          />
+          <datalist id={`data-output-folders-${field.name}`}>
+            {dataOutputFolders.map((path) => (
+              <option key={path} value={path} />
+            ))}
+          </datalist>
+        </>
       ) : field.type === "city" ? (
         <select value={String(value ?? "")} onChange={(event) => onChange(event.target.value)}>
           <option value="">Select extracted city</option>
@@ -756,19 +827,26 @@ function WorkflowCard({
   onChange,
   onLaunch,
   configPaths,
+  configPathGroups,
+  dataOutputFolders,
   cities,
   extraNote,
   disabled,
+  fieldFilter,
 }: {
   workflow: WorkflowSpec;
   values: Record<string, unknown>;
   onChange: (name: string, value: unknown) => void;
   onLaunch: () => void;
   configPaths: string[];
+  configPathGroups: Array<{ folder: string; items: string[] }>;
+  dataOutputFolders: string[];
   cities: CityRecord[];
   extraNote?: string;
   disabled?: boolean;
+  fieldFilter?: (field: WorkflowField) => boolean;
 }) {
+  const visibleFields = fieldFilter ? workflow.fields.filter(fieldFilter) : workflow.fields;
   return (
     <section className="workflow-card">
       <div className="workflow-head">
@@ -780,13 +858,15 @@ function WorkflowCard({
       </div>
       {extraNote ? <p className="workflow-note">{extraNote}</p> : null}
       <div className="workflow-fields">
-        {workflow.fields.map((field) => (
+        {visibleFields.map((field) => (
           <WorkflowInput
             key={`${workflow.id}.${field.name}`}
             field={field}
             value={values[field.name]}
             onChange={(next) => onChange(field.name, next)}
             configPaths={configPaths}
+            configPathGroups={configPathGroups}
+            dataOutputFolders={dataOutputFolders}
             cities={cities}
           />
         ))}
@@ -808,6 +888,7 @@ export default function App() {
   const [configPaths, setConfigPaths] = useState<string[]>([]);
   const [sumoConfigPaths, setSumoConfigPaths] = useState<string[]>([]);
   const [outputFolderPaths, setOutputFolderPaths] = useState<string[]>([]);
+  const [dataOutputFolderPaths, setDataOutputFolderPaths] = useState<string[]>([]);
   const [selectedConfigPath, setSelectedConfigPath] = useState<string>("configs/thessaloniki/default.yaml");
   const [configDoc, setConfigDoc] = useState<ConfigDocument | null>(null);
   const [rawYaml, setRawYaml] = useState<string>("");
@@ -817,7 +898,12 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [selectedFileText, setSelectedFileText] = useState<string>("");
   const [selectedRunSummary, setSelectedRunSummary] = useState<ResultRunSummary | null>(null);
-  const [message, setMessage] = useState<string>("Loading AntifragiCity SAS Console…");
+  const [resultRuns, setResultRuns] = useState<ResultRunRegistryItem[]>([]);
+  const [resultCityFilter, setResultCityFilter] = useState<string>("all");
+  const [resultDateFilter, setResultDateFilter] = useState<string>("all");
+  const [resultTextFilter, setResultTextFilter] = useState<string>("");
+  const [resultsSubtab, setResultsSubtab] = useState<ResultsSubtab>("charts");
+  const [message, setMessage] = useState<string>("Loading AntifragiCity SUMA Console...");
   const [configMode, setConfigMode] = useState<ConfigMode>("structured");
   const [configSection, setConfigSection] = useState<ConfigSectionKey>("sumo");
   const [newConfigFolderChoice, setNewConfigFolderChoice] = useState<string>("custom");
@@ -838,9 +924,12 @@ export default function App() {
   const [feedSubtab, setFeedSubtab] = useState<FeedSubtab>("new");
   const [generatorSubtab, setGeneratorSubtab] = useState<GeneratorSubtab>("build");
   const [generatorFamily, setGeneratorFamily] = useState<GeneratorFamily>("city");
+  const [simulationSubtab, setSimulationSubtab] = useState<SimulationSubtab>("run");
+  const [analysisSubtab, setAnalysisSubtab] = useState<AnalysisSubtab>("batch");
   const [cities, setCities] = useState<CityRecord[]>([]);
   const [selectedGeneratorCitySlug, setSelectedGeneratorCitySlug] = useState<string>("");
   const [selectedGeneratorDemandPreview, setSelectedGeneratorDemandPreview] = useState<CityDemandPreview | null>(null);
+  const [selectedDemandZoneId, setSelectedDemandZoneId] = useState<string>("");
   const [selectedCitySlug, setSelectedCitySlug] = useState<string>("");
   const [selectedCityPreview, setSelectedCityPreview] = useState<CityNetworkPreview | null>(null);
   const [networkSelectionMode, setNetworkSelectionMode] = useState<NetworkSelectionMode>("click");
@@ -914,6 +1003,7 @@ export default function App() {
 
   const logoSrc = assetPath(branding.logo_path, "/branding/antifragicity-logo-main-h.svg");
   const euLogoSrc = assetPath(branding.eu_logo_path, "/branding/eu-funded-by-eu.png");
+  const rhoeLogoSrc = assetPath(branding.rhoe_logo_path, "/branding/rhoe-logo-main-on-white.png");
   const localityPolygons = useMemo(() => normalizeGeoJsonCoordinates(selectedLocation?.geojson), [selectedLocation]);
   const shapeBounds = useMemo(() => boundsFromPoints(customShapePoints), [customShapePoints]);
   const selectedCity = useMemo(
@@ -980,6 +1070,42 @@ export default function App() {
     }
     return customBounds;
   }, [boundaryMode, shapeBounds, customBounds]);
+  const resultCities = useMemo(
+    () => Array.from(new Set(resultRuns.map((run) => run.city || "unknown"))).sort(),
+    [resultRuns],
+  );
+  const resultDates = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          resultRuns.map((run) =>
+            new Date((run.modified_at || 0) * 1000).toISOString().slice(0, 10),
+          ),
+        ),
+      ).sort().reverse(),
+    [resultRuns],
+  );
+  const filteredResultRuns = useMemo(() => {
+    const query = resultTextFilter.trim().toLowerCase();
+    return resultRuns.filter((run) => {
+      if (resultCityFilter !== "all" && run.city !== resultCityFilter) {
+        return false;
+      }
+      if (
+        resultDateFilter !== "all" &&
+        new Date((run.modified_at || 0) * 1000).toISOString().slice(0, 10) !== resultDateFilter
+      ) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return [run.name, run.run_root, run.city, run.config_file ?? ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [resultRuns, resultCityFilter, resultDateFilter, resultTextFilter]);
   const configStudioInfo = {
     title: "Config Studio Guide",
     sections: [
@@ -1022,6 +1148,48 @@ export default function App() {
       },
     ],
   };
+  const osmIntegrationInfo = {
+    title: "OSM Extract Workflow Guide",
+    sections: [
+      {
+        heading: "New Extract",
+        body: [
+          "Search resolves a place through Nominatim and uses the returned boundary or bounding box as the extraction area.",
+          "The city bootstrap creates the standard data/cities/<slug>/ folders, the network folder, govgr placeholders, metadata, and configs/<slug>/default.yaml.",
+          "Road-type toggles control the OSM highway classes requested from Overpass. The default set is the practical SUMO road network, while pedestrian-only and cycle-only classes are optional.",
+        ],
+      },
+      {
+        heading: "Extracted Network",
+        body: [
+          "This view reads the raw saved .osm file before SUMO conversion. It is the right place to clean speed tags, inspect road hierarchy, review signalized intersections, and delete unwanted OSM ways.",
+          "Map selection supports single click, Shift multi-select, box selection, filter-based selection, and connected same-name road expansion.",
+          "Edits are written to the raw OSM extract, so they affect the later generator step.",
+        ],
+      },
+    ],
+  };
+  const trafficFeedInfo = {
+    title: "Traffic Feed Workflow Guide",
+    sections: [
+      {
+        heading: "New Feed Pull",
+        body: [
+          "The current implemented provider is Thessaloniki gov.gr / IMET-CERTH traffic data.",
+          "The source feed and target network are intentionally separate, so a Thessaloniki source can be reused for variants such as centre, small, or metropolitan extracts.",
+          "Downloader outputs are stored under the target city's govgr/downloads folder. Target builders create calibration and validation folders under govgr/targets.",
+        ],
+      },
+      {
+        heading: "Exported Feeds",
+        body: [
+          "Published catalogs are source-side metadata bundles. Downloaded runs and built targets are target-city artifacts.",
+          "The alignment map joins feed Link_id values to OSM way ids where possible. It is a coverage diagnostic, not a guarantee that every feed link exists in the current extract.",
+          "The provider-slot structure is ready for later adapters for Larissa, Bratislava, Odessa, and broader open-data sources.",
+        ],
+      },
+    ],
+  };
   const generatorInfo = {
     title: "Generators Guide",
     sections: [
@@ -1050,6 +1218,53 @@ export default function App() {
       },
     ],
   };
+  const simulationInfo = {
+    title: "Simulation Workflow Guide",
+    sections: [
+      {
+        heading: "Run Simulation",
+        body: [
+          "Runs one SUMO configuration through the SUMA incident layer, risk model, accident lifecycle, rerouting logic, metrics recorder, and result exporter.",
+          "Use this for focused scenario runs, calibration checks, and debugging a single city/config before launching larger assessments.",
+          "The config picker is the same folder/name selector used in Config Studio so the selected scenario remains explicit.",
+        ],
+      },
+      {
+        heading: "Run Resilience Assessment",
+        body: [
+          "Runs a scenario matrix across demand levels, incident probabilities, and seeds.",
+          "Demand levels are stress-ladder values: for random-demand scenarios they represent route insertion periods, so lower numbers generally mean heavier demand. Multiple values let the assessment detect where the network moves from stable operation into breakdown.",
+          "Use fewer levels and seeds for exploratory checks; use broader ladders and more seeds when preparing evidence for comparison.",
+        ],
+      },
+    ],
+  };
+  const analysisInfo = {
+    title: "Analysis Workflow Guide",
+    sections: [
+      {
+        heading: "Batch Analysis",
+        body: [
+          "Analyses folders of completed simulation runs and can compare one batch against another.",
+          "This is the first post-processing step after running multiple scenarios.",
+        ],
+      },
+      {
+        heading: "Sweeps And Reports",
+        body: [
+          "Failure-point sweeps explore demand and incident-probability grids.",
+          "Visualisation and merge tools convert sweep outputs and supplementary MFD analysis into report-ready artifacts.",
+        ],
+      },
+      {
+        heading: "Validation Tools",
+        body: [
+          "The current validation-specific workflow compares Seattle simulation outputs with historical Seattle collision data.",
+          "Future city adapters should follow the same pattern: keep calibration inputs explicit and write comparison outputs into a traceable result folder.",
+        ],
+      },
+    ],
+  };
 
   useEffect(() => {
     document.documentElement.style.setProperty("--brand-primary", branding.colors.primary);
@@ -1061,14 +1276,16 @@ export default function App() {
   }, [branding]);
 
   const refreshConfigMetadata = async () => {
-    const [configData, sumoConfigData, outputFolderData] = await Promise.all([
+    const [configData, sumoConfigData, outputFolderData, dataOutputFolderData] = await Promise.all([
       api.get<{ configs: Array<{ path: string }> }>("/api/configs"),
       api.get<{ sumo_configs: string[] }>("/api/sumo-configs"),
       api.get<{ output_folders: string[] }>("/api/output-folders"),
+      api.get<{ data_output_folders: string[] }>("/api/data-output-folders"),
     ]);
     setConfigPaths(configData.configs.map((item) => item.path));
     setSumoConfigPaths(sumoConfigData.sumo_configs);
     setOutputFolderPaths(outputFolderData.output_folders);
+    setDataOutputFolderPaths(dataOutputFolderData.data_output_folders);
   };
 
   const refreshCities = async () => {
@@ -1089,8 +1306,12 @@ export default function App() {
   };
 
   const refreshResults = async () => {
-    const resultData = await api.get<{ entries: TreeNode[] }>("/api/results");
+    const [resultData, runData] = await Promise.all([
+      api.get<{ entries: TreeNode[] }>("/api/results"),
+      api.get<{ runs: ResultRunRegistryItem[] }>("/api/results/runs"),
+    ]);
     setResultsTree(resultData.entries);
+    setResultRuns(runData.runs);
   };
 
   useEffect(() => {
@@ -1099,18 +1320,21 @@ export default function App() {
       api.get<{ configs: Array<{ path: string }> }>("/api/configs"),
       api.get<{ sumo_configs: string[] }>("/api/sumo-configs"),
       api.get<{ output_folders: string[] }>("/api/output-folders"),
+      api.get<{ data_output_folders: string[] }>("/api/data-output-folders"),
       api.get<{ docs: Array<{ path: string }> }>("/api/docs"),
       api.get<{ cities: CityRecord[] }>("/api/cities"),
       api.get<{ feeds: TrafficFeedSourceRecord[] }>("/api/traffic-feeds"),
       api.get<Branding>("/api/branding"),
       api.get<{ jobs: JobRecord[] }>("/api/jobs"),
       api.get<{ entries: TreeNode[] }>("/api/results"),
+      api.get<{ runs: ResultRunRegistryItem[] }>("/api/results/runs"),
     ])
-      .then(([workflowData, configData, sumoConfigData, outputFolderData, docsData, cityData, feedData, brandingData, jobData, resultData]) => {
+      .then(([workflowData, configData, sumoConfigData, outputFolderData, dataOutputFolderData, docsData, cityData, feedData, brandingData, jobData, resultData, runData]) => {
         setWorkflowSpecs(workflowData.workflows);
         setConfigPaths(configData.configs.map((item) => item.path));
         setSumoConfigPaths(sumoConfigData.sumo_configs);
         setOutputFolderPaths(outputFolderData.output_folders);
+        setDataOutputFolderPaths(dataOutputFolderData.data_output_folders);
         setDocPaths(docsData.docs.map((item) => item.path));
         setCities(cityData.cities);
         setSelectedCitySlug((current) =>
@@ -1129,6 +1353,7 @@ export default function App() {
         setBranding(brandingData);
         setJobs(jobData.jobs);
         setResultsTree(resultData.entries);
+        setResultRuns(runData.runs);
         setWorkflowValues(
           Object.fromEntries(
             workflowData.workflows.map((workflow) => [
@@ -1278,13 +1503,22 @@ export default function App() {
   useEffect(() => {
     if (!selectedGeneratorCitySlug) {
       setSelectedGeneratorDemandPreview(null);
+      setSelectedDemandZoneId("");
       return;
     }
     applyGeneratorCityDefaults(selectedGeneratorCitySlug);
     void api
       .get<CityDemandPreview>(`/api/cities/${encodeURIComponent(selectedGeneratorCitySlug)}/demand-preview`)
-      .then((preview) => setSelectedGeneratorDemandPreview(preview))
-      .catch(() => setSelectedGeneratorDemandPreview(null));
+      .then((preview) => {
+        setSelectedGeneratorDemandPreview(preview);
+        setSelectedDemandZoneId((current) =>
+          current && preview.zone_demands.some((zone) => zone.zone_id === current) ? current : "",
+        );
+      })
+      .catch(() => {
+        setSelectedGeneratorDemandPreview(null);
+        setSelectedDemandZoneId("");
+      });
   }, [selectedGeneratorCitySlug]);
 
   useEffect(() => {
@@ -1421,6 +1655,60 @@ export default function App() {
       setMessage(`Deleted ${selectedConfigPath}`);
     } catch (error) {
       setMessage(`Delete failed: ${String(error)}`);
+    }
+  };
+
+  const exportSelectedRun = (format: "json" | "csv" | "zip") => {
+    const path = selectedRunSummary?.run_root ?? selectedFile;
+    if (!path) {
+      setMessage("Select a result run first");
+      return;
+    }
+    window.location.href = api.url(`/api/results/export?path=${encodeURIComponent(path)}&format=${format}`);
+  };
+
+  const deleteSelectedRun = async () => {
+    const path = selectedRunSummary?.run_root ?? selectedFile;
+    if (!path) {
+      setMessage("Select a result run first");
+      return;
+    }
+    if (!window.confirm(`Delete result run ${path}?`)) {
+      return;
+    }
+    try {
+      await api.post("/api/results/delete", { path });
+      setSelectedFile(null);
+      setSelectedRunSummary(null);
+      await refreshResults();
+      setMessage(`Deleted result run ${path}`);
+    } catch (error) {
+      setMessage(`Result deletion failed: ${String(error)}`);
+    }
+  };
+
+  const forgetJob = async (jobId: string) => {
+    try {
+      await fetch(api.url(`/api/jobs/${jobId}`), { method: "DELETE" });
+      const data = await api.get<{ jobs: JobRecord[] }>("/api/jobs");
+      setJobs(data.jobs);
+      setSelectedJobId((current) => (current === jobId ? data.jobs[0]?.id ?? null : current));
+    } catch (error) {
+      setMessage(`Job removal failed: ${String(error)}`);
+    }
+  };
+
+  const clearFinishedJobs = async () => {
+    try {
+      await fetch(api.url("/api/jobs"), { method: "DELETE" });
+      const data = await api.get<{ jobs: JobRecord[] }>("/api/jobs");
+      setJobs(data.jobs);
+      setSelectedJobId((current) =>
+        current && data.jobs.some((job) => job.id === current) ? current : data.jobs[0]?.id ?? null,
+      );
+      setMessage("Cleared finished jobs from the registry");
+    } catch (error) {
+      setMessage(`Clear jobs failed: ${String(error)}`);
     }
   };
 
@@ -1852,6 +2140,8 @@ export default function App() {
               onChange={(name, value) => updateWorkflowValue(workflow.id, name, value)}
               onLaunch={() => void launchWorkflow(workflow.id)}
               configPaths={configPaths}
+              configPathGroups={configPathGroups}
+              dataOutputFolders={dataOutputFolderPaths}
               cities={cities}
             />
           ))}
@@ -1860,12 +2150,109 @@ export default function App() {
     </section>
   );
 
+  const renderWorkflowCards = (workflows: WorkflowSpec[]) => (
+    <div className="workflow-grid">
+      {workflows.map((workflow) => (
+        <WorkflowCard
+          key={workflow.id}
+          workflow={workflow}
+          values={workflowValues[workflow.id] ?? {}}
+          onChange={(name, value) => updateWorkflowValue(workflow.id, name, value)}
+          onLaunch={() => void launchWorkflow(workflow.id)}
+          configPaths={configPaths}
+          configPathGroups={configPathGroups}
+          dataOutputFolders={dataOutputFolderPaths}
+          cities={cities}
+        />
+      ))}
+    </div>
+  );
+
+  const renderSimulationsSection = () => {
+    const workflows =
+      simulationSubtab === "run"
+        ? activeCategoryWorkflows.filter((workflow) => workflow.id === "simulation.run")
+        : activeCategoryWorkflows.filter((workflow) => workflow.id === "assessment.run");
+    return (
+      <section className="workflow-stack">
+        <article className="panel">
+          <div className="section-header">
+            <div>
+              <h2>Simulations</h2>
+              <p className="muted">Run the SUMA simulation engine directly or launch the broader resilience-assessment matrix.</p>
+            </div>
+            <button className="secondary-button" onClick={() => setInfoModal(simulationInfo)}>
+              Simulator Guide
+            </button>
+          </div>
+          <div className="subtab-row" aria-label="Simulation tabs">
+            <button className={`subtab-button ${simulationSubtab === "run" ? "is-active" : ""}`} onClick={() => setSimulationSubtab("run")}>
+              Run Simulator
+            </button>
+            <button className={`subtab-button ${simulationSubtab === "assessment" ? "is-active" : ""}`} onClick={() => setSimulationSubtab("assessment")}>
+              Resilience Assessment
+            </button>
+          </div>
+          <section className="structured-group-card">
+            <h4>{simulationSubtab === "run" ? "Run Simulator" : "Resilience Assessment"}</h4>
+            <p className="muted">
+              {simulationSubtab === "run"
+                ? "Use this when you want one scenario or a repeated seed batch from a single YAML config."
+                : "Use this when you want a stress-test matrix across demand levels, incident settings, and seeds."}
+            </p>
+            {renderWorkflowCards(workflows)}
+          </section>
+        </article>
+      </section>
+    );
+  };
+
+  const renderAnalysisSection = () => {
+    const workflowByTab: Record<AnalysisSubtab, string[]> = {
+      batch: ["analysis.batch"],
+      sweep: ["analysis.sweep", "analysis.visualise_sweep"],
+      report: ["analysis.merge_report"],
+      validation: ["analysis.compare_seattle"],
+    };
+    const workflows = activeCategoryWorkflows.filter((workflow) => workflowByTab[analysisSubtab].includes(workflow.id));
+    return (
+      <section className="workflow-stack">
+        <article className="panel">
+          <div className="section-header">
+            <div>
+              <h2>Analysis</h2>
+              <p className="muted">Turn completed runs and batches into comparison tables, sweep figures, reports, and validation checks.</p>
+            </div>
+            <button className="secondary-button" onClick={() => setInfoModal(analysisInfo)}>
+              Tool Guide
+            </button>
+          </div>
+          <div className="subtab-row" aria-label="Analysis tabs">
+            <button className={`subtab-button ${analysisSubtab === "batch" ? "is-active" : ""}`} onClick={() => setAnalysisSubtab("batch")}>
+              Batch
+            </button>
+            <button className={`subtab-button ${analysisSubtab === "sweep" ? "is-active" : ""}`} onClick={() => setAnalysisSubtab("sweep")}>
+              Sweeps
+            </button>
+            <button className={`subtab-button ${analysisSubtab === "report" ? "is-active" : ""}`} onClick={() => setAnalysisSubtab("report")}>
+              Reports
+            </button>
+            <button className={`subtab-button ${analysisSubtab === "validation" ? "is-active" : ""}`} onClick={() => setAnalysisSubtab("validation")}>
+              Validation
+            </button>
+          </div>
+          {renderWorkflowCards(workflows)}
+        </article>
+      </section>
+    );
+  };
+
   const renderGeneratorViewSection = () => (
     <>
       <div className="section-header">
         <div>
           <h2>Generator Inputs</h2>
-          <p className="muted">Inspect OD support files before generating routes. When no OD files exist for a city, the generic generator can still run with random demand.</p>
+          <p className="muted">Inspect OD support files when they exist, or estimate random-demand weight before building routes.</p>
         </div>
         <span className="chip">{selectedGeneratorDemandPreview?.supported ? "OD ready" : "Random only"}</span>
       </div>
@@ -1891,6 +2278,12 @@ export default function App() {
               OD file: {selectedGeneratorDemandPreview?.od_file ?? "Not found"}
               <br />
               Node file: {selectedGeneratorDemandPreview?.node_file ?? "Not found"}
+            </p>
+          </div>
+          <div className="workflow-note-box">
+            <strong>Random Demand Estimate</strong>
+            <p>
+              Period {formatNumber(cityGeneratorPeriod, 2)} s over {cityGeneratorEnd.toLocaleString()} s requests roughly {estimatedRandomTrips?.toLocaleString() ?? "n/a"} trips. Actual active vehicles depend on valid routes, trip length, congestion, and SUMO insertion failures.
             </p>
           </div>
         </div>
@@ -1929,7 +2322,46 @@ export default function App() {
 
         <div className="generator-view-grid">
           <section className="structured-group-card">
-            <h4>OD Sample Table</h4>
+            <div className="section-heading-row">
+              <h4>OD Tables</h4>
+              {selectedGeneratorDemandPreview?.zone_demands.length ? (
+                <select value={selectedDemandZoneId} onChange={(event) => setSelectedDemandZoneId(event.target.value)}>
+                  <option value="">All zones</option>
+                  {selectedGeneratorDemandPreview.zone_demands.slice(0, 100).map((zone) => (
+                    <option key={zone.zone_id} value={zone.zone_id}>
+                      Zone {zone.zone_id}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+            </div>
+            {selectedDemandZoneId && selectedGeneratorDemandPreview?.zone_demands.length ? (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Zone</th>
+                      <th>Origin Demand</th>
+                      <th>Destination Demand</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedGeneratorDemandPreview.zone_demands
+                      .filter((zone) => zone.zone_id === selectedDemandZoneId)
+                      .map((zone) => (
+                        <tr key={zone.zone_id}>
+                          <td>{zone.zone_id}</td>
+                          <td>{formatNumber(zone.origin_demand, 2)}</td>
+                          <td>{formatNumber(zone.destination_demand, 2)}</td>
+                          <td>{formatNumber(zone.total_demand, 2)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+            <h4>OD Sample Rows</h4>
             {selectedGeneratorDemandPreview?.sample_rows.length ? (
               <div className="table-wrap">
                 <table className="data-table">
@@ -1957,7 +2389,11 @@ export default function App() {
               <p className="muted">No OD rows are available for the selected city.</p>
             )}
           </section>
-          <ODDemandMap preview={selectedGeneratorDemandPreview} />
+          <ODDemandMap
+            preview={selectedGeneratorDemandPreview}
+            selectedZoneId={selectedDemandZoneId}
+            onSelectedZoneChange={setSelectedDemandZoneId}
+          />
         </div>
       </div>
     </>
@@ -2002,6 +2438,8 @@ export default function App() {
               onChange={(name, value) => updateWorkflowValue(workflow.id, name, value)}
               onLaunch={() => void launchWorkflow(workflow.id)}
               configPaths={configPaths}
+              configPathGroups={configPathGroups}
+              dataOutputFolders={dataOutputFolderPaths}
               cities={cities}
             />
           ))}
@@ -2010,13 +2448,25 @@ export default function App() {
     );
   };
 
+  const cityGeneratorFieldFilter = (field: WorkflowField): boolean => {
+    const randomOnly = new Set(["period"]);
+    const odOnly = new Set(["od_file", "node_file", "od_scale", "edges_per_zone", "seed"]);
+    if (cityGeneratorDemandSource === "random") {
+      return !odOnly.has(field.name);
+    }
+    if (cityGeneratorDemandSource === "od") {
+      return !randomOnly.has(field.name);
+    }
+    return true;
+  };
+
   const renderGeneratorsSection = () => (
     <section className="workflow-stack">
       <article className="panel">
         <div className="section-header">
           <div>
-            <h2>Generators</h2>
-            <p className="muted">Use the generic city generator for extracted locations under data/cities/, and keep the benchmark/synthetic generators separate for Sioux Falls and Riverside.</p>
+            <h2>OD Generators</h2>
+            <p className="muted">Build SUMO demand and network inputs from extracted city folders, benchmark definitions, or synthetic reference networks.</p>
           </div>
           <div className="button-row">
             <span className="chip">{generatorWorkflows.length} workflows</span>
@@ -2088,7 +2538,10 @@ export default function App() {
                       }}
                       onLaunch={() => void launchWorkflow(workflow.id)}
                       configPaths={configPaths}
+                      configPathGroups={configPathGroups}
+                      dataOutputFolders={dataOutputFolderPaths}
                       cities={cities}
+                      fieldFilter={workflow.id === "generator.city" ? cityGeneratorFieldFilter : undefined}
                     />
                   ))}
                 </div>
@@ -2124,8 +2577,8 @@ export default function App() {
               <h4>{generatorFamily === "benchmark" ? "Benchmark Inputs" : "Synthetic Inputs"}</h4>
               <p className="muted">
                 {generatorFamily === "benchmark"
-                  ? "Sioux Falls uses bundled benchmark definitions rather than an extracted city folder. Use the build workflow to regenerate its SUMO artifacts, then inspect the output files from Results or Jobs."
-                  : "Riverside uses a bundled synthetic network definition. Use the build workflow to recreate its SUMO artifacts, then inspect the generated files from Results or Jobs."}
+                  ? "Benchmark workflows use bundled reference definitions rather than extracted city folders. Use Build to regenerate their SUMO artifacts, then inspect outputs from Jobs or Results."
+                  : "Synthetic workflows use bundled development network definitions rather than extracted city inputs. Use Build to recreate artifacts and keep their output folders separate from real-city networks."}
               </p>
             </section>
             <section className="structured-group-card">
@@ -2139,6 +2592,8 @@ export default function App() {
                     onChange={(name, value) => updateWorkflowValue(workflow.id, name, value)}
                     onLaunch={() => void launchWorkflow(workflow.id)}
                     configPaths={configPaths}
+                    configPathGroups={configPathGroups}
+                    dataOutputFolders={dataOutputFolderPaths}
                     cities={cities}
                   />
                 ))}
@@ -2200,7 +2655,7 @@ export default function App() {
         {view === "overview" ? (
           <section className="content-grid overview-grid">
             <article className="panel metric-panel">
-              <h2>Current Surface</h2>
+              <h2>SUMA Workspace</h2>
               <div className="metric-list">
                 <div>
                   <span>Configs</span>
@@ -2215,8 +2670,8 @@ export default function App() {
                   <strong>{jobs.length}</strong>
                 </div>
                 <div>
-                  <span>Result Roots</span>
-                  <strong>{resultsTree.length}</strong>
+                  <span>Result Runs</span>
+                  <strong>{resultRuns.length}</strong>
                 </div>
               </div>
             </article>
@@ -2242,13 +2697,39 @@ export default function App() {
               )}
             </article>
             <article className="panel">
-              <h2>Workflow Groups</h2>
-              <div className="chip-list">
-                {Object.entries(workflowGroups).map(([category, items]) => (
-                  <span key={category} className="chip">
-                    {category}: {items.length}
-                  </span>
+              <h2>Current Pipeline</h2>
+              <div className="overview-pipeline">
+                {[
+                  ["Data", `${cities.length} extracted city folder(s)`],
+                  ["OD Build", `${generatorWorkflows.length} generator workflow(s)`],
+                  ["Simulation", `${workflowGroups["Simulations"]?.length ?? 0} simulator workflow(s)`],
+                  ["Analysis", `${workflowGroups["Analysis"]?.length ?? 0} analysis workflow(s)`],
+                ].map(([title, body]) => (
+                  <button key={title} className="pipeline-step" onClick={() => {
+                    if (title === "Data") setView("data_integrations");
+                    if (title === "OD Build") setView("generators");
+                    if (title === "Simulation") setView("simulations");
+                    if (title === "Analysis") setView("analysis");
+                  }}>
+                    <strong>{title}</strong>
+                    <span>{body}</span>
+                  </button>
                 ))}
+              </div>
+            </article>
+            <article className="panel">
+              <h2>Recent Results</h2>
+              <div className="compact-run-list">
+                {resultRuns.slice(0, 5).map((run) => (
+                  <button key={run.run_root} className="doc-link" onClick={() => {
+                    setSelectedFile(run.run_root);
+                    setView("results");
+                  }}>
+                    <span>{run.name}</span>
+                    <small>{run.city} · accidents {formatNumber(run.total_accidents, 0)} · AI {formatNumber(run.antifragility_index, 3)}</small>
+                  </button>
+                ))}
+                {!resultRuns.length ? <p className="muted">No result runs have been indexed yet.</p> : null}
               </div>
             </article>
           </section>
@@ -2266,42 +2747,21 @@ export default function App() {
                   <button className="secondary-button" onClick={() => setInfoModal(configStudioInfo)}>
                     About This Page
                   </button>
-                  <button className="secondary-button" onClick={() => void validateCurrentConfig()}>
-                    Validate
-                  </button>
-                  <button className="secondary-button" onClick={() => void deleteCurrentConfig()}>
-                    Delete
-                  </button>
-                  {configMode === "structured" ? (
-                    <button className="primary-button" onClick={() => void saveStructuredConfig()}>
-                      Save Structured
-                    </button>
-                  ) : (
-                    <button className="primary-button" onClick={() => void saveRawConfig()}>
-                      Save Raw YAML
-                    </button>
-                  )}
                 </div>
               </div>
               <div className="config-topbar">
                 <div className="config-create-card">
-                  <label className="field">
-                    <span>Config File</span>
-                    <select value={selectedConfigPath} onChange={(event) => setSelectedConfigPath(event.target.value)}>
-                      {configPathGroups.map((group) => (
-                        <optgroup key={group.folder} label={group.folder}>
-                          {group.items.map((path) => (
-                            <option key={path} value={path}>
-                              {path.split("/").slice(-1)[0]}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                    <small>Configs are grouped by folder so city-specific and custom scenarios stay easier to scan.</small>
-                  </label>
+                  <h3>Open Config</h3>
+                  <ConfigPathPicker
+                    value={selectedConfigPath}
+                    groups={configPathGroups}
+                    onChange={setSelectedConfigPath}
+                    label="Target Folder"
+                  />
+                  <p className="muted">Choose the config folder first, then the YAML file inside that folder.</p>
                 </div>
                 <div className="config-create-card">
+                  <h3>Create Config</h3>
                   <label className="field">
                     <span>Target Folder</span>
                     <select value={newConfigFolderChoice} onChange={(event) => setNewConfigFolderChoice(event.target.value)}>
@@ -2331,6 +2791,29 @@ export default function App() {
                       Clone Selected
                     </button>
                   </div>
+                </div>
+              </div>
+              <div className="config-action-bar">
+                <div>
+                  <strong>{selectedConfigPath || "No config selected"}</strong>
+                  <p className="muted">Validate before running simulations; save structured edits before switching to another config.</p>
+                </div>
+                <div className="button-row">
+                  <button className="secondary-button" onClick={() => void validateCurrentConfig()}>
+                    Validate
+                  </button>
+                  <button className="secondary-button" onClick={() => void deleteCurrentConfig()}>
+                    Delete
+                  </button>
+                  {configMode === "structured" ? (
+                    <button className="primary-button" onClick={() => void saveStructuredConfig()}>
+                      Save Structured
+                    </button>
+                  ) : (
+                    <button className="primary-button" onClick={() => void saveRawConfig()}>
+                      Save Raw YAML
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="tab-row">
@@ -2374,7 +2857,10 @@ export default function App() {
                 </div>
                 <div className="button-row">
                   <button className="secondary-button" onClick={() => setInfoModal(dataIntegrationInfo)}>
-                    About This Page
+                    Page Guide
+                  </button>
+                  <button className="secondary-button" onClick={() => setInfoModal(dataTab === "osm" ? osmIntegrationInfo : trafficFeedInfo)}>
+                    {dataTab === "osm" ? "OSM Guide" : "Feed Guide"}
                   </button>
                 </div>
               </div>
@@ -2449,6 +2935,8 @@ export default function App() {
                                     }
                                   }}
                                   configPaths={configPaths}
+                                  configPathGroups={configPathGroups}
+                                  dataOutputFolders={dataOutputFolderPaths}
                                   cities={cities}
                                 />
                               );
@@ -2475,6 +2963,8 @@ export default function App() {
                                   value={osmValues[name]}
                                   onChange={(next) => updateWorkflowValue("integration.fetch_osm", name, next)}
                                   configPaths={configPaths}
+                                  configPathGroups={configPathGroups}
+                                  dataOutputFolders={dataOutputFolderPaths}
                                   cities={cities}
                                 />
                               );
@@ -2510,6 +3000,8 @@ export default function App() {
                                   value={osmValues[name]}
                                   onChange={(next) => updateWorkflowValue("integration.fetch_osm", name, next)}
                                   configPaths={configPaths}
+                                  configPathGroups={configPathGroups}
+                                  dataOutputFolders={dataOutputFolderPaths}
                                   cities={cities}
                                 />
                               );
@@ -2917,6 +3409,8 @@ export default function App() {
                                 onChange={(name, value) => updateWorkflowValue(workflow.id, name, value)}
                                 onLaunch={() => void launchWorkflow(workflow.id)}
                                 configPaths={configPaths}
+                                configPathGroups={configPathGroups}
+                                dataOutputFolders={dataOutputFolderPaths}
                                 cities={cities}
                                 disabled={selectedTrafficFeedSource?.provider !== "govgr" || !selectedTrafficFeedTargetCitySlug}
                                 extraNote={
@@ -3159,35 +3653,38 @@ export default function App() {
 
         {view === "generators" ? renderGeneratorsSection() : null}
 
-        {view === "simulations"
-          ? renderWorkflowSection(
-              activeCategoryWorkflows,
-              "Simulations",
-              "Run single simulations or resilience assessments against the currently managed config set.",
-            )
-          : null}
+        {view === "simulations" ? renderSimulationsSection() : null}
 
-        {view === "analysis"
-          ? renderWorkflowSection(
-              activeCategoryWorkflows,
-              "Analysis",
-              "Post-process batches, sweeps, reports, and calibration comparisons from the same interface.",
-            )
-          : null}
+        {view === "analysis" ? renderAnalysisSection() : null}
 
         {view === "jobs" ? (
           <section className="content-grid jobs-grid">
             <article className="panel">
-              <h2>Job Queue</h2>
+              <div className="section-header">
+                <div>
+                  <h2>Job Queue</h2>
+                  <p className="muted">Completed jobs are persisted by the API so browser refreshes keep the registry.</p>
+                </div>
+                <button className="secondary-button" onClick={() => void clearFinishedJobs()}>
+                  Clear Finished
+                </button>
+              </div>
               <div className="job-list">
                 {jobs.map((job) => (
-                  <button key={job.id} className={`job-row ${selectedJob?.id === job.id ? "is-selected" : ""}`} onClick={() => setSelectedJobId(job.id)}>
+                  <div key={job.id} className={`job-row ${selectedJob?.id === job.id ? "is-selected" : ""}`}>
+                    <button className="job-row-main" onClick={() => setSelectedJobId(job.id)}>
                     <div>
                       <strong>{job.title}</strong>
                       <p>{job.status}</p>
                     </div>
                     <span>{job.progress !== null ? `${Math.round(job.progress * 100)}%` : "…"}</span>
-                  </button>
+                    </button>
+                    {job.status !== "running" && job.status !== "queued" ? (
+                      <button className="icon-button" aria-label={`Remove ${job.title}`} onClick={() => void forgetJob(job.id)}>
+                        ×
+                      </button>
+                    ) : null}
+                  </div>
                 ))}
               </div>
             </article>
@@ -3236,8 +3733,76 @@ export default function App() {
         {view === "results" ? (
           <section className="results-layout">
             <article className="panel results-tree-panel">
-              <h2>Results Browser</h2>
-              <TreeView nodes={resultsTree} onSelect={setSelectedFile} />
+              <div className="section-header">
+                <div>
+                  <h2>Run Registry</h2>
+                  <p className="muted">Filter completed runs by city, run name, or config path.</p>
+                </div>
+                <span className="chip">{filteredResultRuns.length} runs</span>
+              </div>
+              <div className="structured-fields-grid">
+                <label className="field">
+                  <span>City</span>
+                  <select value={resultCityFilter} onChange={(event) => setResultCityFilter(event.target.value)}>
+                    <option value="all">All cities</option>
+                    {resultCities.map((city) => (
+                      <option key={city} value={city}>
+                        {city}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Date</span>
+                  <select value={resultDateFilter} onChange={(event) => setResultDateFilter(event.target.value)}>
+                    <option value="all">All dates</option>
+                    {resultDates.map((date) => (
+                      <option key={date} value={date}>
+                        {date}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Search</span>
+                  <input value={resultTextFilter} onChange={(event) => setResultTextFilter(event.target.value)} placeholder="Run, folder, config..." />
+                </label>
+              </div>
+              <div className="result-registry-scroll">
+                <table className="data-table result-registry-table">
+                  <thead>
+                    <tr>
+                      <th>Run</th>
+                      <th>City</th>
+                      <th>Date</th>
+                      <th>Accidents</th>
+                      <th>AI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredResultRuns.map((run) => (
+                      <tr
+                        key={run.run_root}
+                        className={selectedRunSummary?.run_root === run.run_root ? "is-selected-row" : ""}
+                        onClick={() => setSelectedFile(run.run_root)}
+                      >
+                        <td>
+                          <strong>{run.name}</strong>
+                          <small>{run.run_root}</small>
+                        </td>
+                        <td>{run.city}</td>
+                        <td>{new Date((run.modified_at || 0) * 1000).toISOString().slice(0, 10)}</td>
+                        <td>{formatNumber(run.total_accidents, 0)}</td>
+                        <td>{formatNumber(run.antifragility_index, 3)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <details className="raw-tree-details">
+                <summary>Raw Results Tree</summary>
+                <TreeView nodes={resultsTree} onSelect={setSelectedFile} />
+              </details>
             </article>
             <div className="results-main-stack">
               <article className="panel">
@@ -3246,6 +3811,22 @@ export default function App() {
                     <h2>Interactive Run Summary</h2>
                     <p className="muted">{selectedRunSummary ? selectedRunSummary.run_root : "Select any file or folder within a run to load its metrics and artifacts."}</p>
                   </div>
+                  {selectedRunSummary ? (
+                    <div className="button-row">
+                      <button className="secondary-button" onClick={() => exportSelectedRun("csv")}>
+                        Export CSV
+                      </button>
+                      <button className="secondary-button" onClick={() => exportSelectedRun("json")}>
+                        Export JSON
+                      </button>
+                      <button className="secondary-button" onClick={() => exportSelectedRun("zip")}>
+                        Export ZIP
+                      </button>
+                      <button className="secondary-button danger-button" onClick={() => void deleteSelectedRun()}>
+                        Delete Run
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
                 {selectedRunSummary ? (
                   <>
@@ -3284,50 +3865,69 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="chart-grid">
-                      <TimeSeriesChart
-                        title="Traffic State"
-                        data={metricsRows}
-                        leftAxisLabel="Vehicles"
-                        rightAxisLabel="Incidents / lanes"
-                        series={[
-                          { key: "vehicle_count", label: "Active vehicles", color: "#f93262", yAxisId: "left" },
-                          { key: "active_accidents", label: "Active accidents", color: "#ff8a64", yAxisId: "right" },
-                          { key: "active_blocked_lanes", label: "Blocked lanes", color: "#29131b", yAxisId: "right" },
-                        ]}
-                      />
-                      <TimeSeriesChart
-                        title="Speed And Delay"
-                        data={metricsRows}
-                        leftAxisLabel="Speed (km/h)"
-                        rightAxisLabel="Delay (s)"
-                        series={[
-                          { key: "mean_speed_kmh", label: "Mean speed", color: "#f93262", yAxisId: "left", valueSuffix: "km/h" },
-                          { key: "mean_delay_seconds", label: "Mean delay", color: "#ff8a64", yAxisId: "right", valueSuffix: "s" },
-                        ]}
-                      />
-                      <TimeSeriesChart
-                        title="Throughput And Speed Ratio"
-                        data={metricsRows}
-                        leftAxisLabel="Throughput / h"
-                        rightAxisLabel="Speed ratio"
-                        referenceY={{ value: 1.0, label: "Baseline ratio", color: "#29131b" }}
-                        series={[
-                          { key: "throughput_per_hour", label: "Throughput", color: "#f93262", yAxisId: "left" },
-                          { key: "speed_ratio", label: "Speed ratio", color: "#ff8a64", yAxisId: "right" },
-                        ]}
-                      />
-                      <TimeSeriesChart
-                        title="Incident Timeline"
-                        data={metricsRows}
-                        leftAxisLabel="Accidents"
-                        series={[
-                          { key: "cumulative_accidents", label: "Triggered", color: "#f93262", yAxisId: "left" },
-                          { key: "resolved_accidents", label: "Resolved", color: "#2ecc71", yAxisId: "left" },
-                        ]}
-                      />
+                    <div className="subtab-row" aria-label="Result summary tabs">
+                      <button className={`subtab-button ${resultsSubtab === "charts" ? "is-active" : ""}`} onClick={() => setResultsSubtab("charts")}>
+                        Charts
+                      </button>
+                      <button className={`subtab-button ${resultsSubtab === "accidents" ? "is-active" : ""}`} onClick={() => setResultsSubtab("accidents")}>
+                        Accidents
+                      </button>
+                      <button className={`subtab-button ${resultsSubtab === "artifacts" ? "is-active" : ""}`} onClick={() => setResultsSubtab("artifacts")}>
+                        Artifacts
+                      </button>
+                      <button className={`subtab-button ${resultsSubtab === "raw" ? "is-active" : ""}`} onClick={() => setResultsSubtab("raw")}>
+                        Raw Preview
+                      </button>
                     </div>
 
+                    {resultsSubtab === "charts" ? (
+                      <div className="chart-grid">
+                        <TimeSeriesChart
+                          title="Traffic State"
+                          data={metricsRows}
+                          leftAxisLabel="Vehicles"
+                          rightAxisLabel="Incidents / lanes"
+                          series={[
+                            { key: "vehicle_count", label: "Active vehicles", color: "#f93262", yAxisId: "left" },
+                            { key: "active_accidents", label: "Active accidents", color: "#ff8a64", yAxisId: "right" },
+                            { key: "active_blocked_lanes", label: "Blocked lanes", color: "#29131b", yAxisId: "right" },
+                          ]}
+                        />
+                        <TimeSeriesChart
+                          title="Speed And Delay"
+                          data={metricsRows}
+                          leftAxisLabel="Speed (km/h)"
+                          rightAxisLabel="Delay (s)"
+                          series={[
+                            { key: "mean_speed_kmh", label: "Mean speed", color: "#f93262", yAxisId: "left", valueSuffix: "km/h" },
+                            { key: "mean_delay_seconds", label: "Mean delay", color: "#ff8a64", yAxisId: "right", valueSuffix: "s" },
+                          ]}
+                        />
+                        <TimeSeriesChart
+                          title="Throughput And Speed Ratio"
+                          data={metricsRows}
+                          leftAxisLabel="Throughput / h"
+                          rightAxisLabel="Speed ratio"
+                          referenceY={{ value: 1.0, label: "Baseline ratio", color: "#29131b" }}
+                          series={[
+                            { key: "throughput_per_hour", label: "Throughput", color: "#f93262", yAxisId: "left" },
+                            { key: "speed_ratio", label: "Speed ratio", color: "#ff8a64", yAxisId: "right" },
+                          ]}
+                        />
+                        <TimeSeriesChart
+                          title="Incident Timeline"
+                          data={metricsRows}
+                          leftAxisLabel="Accidents"
+                          series={[
+                            { key: "cumulative_accidents", label: "Triggered", color: "#f93262", yAxisId: "left" },
+                            { key: "resolved_accidents", label: "Resolved", color: "#2ecc71", yAxisId: "left" },
+                          ]}
+                        />
+                      </div>
+                    ) : null}
+
+                    {resultsSubtab === "accidents" ? (
+                      <>
                     <div className="results-detail-grid">
                       <section className="detail-card">
                         <h3>Accident Distribution</h3>
@@ -3445,7 +4045,10 @@ export default function App() {
                         </div>
                       </section>
                     ) : null}
+                      </>
+                    ) : null}
 
+                    {resultsSubtab === "artifacts" ? (
                       <section className="detail-card">
                         <h3>Run Artifacts</h3>
                         <p className="muted">
@@ -3460,19 +4063,21 @@ export default function App() {
                         ))}
                       </div>
                     </section>
+                    ) : null}
+
+                    {resultsSubtab === "raw" ? (
+                      <section className="detail-card">
+                        <h3>Selected File Preview</h3>
+                        {selectedFile ? <p className="muted">{selectedFile}</p> : null}
+                        {selectedFileIsImage && selectedFile ? <img className="preview-image" src={api.fileUrl(selectedFile)} alt={selectedFile} /> : null}
+                        {selectedFileIsHtml && selectedFile ? <iframe className="report-frame" src={api.fileUrl(selectedFile)} title={selectedFile} /> : null}
+                        {!selectedFileIsImage && !selectedFileIsHtml && selectedFileText ? <pre className="file-preview">{selectedFileText}</pre> : null}
+                      </section>
+                    ) : null}
                   </>
                 ) : (
                   <p className="muted">No interactive run summary is available for the current selection.</p>
                 )}
-              </article>
-
-              <article className="panel">
-                <h2>Selected File Preview</h2>
-                {selectedFile ? <p className="muted">{selectedFile}</p> : null}
-                {selectedFileIsImage && selectedFile ? <img className="preview-image" src={api.fileUrl(selectedFile)} alt={selectedFile} /> : null}
-                {selectedFileIsHtml && selectedFile ? <iframe className="report-frame" src={api.fileUrl(selectedFile)} title={selectedFile} /> : null}
-                {!selectedFileIsImage && !selectedFileIsHtml && selectedFileText ? <pre className="file-preview">{selectedFileText}</pre> : null}
-                {!selectedFile && <p className="muted">Select a file or directory from the results tree.</p>}
               </article>
             </div>
           </section>
@@ -3542,6 +4147,10 @@ export default function App() {
           <div className="footer-funding">
             <img src={euLogoSrc} alt="Funded by the European Union" className="eu-logo" />
             <p>{branding.footer_disclaimer}</p>
+          </div>
+          <div className="footer-partners">
+            <span>SUMA development partner</span>
+            <img src={rhoeLogoSrc} alt="Rhoé" className="rhoe-logo" />
           </div>
           <div className="footer-meta">
             <span>{branding.copyright}</span>

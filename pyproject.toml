@@ -19,8 +19,8 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "antifragicity-sas"
-version = "0.2.4"
+name = "antifragicity-suma"
+version = "0.3.0"
 description = "Probabilistic traffic accident simulator for SUMO with Antifragility Index measurement"
 readme = "README.md"
 license = {text = "MIT"}
@@ -74,6 +74,20 @@ where = ["src"]
 sas = ["py.typed"]
 
 [project.scripts]
+suma = "sas.simulation.runner:main"
+suma-assess = "sas.analysis.resilience_assessment:main"
+suma-fetch-govgr = "sas.integrations.govgr_downloader:main"
+suma-build-govgr-targets = "sas.integrations.govgr_targets:main"
+suma-fetch-osm = "sas.integrations.download_osm_place:main"
+suma-analyse-batch = "sas.analysis.analyse_batch:main"
+suma-generate-city = "sas.generators.generate_city:main"
+suma-generate-sioux-falls = "sas.generators.generate_sioux_falls:main"
+suma-generate-riverside = "sas.generators.generate_network:main"
+suma-compare-seattle-real = "sas.tools.compare_seattle_real:main"
+suma-sweep = "sas.tools.experiment_sweep:main"
+suma-visualise-sweep = "sas.tools.visualise_sweep:main"
+suma-merge-report = "sas.tools.merge_mfd_and_update_report:main"
+suma-gui-api = "sas.gui.app:main"
 sas = "sas.simulation.runner:main"
 sas-assess = "sas.analysis.resilience_assessment:main"
 sas-fetch-govgr = "sas.integrations.govgr_downloader:main"

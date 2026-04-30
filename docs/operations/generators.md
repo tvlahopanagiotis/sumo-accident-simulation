@@ -1,11 +1,11 @@
-# Generator Operations
+# OD Generator Operations
 
 This guide covers the active generator commands. Use it when you want the
 practical runbook for creating networks, demand, and `.sumocfg` files.
 
 ## Generic City Generator
 
-### `sas-generate-city`
+### `suma-generate-city` / `sas-generate-city`
 
 Build a runnable SUMO network for any extracted city under `data/cities/<slug>/`.
 
@@ -37,6 +37,9 @@ sas-generate-city --city-slug thermi --demand-source random --period 2.0
 sas-generate-city --city-slug seattle --demand-source od --od-scale 0.02
 ```
 
+The `suma-generate-city` alias is preferred for new SUMA-facing workflows. The
+`sas-generate-city` command remains supported for existing scripts.
+
 Random-demand note:
 
 - the main trip-volume control is `--period`
@@ -57,12 +60,18 @@ Operational note:
   `*_od.csv` and `*_node.csv` files.
 - In the GUI, use the generator page `View Inputs` tab to inspect those OD and
   node files before launching the build.
+- In the GUI, the city generator form now shows random-only or OD-only fields
+  depending on the selected demand source.
+- The `View Inputs` tab also reports a rough random-demand trip estimate using
+  `end_time / period`, and can show origin and destination demand totals for a
+  selected OD zone.
 
-## Sioux Falls
+## Benchmark Generators
 
 ### `sas-generate-sioux-falls`
 
-Generate the Sioux Falls benchmark network for SUMO.
+Generate compact benchmark networks for SUMO. Sioux Falls is the current
+implemented benchmark workflow.
 
 Typical usage:
 
@@ -78,11 +87,12 @@ sas-generate-sioux-falls --update-config
 sas-generate-sioux-falls --period 2.0
 ```
 
-## Riverside
+## Synthetic Generators
 
 ### `sas-generate-riverside`
 
-Generate the synthetic Riverside District SUMO network.
+Generate synthetic development networks. Riverside is the current implemented
+synthetic workflow.
 
 Typical usage:
 

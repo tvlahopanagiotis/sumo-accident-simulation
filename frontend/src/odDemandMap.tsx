@@ -31,7 +31,15 @@ function flowWeight(value: number, maxValue: number): number {
   return 1.8 + (value / maxValue) * 5.2;
 }
 
-export function ODDemandMap({ preview }: { preview: CityDemandPreview | null }) {
+export function ODDemandMap({
+  preview,
+  selectedZoneId,
+  onSelectedZoneChange,
+}: {
+  preview: CityDemandPreview | null;
+  selectedZoneId?: string;
+  onSelectedZoneChange?: (zoneId: string) => void;
+}) {
   if (!preview?.supported || preview.top_flows.length === 0) {
     return (
       <section className="workflow-card network-card">
@@ -48,6 +56,10 @@ export function ODDemandMap({ preview }: { preview: CityDemandPreview | null }) 
 
   const maxFlow = Math.max(...preview.top_flows.map((flow) => flow.od_number));
   const nodeMap = new Map(preview.nodes.map((node) => [node.zone_id, node.coords] as const));
+  const selectedZone = selectedZoneId ? preview.zone_demands.find((zone) => zone.zone_id === selectedZoneId) : null;
+  const visibleFlows = selectedZoneId
+    ? preview.top_flows.filter((flow) => flow.origin === selectedZoneId || flow.destination === selectedZoneId)
+    : preview.top_flows;
 
   return (
     <section className="workflow-card network-card">
@@ -70,7 +82,7 @@ export function ODDemandMap({ preview }: { preview: CityDemandPreview | null }) 
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <DemandBounds preview={preview} />
-          {preview.top_flows.map((flow) => (
+          {visibleFlows.map((flow) => (
             <Polyline
               key={`${flow.origin}-${flow.destination}`}
               positions={[flow.origin_coords, flow.destination_coords]}
@@ -90,21 +102,25 @@ export function ODDemandMap({ preview }: { preview: CityDemandPreview | null }) 
               </Popup>
             </Polyline>
           ))}
-          {Array.from(new Set(preview.top_flows.flatMap((flow) => [flow.origin, flow.destination]))).map((zoneId) => {
+          {(selectedZoneId ? preview.zone_demands.map((zone) => zone.zone_id) : Array.from(new Set(preview.top_flows.flatMap((flow) => [flow.origin, flow.destination])))).map((zoneId) => {
             const coords = nodeMap.get(zoneId);
             if (!coords) {
               return null;
             }
+            const isSelected = zoneId === selectedZoneId;
             return (
               <CircleMarker
                 key={zoneId}
                 center={coords}
-                radius={4.5}
+                radius={isSelected ? 8 : 4.5}
                 pathOptions={{
-                  color: "#f93262",
-                  weight: 1,
-                  fillColor: "#ffbea1",
+                  color: isSelected ? "#165d7a" : "#f93262",
+                  weight: isSelected ? 2 : 1,
+                  fillColor: isSelected ? "#8bd3e6" : "#ffbea1",
                   fillOpacity: 0.92,
+                }}
+                eventHandlers={{
+                  click: () => onSelectedZoneChange?.(zoneId),
                 }}
               >
                 <Popup>
@@ -120,6 +136,19 @@ export function ODDemandMap({ preview }: { preview: CityDemandPreview | null }) 
           })}
         </MapContainer>
       </div>
+      {selectedZone ? (
+        <div className="workflow-note-grid">
+          <div className="workflow-note-box">
+            <strong>Selected Zone {selectedZone.zone_id}</strong>
+            <p>Origin demand: {selectedZone.origin_demand.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+            <p>Destination demand: {selectedZone.destination_demand.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+          </div>
+          <div className="workflow-note-box">
+            <strong>Displayed Flows</strong>
+            <p>{visibleFlows.length.toLocaleString()} top mapped OD pair(s) connected to the selected zone.</p>
+          </div>
+        </div>
+      ) : null}
       <div className="network-legend-card">
         <h4>How To Read This</h4>
         <div className="workflow-note-grid">
