@@ -530,6 +530,7 @@ def branding() -> dict[str, Any]:
         "favicon_path": "frontend/public/branding/antifragicity-favicon.svg",
         "eu_logo_path": "frontend/public/branding/eu-funded-by-eu.png",
         "rhoe_logo_path": "frontend/public/branding/rhoe-logo-main-on-white.png",
+        "monogram_logo_path": "frontend/public/branding/antifragicity-monogram.png",
         "project_url": "https://antifragicity.eu",
         "footer_disclaimer": (
             "This project has received funding from the European Union’s Horizon Europe research "

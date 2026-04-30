@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
   data, generator, analysis, and GUI API entry points.
 - Reworked the Overview page into a more useful operator dashboard with current
   workspace counts, pipeline shortcuts, active-job state, and recent run links.
+- Standardized the GUI shell with a sticky compact top bar, collapsible sidebar,
+  user/settings placeholder, page/method/model/tool guide buttons, and clearer
+  primary versus secondary tab hierarchy.
 - Reworked Config Studio with a two-step config picker: target folder first,
   config file second.
 - Moved Config Studio validate/delete/save actions into a dedicated action bar
@@ -43,11 +46,17 @@ All notable changes to this project will be documented in this file.
   time so operators can judge run weight before generating.
 - Rhoé partner logo in the GUI footer.
 - SUMA project-development context added to the in-app documentation library.
+- AntifragiCity monogram asset added for collapsed navigation and footer
+  branding.
+- Initial light/dark theme toggle and responsive dashboard layout foundation for
+  narrower screens.
 
 ### Documentation
 - Updated the README, GUI guide, generator module guide, generator operations
   guide, documentation index, and changelog for the SUMA naming and 0.3.0 UI/API
   behavior.
+- Refreshed the GUI guide to describe the final 0.3.0 shell layout, guide
+  hierarchy, responsive behavior, and branding/footer structure.
 
 ## [0.2.4] - 2026-04-28
 

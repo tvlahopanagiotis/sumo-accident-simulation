@@ -63,6 +63,26 @@ It is a React app that:
 - polls jobs and results
 - renders interactive post-run metrics from existing SUMA/SAS output files
 
+### Shell And Navigation
+
+The operator shell is organized around a consistent dashboard pattern:
+
+- a collapsible left sidebar for the main workflow pages
+- a sticky compact top bar with the product title, running-job summary, and
+  user/settings placeholder
+- primary tabs for major page families, such as `OSM Extract` versus
+  `Traffic Feeds`
+- secondary tabs for methods or tasks inside a page, such as `New Extract` and
+  `Extracted Network`
+- guide buttons with consistent labels: `Page Guide`, `Method Guide`,
+  `Model Guide`, and `Tool Guide`
+- responsive card layouts that collapse to one column on smaller screens
+
+The current settings menu includes a light/dark theme toggle and a disabled
+language selector. These are interface placeholders for later user-preference
+and localization work, but the dashboard already includes the first dark-theme
+contrast pass.
+
 ### Execution Model
 
 Long-running actions are executed as subprocess jobs.
@@ -121,8 +141,8 @@ Each tab includes:
 - switch-style toggles for boolean settings
 
 The `Risk Model`, `Accident Model`, and `Resilience Assessment` tabs also
-include a dedicated “About This Model” dialog that explains how to interpret
-their parameters in simulation terms and points back to the relevant source and
+include a dedicated `Model Guide` dialog that explains how to interpret their
+parameters in simulation terms and points back to the relevant source and
 documentation files.
 
 The `Resilience Assessment` tab also uses a clearer structure for:
@@ -370,10 +390,14 @@ The GUI uses the AntifragiCity logo assets in `frontend/public/branding/`.
 
 The UI footer now includes:
 
+- AntifragiCity monogram branding
+- SUMA subtitle: Simulator for Urban Mobility Antifragility
 - project navigation links
 - `https://antifragicity.eu`
+- Rhoé as the development partner responsible for SUMA
 - the Horizon Europe funding disclaimer
 - the `Funded by the European Union` mark used by the current frontend build
+- the visible release version
 
 ## Current Limitations
 

@@ -104,6 +104,7 @@ export type Branding = {
   favicon_path: string;
   eu_logo_path: string;
   rhoe_logo_path?: string;
+  monogram_logo_path?: string;
   project_url: string;
   footer_disclaimer: string;
   copyright: string;
