@@ -20,6 +20,9 @@ All notable changes to this project will be documented in this file.
 - Polished the GUI shell with rounder cards/controls, filled navigation icons,
   a bottom mobile navigation bar, compact scroll header, smaller footer, and
   stronger light/dark contrast defaults.
+- Finalized the 0.3.0 shell polish with icon-only collapsed navigation state,
+  smoother sticky-header compaction, stronger dark-theme contrast, a clearer
+  simulations icon, and tighter small-screen header/footer behavior.
 - Reworked page-level guides into compact information buttons next to titles,
   while keeping method/model/tool guide actions in the upper-right of active
   pages or sections.
@@ -70,6 +73,8 @@ All notable changes to this project will be documented in this file.
   hierarchy, responsive behavior, and branding/footer structure.
 - Updated README, structure, GUI, module, and operation docs so canonical paths
   and examples use `suma` / `src/suma`.
+- Added the current simulator metric equations and validation caveats to the
+  reference and simulator module documentation.
 
 ## [0.2.4] - 2026-04-28
 

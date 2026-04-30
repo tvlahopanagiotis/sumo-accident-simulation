@@ -2,7 +2,7 @@
 
 ## Scope
 
-This is a second-round technical review of the current SAS implementation
+This is a second-round technical review of the current SUMA implementation
 after the incident-model upgrades. It focuses on:
 
 - what the simulator now actually does in SUMO and TraCI terms,
@@ -10,7 +10,7 @@ after the incident-model upgrades. It focuses on:
 - what scientific limitations still remain,
 - and what the next recommendations should be for macroscopic resilience work.
 
-Bottom line: SAS is now a much stronger incident-impact simulator than it was
+Bottom line: SUMA is now a much stronger incident-impact simulator than it was
 in the first review, but it is still not a native crash-generation model. For
 transport planning use, it should be framed as a stochastic incident and
 network-disruption simulator built on top of SUMO.
@@ -26,10 +26,10 @@ window, and AI windows are all interpreted directly in seconds.
 
 Relevant code:
 
-- `src/sas/simulation/runner.py`
-- `src/sas/core/accident_manager.py`
-- `src/sas/core/metrics.py`
-- `src/sas/app/config.py`
+- `src/suma/simulation/runner.py`
+- `src/suma/core/accident_manager.py`
+- `src/suma/core/metrics.py`
+- `src/suma/app/config.py`
 
 Implication:
 
@@ -55,7 +55,7 @@ vehicle’s remaining path actually traverses the disrupted corridor.
 
 Relevant code:
 
-- `src/sas/core/accident_manager.py`
+- `src/suma/core/accident_manager.py`
 
 Implication:
 
@@ -81,7 +81,7 @@ logic, but severity is still translated into:
 
 Relevant code:
 
-- `src/sas/core/accident_manager.py`
+- `src/suma/core/accident_manager.py`
 
 Implication:
 
@@ -102,8 +102,8 @@ O-D demand, TAZ-based demand, or corridor-specific temporal demand profiles.
 
 Relevant code:
 
-- `src/sas/generators/generate_thessaloniki.py`
-- `src/sas/analysis/scenario_generator.py`
+- `src/suma/generators/generate_thessaloniki.py`
+- `src/suma/analysis/scenario_generator.py`
 
 Implication:
 
@@ -129,7 +129,7 @@ proxy exposure model:
 
 Relevant code:
 
-- `src/sas/core/risk_model.py`
+- `src/suma/core/risk_model.py`
 
 Recommendation:
 
@@ -146,7 +146,7 @@ complete welfare or resilience metric set.
 
 Relevant code:
 
-- `src/sas/core/metrics.py`
+- `src/suma/core/metrics.py`
 
 Recommendation:
 
@@ -161,8 +161,8 @@ triggers at most one new incident per simulation step.
 
 Relevant code:
 
-- `src/sas/core/accident_manager.py`
-- `src/sas/simulation/runner.py`
+- `src/suma/core/accident_manager.py`
+- `src/suma/simulation/runner.py`
 
 Implication:
 
@@ -180,7 +180,7 @@ Recommendation:
 
 ### 2.1 Network and demand
 
-For Thessaloniki, SAS loads the network and route files from the `.sumocfg`
+For Thessaloniki, SUMA loads the network and route files from the `.sumocfg`
 referenced by the YAML configuration. The standard workflow still uses
 `randomTrips.py`-based demand generation, so vehicle insertion is synthetic and
 controlled mainly through trip-generation period.
@@ -399,7 +399,7 @@ This would make the runtime-versus-fidelity tradeoff explicit and reproducible.
 
 ## Bottom line
 
-After the second review, SAS can now be described as:
+After the second review, SUMA can now be described as:
 
 - a stochastic incident-generation layer,
 - coupled to a SUMO microscopic traffic simulation,

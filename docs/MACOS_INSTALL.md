@@ -1,7 +1,7 @@
 # macOS Installation Guide
 
-This guide documents the macOS setup that was validated for the AntifragiCity /
-SAS project on Apple Silicon.
+This guide documents the macOS setup that was validated for the AntifragiCity
+SUMA project on Apple Silicon.
 
 It covers:
 

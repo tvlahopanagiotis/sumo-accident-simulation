@@ -44,9 +44,12 @@ logger = logging.getLogger("suma.resilience")
 
 # ---------------------------------------------------------------------------
 # Model used for AI-assisted analysis
-# (override with env var SAS_CLAUDE_MODEL)
+# (override with env var SUMA_CLAUDE_MODEL; legacy SAS_CLAUDE_MODEL still works)
 # ---------------------------------------------------------------------------
-_DEFAULT_CLAUDE_MODEL = os.environ.get("SAS_CLAUDE_MODEL", "claude-opus-4-5")
+_DEFAULT_CLAUDE_MODEL = os.environ.get(
+    "SUMA_CLAUDE_MODEL",
+    os.environ.get("SAS_CLAUDE_MODEL", "claude-opus-4-5"),
+)
 
 
 # ---------------------------------------------------------------------------

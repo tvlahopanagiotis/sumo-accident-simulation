@@ -52,6 +52,74 @@ Self-contained HTML summary of a completed run.
 Use [`operations/README.md`](operations/README.md) for workflow instructions.
 This file only covers parameter semantics and output definitions.
 
+## Macroscopic Metrics
+
+The current SUMA simulator exports system-wide measures from SUMO telemetry at
+the configured metrics interval. These are operational first-pass indicators for
+WP5/SUMA experimentation; they are not yet calibrated antifragility indicators.
+
+### Free-flow baseline and speed ratio
+
+The baseline speed is estimated from clean early snapshots with no active
+incidents:
+
+```text
+V_base = mean(V_t) for t <= baseline_window and active_accidents_t = 0
+```
+
+Each later snapshot reports:
+
+```text
+speed_ratio_t = V_t / V_base
+```
+
+where `V_t` is the network mean speed at the snapshot. Values below `1.0`
+indicate degraded network operation relative to the early free-flow baseline.
+
+### Delay proxy
+
+The current delay field is a speed-ratio proxy over one reporting interval:
+
+```text
+mean_delay_seconds_t = (1 - speed_ratio_t) x metrics_interval_seconds
+```
+
+This is useful for comparing runs internally, but it is not yet a calibrated
+vehicle-hours-lost measure. Future versions should compute delay from completed
+trip travel times, route alternatives, and/or edge-level reference speeds.
+
+### Throughput
+
+Throughput is calculated from vehicles that arrived during the last metrics
+interval:
+
+```text
+throughput_per_hour_t = arrivals_interval x 3600 / metrics_interval_seconds
+```
+
+### Antifragility Index
+
+For each resolved incident with enough clean pre/post samples:
+
+```text
+event_AI = (V_post / V_pre) - 1
+AI       = mean(event_AI)
+```
+
+`V_pre` is the mean network speed in the pre-incident lookback window. `V_post`
+is the mean network speed after the incident is resolved, using only clean
+snapshots with no active incidents. When at least two events are measured, SUMA
+reports a 95 percent confidence interval:
+
+```text
+CI95 = AI +/- t_critical(n) x std(event_AI) / sqrt(n)
+```
+
+This implementation follows the SUMA development context by exposing the
+calculation mode and sample counts. The thresholds below are working
+interpretation bands and must be validated against project methodology and pilot
+observations before they are used as formal antifragility evidence.
+
 ## Risk Model
 
 ### Composite score
@@ -158,7 +226,7 @@ pip install -e ".[dev]"
 
 ```bash
 pytest tests/ -v
-pytest tests/ --cov=src/sas --cov-report=term-missing
+pytest tests/ --cov=src/suma --cov-report=term-missing
 pytest tests/ -m integration
 ```
 
@@ -166,7 +234,7 @@ pytest tests/ -m integration
 
 ```bash
 ruff check .
-mypy src/sas
+mypy src/suma
 ```
 
 ## References

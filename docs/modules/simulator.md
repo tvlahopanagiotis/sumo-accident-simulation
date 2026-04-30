@@ -83,6 +83,39 @@ The current output layer is built around:
 - accident reports
 - antifragility windows and event AI
 
+## Current Mathematical Model
+
+The simulator currently uses a pragmatic macroscopic measurement layer on top
+of the microscopic SUMO state. The main equations are:
+
+```text
+speed_ratio_t = V_t / V_base
+mean_delay_seconds_t = (1 - speed_ratio_t) x metrics_interval_seconds
+throughput_per_hour_t = arrivals_interval x 3600 / metrics_interval_seconds
+event_AI = (V_post / V_pre) - 1
+AI = mean(event_AI)
+```
+
+The incident trigger model uses a weighted composite risk score:
+
+```text
+risk_score = w_speed x speed_risk
+           + w_variance x variance_risk
+           + w_density x density_risk
+
+final_risk = clamp(risk_score x road_type_multiplier, 0, 1)
+```
+
+where speed risk is based on speed relative to the posted road limit, variance
+risk captures local speed heterogeneity, and density risk uses a lane-km density
+curve.
+
+These equations are intentionally visible because SUMA must distinguish
+validated science from operational prototypes. In the current 0.3.0 codebase,
+the equations above are first-attempt operational proxies aligned with the SUMA
+development context. They require calibration and consortium/pilot validation
+before being interpreted as validated urban-mobility antifragility metrics.
+
 ## Where It Fits In The Full Workflow
 
 The simulator sits between network/demand preparation and the analysis tools.

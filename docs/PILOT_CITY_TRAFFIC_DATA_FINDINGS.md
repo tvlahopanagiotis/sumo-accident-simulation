@@ -143,7 +143,7 @@ Best for:
 Useful source:
 - https://gbfs.org/
 
-## Practical Conclusion For SAS
+## Practical Conclusion For SUMA
 
 Near-term priority order:
 

@@ -1337,20 +1337,38 @@ export default function App() {
   };
 
   useEffect(() => {
-    document.documentElement.style.setProperty("--brand-primary", branding.colors.primary);
-    document.documentElement.style.setProperty("--brand-secondary", branding.colors.secondary);
-    document.documentElement.style.setProperty("--brand-ink", branding.colors.ink);
-    document.documentElement.style.setProperty("--brand-surface", branding.colors.surface);
-    document.documentElement.style.setProperty("--brand-surface-alt", branding.colors.surface_alt);
-    document.documentElement.style.setProperty("--brand-border", branding.colors.border);
-  }, [branding]);
+    const themeColors =
+      themeMode === "dark"
+        ? {
+            ...branding.colors,
+            ink: "#fff4ee",
+            surface: "#25171d",
+            surface_alt: "#3a242d",
+            border: "rgba(255, 218, 199, 0.30)",
+          }
+        : branding.colors;
+
+    document.documentElement.style.setProperty("--brand-primary", themeColors.primary);
+    document.documentElement.style.setProperty("--brand-secondary", themeColors.secondary);
+    document.documentElement.style.setProperty("--brand-ink", themeColors.ink);
+    document.documentElement.style.setProperty("--brand-surface", themeColors.surface);
+    document.documentElement.style.setProperty("--brand-surface-alt", themeColors.surface_alt);
+    document.documentElement.style.setProperty("--brand-border", themeColors.border);
+  }, [branding, themeMode]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("theme-dark", themeMode === "dark");
   }, [themeMode]);
 
   useEffect(() => {
-    const onScroll = () => setHeaderCompact(window.scrollY > 28);
+    let compact = false;
+    const onScroll = () => {
+      const nextCompact = compact ? window.scrollY > 24 : window.scrollY > 96;
+      if (nextCompact !== compact) {
+        compact = nextCompact;
+        setHeaderCompact(nextCompact);
+      }
+    };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
