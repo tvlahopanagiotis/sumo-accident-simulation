@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GeoJSON, MapContainer, Polygon, Rectangle, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { ChangeEvent } from "react";
 import type { LeafletMouseEvent } from "leaflet";
@@ -53,7 +53,11 @@ type InfoModal = {
   title: string;
   sections: Array<{ heading: string; body: string[] }>;
 } | null;
-const APP_VERSION = "0.3.0";
+const APP_VERSION = "0.3.1";
+const THEME_STORAGE_KEY = "suma-theme-mode";
+const SIDEBAR_STORAGE_KEY = "suma-sidebar-collapsed";
+const MOBILE_NAV_MEDIA_QUERY = "(max-width: 1080px)";
+const PRIMARY_NAV_ID = "primary-navigation";
 
 const DEFAULT_BRANDING: Branding = {
   name: "AntifragiCity SUMA",
@@ -222,17 +226,17 @@ function classifyGeneratorFamily(workflowId: string): GeneratorFamily {
 
 const DOC_LABELS = new Map<string, string>([
   ["README.md", "Project Overview"],
-  ["docs/README.md", "Documentation Index"],
-  ["docs/antifragicity/SUMA_Codex_Development_Instructions.md", "SUMA Development Context"],
+  ["docs/README.md", "Documentation Roadmap"],
+  ["docs/antifragicity/SUMA_Codex_Development_Instructions.md", "SUMA WP5 Internal Guide"],
   ["docs/STRUCTURE.md", "Repository Structure"],
   ["docs/REFERENCE.md", "Reference"],
   ["docs/GUI.md", "GUI Guide"],
-  ["docs/modules/README.md", "Module Guides Index"],
-  ["docs/modules/simulator.md", "Simulator Module"],
-  ["docs/modules/generators.md", "Generators Module"],
-  ["docs/modules/data-integrations.md", "Data & Integrations Module"],
-  ["docs/modules/analysis.md", "Analysis Module"],
-  ["docs/operations/README.md", "Command Guides Index"],
+  ["docs/modules/README.md", "System Guide Index"],
+  ["docs/modules/simulator.md", "Simulator Guide"],
+  ["docs/modules/generators.md", "Generator Guide"],
+  ["docs/modules/data-integrations.md", "Data & Integrations Guide"],
+  ["docs/modules/analysis.md", "Analysis Guide"],
+  ["docs/operations/README.md", "Workflow Index"],
   ["docs/operations/new-location-workflow.md", "Add A New Location"],
   ["docs/operations/simulation.md", "Simulation Operations"],
   ["docs/operations/generators.md", "Generator Operations"],
@@ -241,6 +245,7 @@ const DOC_LABELS = new Map<string, string>([
   ["docs/THESSALONIKI_OPERATOR_GUIDE.md", "Thessaloniki Operator Guide"],
   ["docs/SEATTLE_DATA.md", "Seattle Data Notes"],
   ["docs/SUMO_ACCIDENT_SIMULATOR_REVIEW.md", "SUMO Incident Model Review"],
+  ["docs/antifragicity/SUMA_MiniGA_Diplomatic_Brief.md", "SUMA Mini-GA Diplomatic Brief"],
   ["docs/MACOS_INSTALL.md", "macOS Install Guide"],
   ["docs/WORKTREES.md", "Git Worktrees Guide"],
   ["docs/CHANGELOG.md", "Changelog"],
@@ -253,29 +258,13 @@ function docLabel(path: string): string {
 function groupDocumentationPaths(paths: string[]): Array<{ title: string; description: string; items: string[] }> {
   const sections: Array<{ title: string; description: string; items: string[] }> = [
     {
-      title: "Start Here",
-      description: "Read these first to understand the project and the overall documentation map.",
-      items: ["README.md", "docs/README.md"],
+      title: "Orientation",
+      description: "Start with the high-level project overview, then use the documentation roadmap, interface guide, and structure/reference material to understand how the workspace is organized.",
+      items: ["README.md", "docs/README.md", "docs/GUI.md", "docs/STRUCTURE.md", "docs/REFERENCE.md"],
     },
     {
-      title: "Foundations",
-      description: "Core repository, interface, and reference material that defines how SUMA is organized and how it behaves.",
-      items: ["docs/antifragicity/SUMA_Codex_Development_Instructions.md", "docs/STRUCTURE.md", "docs/REFERENCE.md", "docs/GUI.md"],
-    },
-    {
-      title: "Module Guides",
-      description: "Narrative guides for the main parts of the system: simulator, generators, data intake, and analysis.",
-      items: [
-        "docs/modules/README.md",
-        "docs/modules/simulator.md",
-        "docs/modules/generators.md",
-        "docs/modules/data-integrations.md",
-        "docs/modules/analysis.md",
-      ],
-    },
-    {
-      title: "Command Guides",
-      description: "Consolidated operator runbooks, including the end-to-end new-location path.",
+      title: "Operator Workflows",
+      description: "Follow these runbooks when you are operating the system end-to-end: new location intake, data preparation, generation, simulation, and analysis.",
       items: [
         "docs/operations/README.md",
         "docs/operations/new-location-workflow.md",
@@ -283,15 +272,28 @@ function groupDocumentationPaths(paths: string[]): Array<{ title: string; descri
         "docs/operations/generators.md",
         "docs/operations/simulation.md",
         "docs/operations/analysis.md",
+        "docs/THESSALONIKI_OPERATOR_GUIDE.md",
       ],
     },
     {
-      title: "City Notes And Reviews",
-      description: "City-specific notes and technical review material for the current incident model.",
+      title: "System Guides",
+      description: "Use these narrative guides when you need a deeper understanding of the simulator, generators, data integrations, and analysis modules behind the operator workflows.",
       items: [
-        "docs/THESSALONIKI_OPERATOR_GUIDE.md",
+        "docs/modules/README.md",
+        "docs/modules/data-integrations.md",
+        "docs/modules/generators.md",
+        "docs/modules/simulator.md",
+        "docs/modules/analysis.md",
+      ],
+    },
+    {
+      title: "Research And Data Notes",
+      description: "Supporting context for validation, city-specific caveats, scientific limits, AntifragiCity WP5 development, and Mini-GA preparation.",
+      items: [
         "docs/SEATTLE_DATA.md",
         "docs/SUMO_ACCIDENT_SIMULATOR_REVIEW.md",
+        "docs/antifragicity/SUMA_Codex_Development_Instructions.md",
+        "docs/antifragicity/SUMA_MiniGA_Diplomatic_Brief.md",
       ],
     },
     {
@@ -952,10 +954,33 @@ export default function App() {
   const [bulkDirectionClass, setBulkDirectionClass] = useState<string>("any");
   const [bulkSpeedValue, setBulkSpeedValue] = useState<number | "">("");
   const [infoModal, setInfoModal] = useState<InfoModal>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+  });
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
-  const [themeMode, setThemeMode] = useState<ThemeMode>("light");
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") {
+      return "light";
+    }
+    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (storedTheme === "light" || storedTheme === "dark") {
+      return storedTheme;
+    }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
+  const [isMobileNavigation, setIsMobileNavigation] = useState<boolean>(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.matchMedia(MOBILE_NAV_MEDIA_QUERY).matches;
+  });
+  const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   const [headerCompact, setHeaderCompact] = useState<boolean>(false);
+  const sidebarRef = useRef<HTMLElement | null>(null);
+  const settingsMenuRef = useRef<HTMLDivElement | null>(null);
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null,
@@ -1025,6 +1050,10 @@ export default function App() {
   const selectedTrafficFeedTargetCity = useMemo(
     () => cities.find((city) => city.slug === selectedTrafficFeedTargetCitySlug) ?? null,
     [cities, selectedTrafficFeedTargetCitySlug],
+  );
+  const activeViewMeta = useMemo(
+    () => VIEW_LABELS.find((item) => item.key === view) ?? VIEW_LABELS[0],
+    [view],
   );
   const govgrTargetCalibrationYear = Number(workflowValues["integration.govgr_targets"]?.calibration_year ?? 2025);
   const govgrTargetValidationYear = Number(workflowValues["integration.govgr_targets"]?.validation_year ?? 2026);
@@ -1193,7 +1222,7 @@ export default function App() {
         body: [
           "Published catalogs are source-side metadata bundles. Downloaded runs and built targets are target-city artifacts.",
           "The alignment map joins feed Link_id values to OSM way ids where possible. It is a coverage diagnostic, not a guarantee that every feed link exists in the current extract.",
-          "The provider-slot structure is ready for later adapters for Larissa, Bratislava, Odessa, and broader open-data sources.",
+          "The provider-slot structure is ready for later adapters for Larissa, Bratislava, Odesa, and broader open-data sources.",
         ],
       },
     ],
@@ -1291,8 +1320,8 @@ export default function App() {
       {
         heading: "Reading Path",
         body: [
-          "The documentation page exposes the repository markdown in a curated order, with project context, module guides, command guides, city notes, and maintenance material separated.",
-          "The SUMA development context document is included under Foundations because it describes the AntifragiCity WP5 role and future integration direction.",
+          "The documentation page exposes the repository markdown in a curated order, with orientation, operator workflows, system guides, research context, and maintenance material separated.",
+          "The unified SUMA WP5 internal guide and the diplomatic Mini-GA brief are included under Research And Data Notes because they describe project scope, evidence, roadmap, and meeting-preparation context.",
         ],
       },
     ],
@@ -1359,6 +1388,75 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.toggle("theme-dark", themeMode === "dark");
   }, [themeMode]);
+
+  useEffect(() => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
+  }, [themeMode]);
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_NAV_MEDIA_QUERY);
+    const syncMobileNavigation = (matches: boolean) => {
+      setIsMobileNavigation(matches);
+      if (!matches) {
+        setMobileNavOpen(false);
+      }
+    };
+    syncMobileNavigation(mediaQuery.matches);
+    const handleChange = (event: MediaQueryListEvent) => syncMobileNavigation(event.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  useEffect(() => {
+    if (!settingsOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!settingsMenuRef.current?.contains(event.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [settingsOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSettingsOpen(false);
+        setMobileNavOpen(false);
+        setInfoModal(null);
+        setSectionGuide(null);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    setSettingsOpen(false);
+    setMobileNavOpen(false);
+  }, [view]);
+
+  useEffect(() => {
+    if (!isMobileNavigation || !mobileNavOpen) {
+      return undefined;
+    }
+
+    sidebarRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileNavigation, mobileNavOpen]);
 
   useEffect(() => {
     let compact = false;
@@ -2713,16 +2811,109 @@ export default function App() {
   const metricsRows = selectedRunSummary?.metrics.rows ?? [];
   const simulationNetworkSummary =
     (selectedRunSummary?.simulation_summary?.network as Record<string, unknown> | undefined) ?? {};
+  const runningJobsCount = jobs.filter((job) => job.status === "running").length;
+  const showCollapsedSidebar = sidebarCollapsed && !isMobileNavigation;
+  const renderSettingsMenu = (placement: "header" | "sidebar") => (
+    <div className={`user-menu-wrap ${placement === "sidebar" ? "sidebar-user-menu" : ""}`} ref={settingsMenuRef}>
+      <button
+        type="button"
+        className="user-menu-button"
+        aria-label="Open user and page settings"
+        aria-expanded={settingsOpen}
+        onClick={() => {
+          if (placement === "header") {
+            setMobileNavOpen(false);
+          }
+          setSettingsOpen((current) => !current);
+        }}
+      >
+        RH
+      </button>
+      {settingsOpen ? (
+        <div className={`settings-popover ${placement === "sidebar" ? "is-sidebar" : ""}`}>
+          <strong>Workspace Settings</strong>
+          <label className="field">
+            <span>Theme</span>
+            <select value={themeMode} onChange={(event) => setThemeMode(event.target.value as ThemeMode)}>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Language</span>
+            <select value="en" disabled>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <p className="muted">User and page-specific settings are placeholders for the next interface round.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+  const handleViewChange = (nextView: ViewKey) => {
+    setView(nextView);
+    setSettingsOpen(false);
+    setMobileNavOpen(false);
+  };
+  const toggleMobileNav = () => {
+    setSettingsOpen(false);
+    setMobileNavOpen((current) => !current);
+  };
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
-      <aside className="sidebar">
-        <div className="sidebar-brand-row">
-          <img src={sidebarCollapsed ? monogramSrc : logoSrc} alt="AntifragiCity" className={sidebarCollapsed ? "brand-logo brand-logo-compact" : "brand-logo"} />
+    <div
+      className={[
+        "app-shell",
+        showCollapsedSidebar ? "sidebar-collapsed" : "",
+        isMobileNavigation ? "mobile-nav-enabled" : "",
+        mobileNavOpen ? "mobile-nav-open" : "",
+      ].filter(Boolean).join(" ")}
+    >
+      {isMobileNavigation ? (
+        <button
+          type="button"
+          className={`sidebar-backdrop ${mobileNavOpen ? "is-visible" : ""}`}
+          aria-label="Close navigation menu"
+          aria-hidden={!mobileNavOpen}
+          tabIndex={mobileNavOpen ? 0 : -1}
+          onClick={() => setMobileNavOpen(false)}
+        />
+      ) : null}
+      <aside
+        ref={sidebarRef}
+        className="sidebar"
+        id={PRIMARY_NAV_ID}
+        tabIndex={-1}
+        aria-hidden={isMobileNavigation ? !mobileNavOpen : undefined}
+      >
+        <div className="sidebar-header">
+          <div className="sidebar-brand-row">
+            <img
+              src={showCollapsedSidebar ? monogramSrc : logoSrc}
+              alt="AntifragiCity"
+              className={showCollapsedSidebar ? "brand-logo brand-logo-compact" : "brand-logo"}
+            />
+          </div>
+          {isMobileNavigation ? (
+            <button
+              type="button"
+              className="mobile-nav-close"
+              aria-label="Close navigation menu"
+              onClick={() => setMobileNavOpen(false)}
+            >
+              <Icon name="close" />
+            </button>
+          ) : null}
         </div>
-        <nav className="nav-list">
+        <nav className="nav-list" aria-label="Primary">
           {VIEW_LABELS.map((item) => (
-            <button key={item.key} className={`nav-item ${view === item.key ? "is-active" : ""}`} onClick={() => setView(item.key)}>
+            <button
+              key={item.key}
+              type="button"
+              className={`nav-item ${view === item.key ? "is-active" : ""}`}
+              aria-current={view === item.key ? "page" : undefined}
+              onClick={() => handleViewChange(item.key)}
+            >
               <span className="nav-icon">
                 <Icon name={item.icon} />
               </span>
@@ -2730,66 +2921,81 @@ export default function App() {
             </button>
           ))}
         </nav>
+        {isMobileNavigation ? (
+          <div className="sidebar-mobile-footer">
+            <div className="sidebar-mobile-context">
+              <img src={monogramSrc} alt="" aria-hidden="true" className="sidebar-mobile-logo" />
+              <div>
+                <strong>{activeViewMeta.label}</strong>
+                <p className="muted">Pages and workspace settings live in this drawer on smaller screens.</p>
+              </div>
+            </div>
+            {renderSettingsMenu("sidebar")}
+          </div>
+        ) : null}
         <button
           type="button"
           className="sidebar-collapse-control"
-          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-expanded={!sidebarCollapsed}
+          aria-label={showCollapsedSidebar ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!showCollapsedSidebar}
           onClick={() => setSidebarCollapsed((current) => !current)}
         >
           <Icon name="menu" />
-          <span>{sidebarCollapsed ? "Expand" : "Collapse"}</span>
+          <span>{showCollapsedSidebar ? "Expand" : "Collapse"}</span>
         </button>
       </aside>
 
       <main className="main-panel">
         <header className={`hero ${headerCompact ? "is-compact" : ""}`}>
-          <div>
-            <p className="eyebrow">Simulator For Urban Mobility Antifragility</p>
-            <h1>AntifragiCity</h1>
-            <p className="hero-copy">
-              Configure city inputs, generate demand and networks, run SUMO-based incident scenarios, and inspect resilience outputs from one operator workspace.
-            </p>
-          </div>
-          <div className="topbar-actions">
-            <div className="status-card">
-              <span className="status-dot" />
-              <div>
-                <strong>{message}</strong>
-                <p>{jobs.filter((job) => job.status === "running").length} running</p>
-              </div>
-            </div>
-            <div className="user-menu-wrap">
+          <div className="hero-primary">
+            {isMobileNavigation ? (
               <button
                 type="button"
-                className="user-menu-button"
-                aria-label="Open user and page settings"
-                aria-expanded={settingsOpen}
-                onClick={() => setSettingsOpen((current) => !current)}
+                className="mobile-nav-toggle"
+                aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
+                aria-controls={PRIMARY_NAV_ID}
+                aria-expanded={mobileNavOpen}
+                onClick={toggleMobileNav}
               >
-                RH
+                <Icon name={mobileNavOpen ? "close" : "menu"} />
               </button>
-              {settingsOpen ? (
-                <div className="settings-popover">
-                  <strong>Workspace Settings</strong>
-                  <label className="field">
-                    <span>Theme</span>
-                    <select value={themeMode} onChange={(event) => setThemeMode(event.target.value as ThemeMode)}>
-                      <option value="light">Light</option>
-                      <option value="dark">Dark</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Language</span>
-                    <select value="en" disabled>
-                      <option value="en">English</option>
-                    </select>
-                  </label>
-                  <p className="muted">User and page-specific settings are placeholders for the next interface round.</p>
+            ) : null}
+            <div className="hero-heading">
+              {isMobileNavigation ? (
+                <div className="mobile-hero-context">
+                  <img src={monogramSrc} alt="AntifragiCity" className="mobile-hero-logo" />
+                  <div className="mobile-hero-copy">
+                    <span>AntifragiCity</span>
+                    <strong>{activeViewMeta.label}</strong>
+                  </div>
                 </div>
-              ) : null}
+              ) : (
+                <>
+                  <p className="eyebrow">Simulator For Urban Mobility Antifragility</p>
+                  <h1>AntifragiCity</h1>
+                  <p className="hero-copy">
+                    Configure city inputs, generate demand and networks, run SUMO-based incident scenarios, and inspect resilience outputs from one operator workspace.
+                  </p>
+                </>
+              )}
             </div>
           </div>
+          {!isMobileNavigation ? (
+            <div className="topbar-actions">
+              <div className="view-chip" aria-label={`Current section: ${activeViewMeta.label}`}>
+                <Icon name={activeViewMeta.icon} />
+                <span>{activeViewMeta.label}</span>
+              </div>
+              <div className="status-card">
+                <span className="status-dot" />
+                <div>
+                  <strong>{message}</strong>
+                  <p>{runningJobsCount} running</p>
+                </div>
+              </div>
+              {renderSettingsMenu("header")}
+            </div>
+          ) : null}
         </header>
 
         {view === "overview" ? (

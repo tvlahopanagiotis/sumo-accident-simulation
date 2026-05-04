@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1] - 2026-05-04
+
+### Changed
+- Reworked the responsive shell so mobile and tablet layouts now use a proper
+  drawer navigation instead of compressing the desktop sidebar into the main
+  viewport.
+- Tightened small-screen layout behavior across the operator pages so dense
+  split-panel views, sticky side panels, and tab rows collapse more cleanly
+  into single-column reading and action flows.
+- Improved accessibility and dark-mode reliability with stronger form/control
+  contrast, safer dropdown rendering, better focus treatment, and reduced
+  motion handling.
+- Simplified the mobile top bar so small screens now keep only the compact
+  AntifragiCity brand and current page context in the header, while the menu
+  drawer owns page navigation and workspace settings.
+- Reordered the in-app documentation library into a clearer orientation →
+  workflows → system guides → research notes → maintenance path, and rewrote
+  `docs/README.md` to match that narrative.
+
+### Documentation
+- Updated the documentation roadmap and module-guide reading order so the
+  in-app documentation page and `docs/README.md` follow the same operator-first
+  narrative.
+- Unified the internal AntifragiCity WP5 development context and Mini-GA
+  preparation material into one canonical internal guide, with a separate
+  diplomatic partner-facing brief.
+
+### Verification
+- Verified the frontend with `cd frontend && npm run build`.
+- Verified the GUI-related backend tests with:
+  - `pytest -q tests/test_gui_generator_inputs.py tests/test_gui_cities.py tests/test_gui_results.py tests/test_gui_traffic_feeds.py tests/test_live_progress_dashboard.py`
+
 ## [0.3.0] - 2026-04-30
 
 ### Changed
