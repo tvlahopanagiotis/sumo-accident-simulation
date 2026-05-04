@@ -9,11 +9,11 @@ improvement opportunities are.
 
 ## Reading Order
 
-For a first pass through the repository:
+For a first pass through the repository in pipeline order:
 
-1. [simulator.md](simulator.md)
+1. [data-integrations.md](data-integrations.md)
 2. [generators.md](generators.md)
-3. [data-integrations.md](data-integrations.md)
+3. [simulator.md](simulator.md)
 4. [analysis.md](analysis.md)
 
 Then move to:
