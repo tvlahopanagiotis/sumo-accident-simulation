@@ -47,6 +47,15 @@ These are close-out artefacts, not optional notes.
 | `ResponseAction` | action, target disruption, required inputs, actor, technical priority, acceptability status, equity risk, mitigation, communication owner, deployability |
 | `Decision/Risk Log` | item, classification, owner, next action, due date, if unresolved then, D5.1/T5.2 implication |
 
+Example close-out rows:
+
+| Table | Example row |
+|---|---|
+| `UseCaseContract` | `UC_AHEPA_01`, AHEPA, flood/congestion access disruption, hospital/emergency actor, decision question: which access intervention preserves ambulance approach reliability, status: retained if AUTH confirms corridors and feeds. |
+| `AdapterContract` | `adapter_eth_signal_control`, owner ETH, input: network state plus control-zone definition, output: timing/control recommendation plus KPI mapping, runtime: batch/prototype until confirmed, fallback: static control scenario. |
+| `DataReadiness` | `ambulance_approach_travel_time`, role `input` if observed or `computed_output` if SUMO-derived, owner AUTH/AHEPA, proxy: simulated route time, privacy: aggregate only. |
+| `Decision/Risk Log` | CUSP access unresolved, classification external dependency, owner CU/Optimize AI, due date after NDA review, fallback documented adapter contract without executable integration. |
+
 ## 5. Partner Questions To Carry Into Mini-GA
 
 | Partner | Questions |
@@ -78,4 +87,3 @@ These are close-out artefacts, not optional notes.
 ## 7. Technology Stack Note
 
 Use Markdown/CSV tables during Mini-GA capture, then convert confirmed rows into JSON fixtures or SQLite records. Do not build elaborate tooling before the meeting. After Mini-GA, import confirmed `UseCaseContract`, `AdapterContract`, `KpiEvidenceLedger`, and `PilotConfig` rows into the FastAPI/Pydantic contract layer.
-

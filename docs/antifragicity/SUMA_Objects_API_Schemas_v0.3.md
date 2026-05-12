@@ -60,6 +60,8 @@ The `/api/v1` contract should live beside the current GUI/operator API. Do not r
 | `validation_wp6_wp10` | Needed for pilot validation and feedback. | `EvaluationSession`, `StakeholderInput`, `LearningArtifact`, `AFValidationRecord` |
 | `deferred` | Useful but not first-version commitment. | automated acceptability scoring, full KG reasoning, live vendor-simulator integrations |
 
+In this catalogue, `core` means "must be specified in D5.1 and should have examples/tests." It does not automatically mean fully implemented before T5.2. Implementation status must remain explicit on each endpoint or module.
+
 ## 5. Common Schema Conventions
 
 Use `snake_case`, ISO-8601 UTC datetimes, stable prefixed IDs, GeoJSON geometry, explicit versions, and provenance on all exchanged records.
@@ -419,6 +421,112 @@ DataInventoryItem:
   prototype_relevance: required | useful | later | not_needed
 ```
 
+### 6.9 Governance And Integration Records
+
+These records are needed because D5.1 must specify interfaces and ownership, while T5.2 implements or integrates them.
+
+```yaml
+RequirementTrace:
+  requirement_id: string
+  source: grant_agreement | d2_6 | miniga | partner_decision
+  statement: string
+  d5_1_contract_refs: string[]
+  t5_2_implementation_refs: string[]
+  verification_method: test | demonstration | inspection | stakeholder_review | performance_test
+  acceptance_criterion: string
+  owner: string | null
+  status: essential | deferred | rejected | owner_missing
+
+AdapterContract:
+  adapter_id: string
+  module_name: string
+  provider: string
+  module_type: common_core | local_adapter | external_module
+  d5_1_status: specified | stubbed | dependency | deferred
+  t5_2_status: not_started | implemented | external_dependency | blocked | deferred
+  handover_format: code | service | script | api | report | unknown
+  runtime_mode: local | service | manual_import | unknown
+  input_schema_ref: string | null
+  output_schema_ref: string | null
+  kpi_mapping: object | null
+  licence_or_nda_constraint: string | null
+  owner: string | null
+  fallback: string | null
+
+ComponentManifest:
+  component_id: string
+  component_name: string
+  provider: string
+  owner: string | null
+  licence_status: confirmed | pending | restricted | unknown
+  interface_status: documented | draft | missing | nda_blocked
+  maturity_status: concept | prototype | tested | validated | operational | unknown
+  d5_1_status: implement | stub | dependency | defer
+  fallback: string | null
+
+TraceabilityChain:
+  chain_id: string
+  pilot_id: string
+  use_case_id: string
+  requirement_ids: string[]
+  ontology_classes: string[]
+  data_objects: string[]
+  kpi_ids: string[]
+  suma_functions: string[]
+  endpoint_or_service: string | null
+  architecture_module: string | null
+  ui_roles: string[]
+  owner: string | null
+  status: decision | assumption | dependency | risk | owner_missing | deferred
+  fallback: string | null
+
+KpiEvidenceLedger:
+  kpi_id: string
+  formula: string | null
+  dataset: string | null
+  denominator: string | null
+  baseline_status: defined | proxy | owner_missing | not_defined
+  threshold_status: defined | proposed | owner_missing | not_defined
+  confidence: number | null
+  verification_method: string | null
+  owner: string | null
+
+DecisionRiskLog:
+  item: string
+  classification: decision | assumption | dependency | risk | owner_missing | deferred
+  owner: string | null
+  next_action: string
+  due_date: date | null
+  if_unresolved_then: string
+  d5_1_implication: string
+  t5_2_implication: string
+
+RolePermission:
+  role: string
+  visible_data: string[]
+  allowed_actions: string[]
+  export_permissions: string[]
+  warnings_required: string[]
+
+EvaluationSession:
+  session_id: string
+  pilot_id: string
+  user_roles: string[]
+  validation_targets: string[]
+  feedback: object
+  owner: string | null
+
+AuditRecord:
+  audit_id: string
+  actor: string
+  action: string
+  resource_ref: string
+  timestamp: datetime
+  rationale: string | null
+  assumptions: string[]
+  provenance_refs: string[]
+```
+
 ## 7. D2.3 Equations And Modules
 
 D5.1 should expose these as illustrative calculation contracts, not hard-coded approved equations and not validated operational claims. Each formula, weight, window, source reliability value, and threshold must carry `parameter_status: default | assumed | partner_confirmed | pilot_calibrated | missing`.
@@ -515,13 +623,22 @@ Weights must be configurable and labelled as `default`, `assumed`, or `pilot_cal
 
 ## 9. API Families
 
+Status terms in the tables below mean:
+
+| Status | Meaning |
+|---|---|
+| `D5.1 contract` | Specify schema/path/examples/errors; implementation may be stubbed. |
+| `D5.1 stub` | Include placeholder endpoint or documented mock behaviour. |
+| `T5.2 implementation` | Actual working implementation/integration target. |
+| `deferred` | Documented roadmap item, not current commitment. |
+
 ### 9.1 System And Specification
 
 | Endpoint | Method | Status | Purpose |
 |---|---|---|---|
 | `/api/health` | `GET` | existing | Service health. |
-| `/api/v1/openapi.json` | `GET` | core | Machine-readable D5.1 contract. |
-| `/api/v1/component-manifest` | `GET` | core/internal | KER/module owner, licence, interface, maturity. |
+| `/api/v1/openapi.json` | `GET` | D5.1 contract | Machine-readable D5.1 contract. |
+| `/api/v1/component-manifest` | `GET` | D5.1 contract | KER/module owner, licence, interface, maturity. |
 
 ### 9.2 Events And Taxonomy
 
@@ -531,6 +648,7 @@ Weights must be configurable and labelled as `default`, `assumed`, or `pilot_cal
 | `/api/v1/disruption-events/validate` | `POST` | core | Validate event taxonomy, source, space/time, severity. |
 | `/api/v1/taxonomies/event-domains` | `GET` | core | Return supported domains/scales/severity labels. |
 | `/api/v1/taxonomies/crosswalks` | `GET` | core | Return source-category mappings. |
+| `/api/v1/scenarios/{id}/events` | `POST` | D5.1 contract, T5.2 implementation | Attach events/stressors to a scenario. |
 
 ### 9.3 Pilots And Data Readiness
 
@@ -540,6 +658,8 @@ Weights must be configurable and labelled as `default`, `assumed`, or `pilot_cal
 | `/api/v1/pilot-configurations/{pilot_id}` | `GET` | core | Retrieve pilot config. |
 | `/api/v1/data-inventory-items` | `GET/POST` | core/internal | Track data variables and roles. |
 | `/api/v1/data-readiness` | `GET` | core/internal | Summarise readiness and gaps. |
+| `/api/v1/priority-objectives` | `POST` | D5.1 stub | Define pilot/use-case objective priorities. |
+| `/api/v1/data-source-contracts` | `GET` | D5.1 contract | Expose source access/privacy/acceptability status. |
 
 ### 9.4 Scenarios, Jobs, Runs, And Adapters
 
@@ -552,7 +672,7 @@ Weights must be configurable and labelled as `default`, `assumed`, or `pilot_cal
 | `/api/v1/simulation-jobs/{id}` | `GET` | core | Check async status. |
 | `/api/v1/simulation-jobs/{id}/cancel` | `POST` | core | Cancel if supported. |
 | `/api/v1/simulation-runs/{id}` | `GET` | core | Retrieve run outputs. |
-| `/api/v1/simulator-adapters` | `GET/POST` | D5.2 | Registry/capabilities. |
+| `/api/v1/simulator-adapters` | `GET/POST` | T5.2 implementation | Registry/capabilities. |
 | `/api/v1/adapter-contracts` | `GET/POST` | core/internal | Register external module contracts. |
 
 ### 9.5 KPI And Antifragility
@@ -564,6 +684,9 @@ Weights must be configurable and labelled as `default`, `assumed`, or `pilot_cal
 | `/api/v1/kpi-observations` | `POST` | core | KPI values. |
 | `/api/v1/kpi-calculation-jobs` | `POST` | staged | Derived KPI calculation. |
 | `/api/v1/scenarios/{id}/kpis` | `GET` | core | Scenario KPI outputs. |
+| `/api/v1/thresholds` | `POST` | D5.1 stub | Store threshold metadata/status. |
+| `/api/v1/baselines` | `POST` | D5.1 stub | Store baseline metadata/status. |
+| `/api/v1/kpi-evidence-ledger` | `GET` | D5.1 contract | Expose formula, dataset, denominator, confidence, verification method. |
 | `/api/v1/af-validations` | `POST` | staged | Batch AF validation workflow. |
 | `/api/v1/sri/calculate` | `POST` | staged | Advisory SRI calculation. |
 
@@ -576,6 +699,7 @@ Weights must be configurable and labelled as `default`, `assumed`, or `pilot_cal
 | `/api/v1/acceptability-assessments` | `POST` | optional/stub | Acceptability evidence/status. |
 | `/api/v1/equity-impacts` | `POST` | optional/stub | Distributional impacts. |
 | `/api/v1/audit-records` | `POST` | prototype | Decision/action audit. |
+| `/api/v1/monitoring-plans` | `POST` | D5.1 stub | Define post-action monitoring/reporting requirements. |
 | `/api/v1/evaluation-sessions` | `POST` | validation/stub | WP6 feedback. |
 
 ### 9.7 Ontology
@@ -586,7 +710,7 @@ Weights must be configurable and labelled as `default`, `assumed`, or `pilot_cal
 | `/api/v1/ontology/relations` | `GET` | spec | Supported relation subset. |
 | `/api/v1/ontology/context.jsonld` | `GET` | core/spec | JSON-LD context. |
 | `/api/v1/resources/{id}` | `GET` | prototype | Resolve local IDs/IRIs. |
-| `/api/v1/semantic-lift-jobs` | `POST` | D5.2/stub | Register semantic mapping jobs. |
+| `/api/v1/semantic-lift-jobs` | `POST` | D5.1 stub, T5.2 implementation | Register semantic mapping jobs. |
 
 ## 10. Validation Rules
 

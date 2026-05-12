@@ -88,6 +88,17 @@ D5.1 should not claim:
 - automated social acceptability scoring,
 - operational deployment readiness.
 
+## 5.1 D5.1 Versus T5.2 Scope Decision Table
+
+Use this table format whenever a feature is discussed.
+
+| Item | D5.1 status | T5.2 status | Owner | Interface | Verification | Due date | Fallback |
+|---|---|---|---|---|---|---|---|
+| Ontology JSON-LD context | specify and provide example | implement static endpoint and mapping registry | CU/Rhoe | `/api/v1/ontology/context.jsonld` | schema/example inspection | June 2026 | JSON metadata without full JSON-LD |
+| SUMO reference flow | specify scenario/job/run/KPI contract | implement using current runner and job facade | Rhoe | `/api/v1/simulation-jobs` | fixture run and API example | July 2026 | mock run payload |
+| ETH WP4 control module | adapter contract | external dependency until I/O confirmed | ETH/Rhoe | `AdapterContract` | interface inspection | before D5.1 freeze | manual import/mock output |
+| CUSP | adapter placeholder | external dependency until NDA/I-O/auth confirmed | CU/Optimize AI | `AdapterContract` | interface inspection | before D5.1 freeze | placeholder only |
+
 ## 6. T5.2 Development Boundary
 
 T5.2 should implement the D5.1 contract in stages:
@@ -133,6 +144,18 @@ The current app already has:
 
 D5.1 `/api/v1` endpoints should live beside the existing GUI/operator API. Do not break current endpoints used by the web app. Preserve `/api/jobs`, `/api/results/*`, `/api/files/text`, `/api/configs`, `/api/docs`, and current workflow endpoints unless there is an explicit migration plan.
 
+Current versus target:
+
+| Area | Current state | Target for D5.1/T5.2 |
+|---|---|---|
+| Package namespace | `suma` is primary; `sas` remains compatibility. | Keep `suma` canonical; do not introduce new top-level package. |
+| API | `suma.gui.app:app` exposes `/api/*` GUI/operator endpoints. | Mount `/api/v1` routers beside existing endpoints. |
+| Schemas | `src/suma/gui/schemas.py` contains GUI payloads. | Add `src/suma/contracts/` for D5.1 DTOs/enums/examples. |
+| Jobs | `JobManager` is in-process/threaded, subprocess-based, history in `results/gui_job_history.json`. | Use as D5.1 local backend; move to durable queue only if T5.2 needs it. |
+| Persistence | YAML/JSON/CSV/files under `configs/`, `data/`, `results/`. | Keep run folders as source of truth; add SQLite index only if useful. |
+| Default configs | Historical default path may point to deleted Thessaloniki config. | Align D5.1 examples to existing configs such as `thessaloniki_centre`, `thessaloniki_small`, `thermi`, or a confirmed pilot fixture. |
+| CI/tests | Existing CI may still check `sas` compatibility. | Add explicit `suma` checks before relying on CI as D5.1 quality gate. |
+
 ## 9. Recommended Package Evolution
 
 Add new modules incrementally rather than rewriting existing code.
@@ -148,6 +171,16 @@ Add new modules incrementally rather than rewriting existing code.
 | `suma.validation` | Schema rules, data-role rules, AF gates, recommendation gates. |
 | `suma.kpis` | KPI registry, selection, observations, derived calculations. |
 | `suma.methods` | D2.3 calculators and WP3/WP4 adapter wrappers. |
+
+Example router coexistence:
+
+```python
+from suma.api.v1.router import router as api_v1_router
+
+app.include_router(api_v1_router, prefix="/api/v1", tags=["d5.1"])
+```
+
+The current GUI API must remain mounted and working.
 
 ## 10. Core Object Staging
 
@@ -374,6 +407,43 @@ AdapterContract:
     - tbc_control_zone_boundary_stability
   owner: ETH
 ```
+
+## 11.9 SUMO Reference Flow From Current Code
+
+Treat the current SUMO runner as the T5.2 reference implementation path, not as the whole D5.1 API.
+
+```text
+config load/validation
+-> prepare output folder
+-> run_once
+-> traci.start
+-> simulationStep loop
+-> RiskModel / AccidentManager / MetricsCollector
+-> export_all
+-> write_metadata
+-> GUI result parsing
+-> D5.1 SimulationRun / KpiObservation contract
+```
+
+Storage strategy:
+
+| Current artifact | D5.1/T5.2 treatment |
+|---|---|
+| `metadata.json` | Source-of-truth run metadata; index path/hash/provenance in SQLite later. |
+| `network_metrics.csv` | Source for KPI observations and scenario comparisons. |
+| `accident_reports.json` | Source for simulated disruption/event fixtures. |
+| `antifragility_index.json` | Treat as legacy/prototype output; relabel through D2.3 maturity gates. |
+| `simulation_summary.json` | Candidate summary payload for `SimulationRun`. |
+| `gui_job.log` | Job log reference, not scientific evidence. |
+
+## 11.10 Four Pilot Example Modes
+
+| Pilot | Example mode | D5.1 role | T5.2 role |
+|---|---|---|---|
+| AHEPA/Thessaloniki | Hospital access during flood/storm, using current Thessaloniki-centre style fixture if confirmed. | API examples for event, scenario, priority objective, KPI observation. | SUMO reference flow if permissions and network data align. |
+| Bratislava | External VISUM/VISSIM planning handoff for roadworks/PT/public-event scenario. | `AdapterContract` and external model payload example. | Integration only after format/licence/support confirmed. |
+| Larissa | Degraded/proxy flood response with missing counts and uncertain zones. | Proxy/degraded-mode examples and missing-data decisions. | Implement only with proxy labels until counts/zones arrive. |
+| Odesa | Redacted/offline power/infrastructure disruption. | Access/redaction/offline metadata examples. | Degraded/manual-import workflow until shareable data is confirmed. |
 
 ## 12. D5.1 API Families
 

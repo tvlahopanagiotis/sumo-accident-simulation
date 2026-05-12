@@ -50,10 +50,17 @@ Use this matrix when reviewing or extending any analysis:
 
 | Source finding | WP5 meaning | Layer | D5.1 use | T5.2 use | Mini-GA ask | Object/API decision | Status |
 |---|---|---|---|---|---|---|---|
-| event taxonomy | common scenario trigger language | data_contract | `DisruptionEvent` schema | event validation service | confirm taxonomy version | implement core | dependency on WP2 version |
+| event taxonomy | common scenario trigger language | data_contract | `DisruptionEvent` schema | event validation service | confirm taxonomy version | specify core contract | dependency on WP2 version |
 | citizen acceptability | social caveat/gate | methodology/evidence | warnings and evidence fields | explanation/equity module | confirm action status | optional/stub | pilot-specific |
 | D2.3 AF formula | calculation contract | methodology/api_contract | maturity-labelled schema | calculation module | confirm weights/baselines | staged | not validated |
-| KPI catalogue | registry and observation model | data_contract | KPI schemas/endpoints | KPI store/calculator | confirm selected subset | implement core | subset owner needed |
+| KPI catalogue | registry and observation model | data_contract | KPI schemas/endpoints | KPI store/calculator | confirm selected subset | specify core contract | subset owner needed |
+
+Example complete extraction chain:
+
+| Source | D5.1 contract output | T5.2 implementation output | Mini-GA confirmation |
+|---|---|---|---|
+| D2.1 flood event plus D2.5 ontology plus D2.7 access KPI | `DisruptionEvent`, `Scenario`, `KpiDefinition`, JSON-LD context example, validation errors. | SUMO scenario fixture, KPI observation export, scenario comparison output. | Pilot confirms study area, flood trigger, route/corridor, KPI unit, baseline/proxy, and owner. |
+| D2.2 acceptability plus WP3 triage placeholder | `ResponseAction`, `AcceptabilityAssessment`, equity/mitigation fields. | Response-action catalogue and warning/explanation output. | LISER/WP3 confirms response categories, social variables, and what is evidence versus assumption. |
 
 ## 5. D5.1/T5.2 Default Scope
 
@@ -91,4 +98,3 @@ Use the current SUMA stack as the baseline:
 - Jobs: current local job manager for D5.1; Celery/RQ plus Redis only for durable long-running workloads.
 - Ontology: JSON-LD context and mappings first; `rdflib`/`pySHACL` later; triple store only after CU confirms query/use cases.
 - Deployment: Docker Compose; avoid Kubernetes for RP1 unless institutional deployment requires it.
-

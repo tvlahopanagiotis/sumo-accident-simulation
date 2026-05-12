@@ -36,6 +36,15 @@ Use the pack to pre-fill tables, accelerate discussion, and avoid getting lost i
 | Triage measures | `ResponseAction` seed catalogue | Require technical priority, acceptability, equity, owner. |
 | Pilot briefings | `PilotConfig` seed rows | Confirm study areas, data, validation target, permissions. |
 
+Example promotion decisions:
+
+| Pack row | Promote to D5.1? | Promote to T5.2? | Condition |
+|---|---|---|---|
+| AHEPA hospital-access use case | Yes, as `UseCaseContract` and example scenario. | Yes, if AUTH confirms corridor/network and at least one data/proxy source. | Corridor, actor, KPI, validation target, and owner confirmed. |
+| Full 209-indicator KPI catalogue | No, reference only. | No, not as a whole catalogue. | Select a pilot subset and record deferred indicators with rationale. |
+| Ontology 12-class reference | Yes, as JSON-LD-compatible semantic subset. | Partly, through class registry and context endpoint. | CU confirms class names, identifiers, and mandatory properties. |
+| CUSP/Optimize AI material | Yes, as dependency and adapter contract. | Only after NDA, I/O, auth, and runtime constraints are known. | Otherwise keep as documented external dependency. |
+
 ## 5. Pilot-Specific Use-Case Watchpoints
 
 | Pilot | Candidate SUMA value | Main Mini-GA confirmation |
@@ -82,4 +91,3 @@ Expected Mini-GA output: confirmed tables with owner, status/fallback, due date,
 ## 9. Technology Stack Note
 
 Use the Mini-GA pack as seed data for Markdown/CSV capture templates. After the meeting, convert confirmed rows into JSON fixtures for `/api/v1` examples and SQLite metadata for requirements, use cases, KPI evidence, adapter contracts, and pilot configuration. Do not import the whole pack as authoritative machine data without partner confirmation.
-

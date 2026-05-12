@@ -21,6 +21,18 @@ SUMA is the WP5 API-driven orchestration layer for AntifragiCity. It connects WP
 
 SUMA is not the owner of final WP3 triage science, WP4 traffic-control algorithms, the complete knowledge graph/rule engine, all vendor simulator integrations, city data acquisition, public acceptability certification, or a validated antifragility engine before pilot calibration.
 
+## 2.1 D5.1 Versus T5.2
+
+Use this distinction consistently in the meeting:
+
+| Item | Meaning for Rhoe |
+|---|---|
+| D5.1 | API specification, schemas, endpoint families, examples, stubs/placeholders, adapter contracts, error model, initial tests, and known limitations. |
+| T5.2 | Actual implementation and integration: SUMO reference flow, persistence, adapters, KPI calculations, semantic-lift jobs, partner module handoffs, and hardening. |
+| Mini-GA output | Owner-assigned rows that tell Rhoe what D5.1 must specify and what T5.2 must implement, defer, or treat as dependency. |
+
+Partner-facing phrasing: "SUMA can represent and integrate this once the owner, interface, evidence status, and fallback are confirmed." Avoid saying that Rhoe refuses ownership; say the item needs an agreed owner and interface before it becomes a WP5 commitment.
+
 ## 3. Translation Layers
 
 Use these labels while taking notes and closing sessions.
@@ -62,6 +74,20 @@ Rhoe should listen for the items that Day 2 needs.
 
 Do not let Day 1 produce a generic data wish list. A data item matters only if it supports a retained use case, KPI, response action, validation target, or interface.
 
+## 5.1 Concise Agenda Backbone
+
+| Time/session | Rhoe posture | Required output |
+|---|---|---|
+| Day 1, Session 1: use cases | Listen and clarify triggers, actors, assets, decision question. | Draft `UseCaseContract` rows. |
+| Day 1, Session 2: requirements | Push for essential versus deferred, not all requirements. | Requirement shortlist and acceptance notes. |
+| Day 1, Session 3: ontology/data | Ask for object, data role, owner, mapping status, missing input action. | Ontology/data map. |
+| Day 1, Session 4: KPIs | Ask for unit, formula, baseline, threshold, owner, validation method. | `KpiEvidenceLedger` seed rows. |
+| Day 2, Session 5: functions | Convert requirements into SUMA functions and API/spec rows. | Function/API map for D5.1. |
+| Day 2, Session 6: architecture | Convert functions into common core, local adapter, external module, deferred item. | T5.2 architecture and adapter map. |
+| Day 2, Session 7: triage/acceptability | Link actions to technical priority, acceptability, equity, mitigation, communication owner. | `ResponseAction` rows. |
+| UI charrette | Convert roles into permissions, warnings, exports, guided/expert flows. | Role/API payload matrix. |
+| Closeout | Confirm owner, status, due date, fallback. | Decision/risk log. |
+
 ## 6. Day 2 Session 5: SUMA Function Mapping
 
 Purpose: translate Day 1 outputs into SUMA functions and API/service contracts.
@@ -83,6 +109,8 @@ Required table:
 
 | Pilot/use case | Translation layer | Requirement | SUMA function | Input/evidence | Output/decision | KPI | Endpoint/service if needed | Owner | Status/fallback |
 |---|---|---|---|---|---|---|---|---|---|
+| AHEPA flood access | `api_contract` | FR-01/FR-02/FR-03 | ingest event, define scenario, run simulation, expose KPI comparison | flood/access event fixture, corridor TBC | scenario KPI outputs | emergency access travel time | `/api/v1/disruption-events`, `/api/v1/scenarios`, `/api/v1/simulation-jobs` | AUTH/AHEPA and Rhoe | dependency: corridor/Living Lab permission |
+| Larissa flood reroute | `evidence` + `data_contract` | FR-02/GR-03 | compare proxy scenario and show caveats | proxy flood boundary, traffic counts missing | degraded-mode output | travel time delta, equity burden | `/api/v1/scenarios`, `/api/v1/kpi-observations` | Larissa/Rhoe | proxy until counts/zones confirmed |
 
 Closeout rule: every retained use case needs at least one row. Missing inputs must be labelled `acquire`, `proxy`, `defer`, or `drop`.
 
@@ -94,6 +122,9 @@ Architecture contract table:
 
 | Module | Type | Owner | Input schema | Output schema | Format/protocol | Runtime | KPI mapping | Maturity | Fallback |
 |---|---|---|---|---|---|---|---|---|---|
+| SUMO reference adapter | `common_core` | Rhoe | `Scenario`, `PilotConfig` | `SimulationRun`, `KpiObservation` | local file/process | local | core KPI subset | prototype | synthetic fixture |
+| ETH control strategy | `external_module` | ETH | TBC | TBC | TBC | TBC | D2.7 mapping TBC | dependency | manual import/mock output |
+| CUSP | `external_module` | CU/Optimize AI | TBC | TBC | NDA constrained | TBC | TBC | external dependency | placeholder adapter |
 
 Module types:
 
@@ -125,6 +156,8 @@ Response-action table:
 
 | Action | Target disruption | Required inputs | Actor | Technical priority | Acceptability status | Equity risk | Mitigation | Communication owner | Deployability |
 |---|---|---|---|---|---|---|---|---|---|
+| emergency signal priority | AHEPA access disruption | corridor, signal control capability, emergency route | traffic operator/emergency services | high | not assessed | not assessed | review after pilot data | AUTH/AHEPA TBC | candidate only |
+| car restriction/reroute | Bratislava public event or Larissa flood | affected zones, diversion routes, public channels | city/traffic operator | medium/high | contested or indicative only | mitigation required | public rationale and monitoring | city/DMO TBC | not deployable until mitigation |
 
 Hard rule: a high-technical / low-acceptability action can remain a candidate, but it cannot be labelled deployment-ready unless mitigation, public rationale, communication owner, and residual-risk status are recorded.
 
@@ -189,7 +222,7 @@ Ask DMO to identify which `/api/v1` payloads each role needs and whether workflo
 | `ResponseAction` | action, target disruption, required inputs, actor, technical priority, acceptability status, equity risk, mitigation, communication owner, deployability |
 | `Decision/Risk Log` | item, classification, owner, next action, due date, if unresolved then, D5.1/T5.2 implication |
 
-## 13. D5.1/T5.2 Defaults To Defend
+## 13. D5.1/T5.2 Defaults To Defend Internally
 
 | Decision | Recommended default |
 |---|---|
@@ -200,6 +233,8 @@ Ask DMO to identify which `/api/v1` payloads each role needs and whether workflo
 | Acceptability | Evidence and gates first; no automated universal acceptability score. |
 | CUSP | `external_dependency` until NDA, I/O, auth, deployment, and fallback are resolved. |
 | KPI | No KPI claim without formula, unit, dataset, denominator, baseline/target, owner, and verification method. |
+
+Partner-facing wording: describe these as "confirmation gates" rather than objections. For example, say "This can be included in the SUMA contract once the interface and validation owner are confirmed."
 
 ## 14. Technology Stack Position
 
@@ -216,7 +251,23 @@ Keep the current SUMA stack and formalize it rather than pivot.
 | Ontology | JSON-LD context and mappings first; `rdflib`/`pySHACL` later; triple store only after CU confirms need. |
 | Deployment | Docker Compose for RP1; avoid Kubernetes unless required by institutional deployment. |
 
-## 15. End-Of-Day Success Criteria
+## 15. Timeline To October 2026
+
+This timeline separates D5.1 specification work from T5.2 implementation/integration work.
+
+| Period | Main objective | Concrete work |
+|---|---|---|
+| 18-19 May Mini-GA | Convert consortium knowledge into owner-assigned rows. | Use case, requirement, ontology/data, KPI, function, architecture, triage, UI, decision/risk tables. |
+| Late May 2026 | Consolidate Mini-GA outputs. | Produce confirmed `UseCaseContract`, `TraceabilityChain`, `KpiEvidenceLedger`, `AdapterContract`, and `PilotConfig` rows. |
+| Early June 2026 | Start with ontology and identifiers. | Confirm D2.5 first class/property subset, define ID/IRI conventions, draft `/api/v1/ontology/context.jsonld`, add JSON/JSON-LD examples. |
+| Mid June 2026 | Freeze D5.1 domain schemas. | Finalize `DisruptionEvent`, `Scenario`, `KpiDefinition`, `KpiObservation`, `PilotConfig`, `AdapterContract`, `DataInventoryItem`, and validation/error envelopes. |
+| Late June 2026 | Build D5.1 examples and fixtures. | Add AHEPA emergency-access fixture, Larissa degraded/proxy flood fixture, Bratislava external-model adapter fixture, Odesa redacted/offline fixture. |
+| July 2026 | Specify and stub `/api/v1`. | OpenAPI snapshot, schema examples, mock/stub endpoints, adapter-contract registry, KPI registry, documentation examples. |
+| August 2026 | D5.1 freeze. | API specification, example payloads, known limitations, initial schema tests, risk-to-test matrix, D5.1 narrative. |
+| September 2026 | T5.2 implementation sprint. | SUMO reference flow, local job facade, KPI observation export, file/SQLite metadata ledger, pilot configuration loading. |
+| October 2026 | RP1 consolidation and T5.2 roadmap. | Validate what can be shown, document dependencies, update backlog for WP3/WP4/CUSP/DMO adapters, prepare RP1 evidence package. |
+
+## 16. End-Of-Day Success Criteria
 
 By 15:00 on 19 May 2026, Rhoe should have:
 
@@ -226,8 +277,7 @@ By 15:00 on 19 May 2026, Rhoe should have:
 - adapter contract rows for WP4, CUSP, AUTH, LISER, DMO, and simulator interfaces where relevant,
 - pilot configuration asks and owners,
 - Layer 3 KPI issues assigned,
-- owner-assigned D5.1/D5.2 backlog,
+- owner-assigned D5.1/T5.2 backlog,
 - unresolved items classified as `assumption`, `dependency`, `risk`, `owner_missing`, or `deferred`.
 
 Anything not owner-assigned is not a Rhoe commitment.
-

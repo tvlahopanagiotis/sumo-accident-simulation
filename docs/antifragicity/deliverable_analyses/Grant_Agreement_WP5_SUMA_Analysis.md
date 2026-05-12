@@ -110,7 +110,7 @@ RequirementTrace:
 | `/api/v1` contract layer | Versioned partner-facing API beside current GUI API. | Preserve existing operator endpoints. |
 | Adapter registry | Store and expose adapter contracts for SUMO/WP3/WP4/CUSP/DMO. | Essential to avoid hidden assumptions. |
 | Component manifest | Track KER/module owner, licence, interface, maturity, fallback. | Required before claiming integration. |
-| Async job lifecycle | Formalize current job manager as `SimulationJob`. | Durable queue can wait until D5.2. |
+| Async job lifecycle | Formalize current job manager as `SimulationJob`. | Durable queue can wait until T5.2. |
 | Role/audit baseline | Add minimal role permissions, audit records, retention/redaction notes. | T5.2/D5.3 bridge. |
 | Evaluation hooks | Capture WP6 usefulness/ease/equity feedback. | Can start as stub/internal endpoint. |
 
@@ -129,7 +129,15 @@ Ask Rhoe/CU/all technical partners:
 
 Expected Mini-GA output: D5.1/T5.2 scope table with `item`, `implement/stub/dependency/defer`, `owner`, `interface`, `verification`, `due_date`, and `fallback`.
 
+Example scope decisions to record:
+
+| Item | D5.1 decision | T5.2 decision | Fallback |
+|---|---|---|---|
+| SUMO reference adapter | Specify and demonstrate with existing backend flow. | Harden pilot configs, outputs, and result provenance. | Keep executable local workflow with mock/pilot-lite data. |
+| Vissim/Aimsun/VISUM | Specify adapter contract only unless partner confirms access/licence/support. | Implement only after handoff format and validation owner exist. | Document as future extension point. |
+| Ontology/KG | Publish JSON-LD context, semantic metadata, and mapping examples. | Add semantic-lift jobs and optional RDF/SHACL validation after CU artefacts stabilise. | Keep JSON fields and local IDs with provenance. |
+| Antifragility metric | Define formulas, maturity labels, required evidence, and caveats. | Compute only where baseline/post-event/proxy data support the claim. | Report resilience/KPI comparison without AF claim. |
+
 ## 8. Technology Stack Note
 
 The current stack is acceptable for the GA scope: Python/FastAPI/Pydantic/OpenAPI for D5.1, SUMO/TraCI first for T5.2, React/Vite/Leaflet/Recharts for D5.3, and Docker Compose for deployment. Add SQLite for metadata ledgers before adding Postgres/PostGIS; add Redis/Celery only when simulation/KPI jobs need durable queues. Avoid Kubernetes, full microservices, and full KG infrastructure for RP1 unless explicitly required.
-
