@@ -15,6 +15,18 @@ use case -> requirement -> ontology/data object -> KPI -> SUMA function -> endpo
 
 The governing rule is simple: if an item does not need to be ingested, stored, computed, exposed, validated, or exchanged by SUMA, do not force it into an API object. Record it as methodology, evidence, validation context, governance, dependency, or deferred backlog.
 
+## 1.1 Evidence Spine
+
+This guide is a synthesis document, not a new source of project facts. Its positions are derived from the Grant Agreement, D2.1-D2.7 analyses, WP5/WP4 MoM/context files, Mini-GA agenda/working pack, and current SUMA codebase observations. Treat examples such as AHEPA flood access or Larissa proxy rerouting as meeting/test fixtures until pilot owners confirm study area, data, validation target, and permissions.
+
+The Mini-GA purpose is to turn source evidence into decisions:
+
+```text
+source evidence -> Rhoe interpretation -> Mini-GA confirmation -> D5.1 contract -> T5.2 backlog/implementation
+```
+
+Anything that skips the Mini-GA confirmation step must stay labelled `assumption`, `dependency`, `risk`, `owner_missing`, or `deferred`.
+
 ## 2. Scope Position To Use With Partners
 
 SUMA is the WP5 API-driven orchestration layer for AntifragiCity. It connects WP2 event/ontology/KPI/requirements work, WP3 triage and response actions, WP4 control/routing/method outputs, WP6 validation needs, pilot configurations, and DMO/UI needs.
@@ -104,6 +116,24 @@ D2.6 is now the baseline requirement source. Use its FR/DR/IR/UR/NFR/GR IDs as t
 | GR-01 to GR-04 | Privacy, audit, transparency, stakeholder input. | Must be visible in schemas and UI warnings; full enforcement can be staged but not ignored. |
 
 Required close-out columns: `requirement_id`, `use_case`, `essential/deferred`, `owner`, `verification_method`, `acceptance_evidence`, `D5.1 implication`, `T5.2 implication`, `fallback`.
+
+## 5.3 Cross-Cutting Pain Points To Close
+
+These are the main issues Rhoe should not let remain implicit.
+
+| Pain point | Evidence basis | Mini-GA decision needed | If unresolved |
+|---|---|---|---|
+| D5.1 versus T5.2 scope | Grant Agreement; D2.6 traceability; WP5 MoM/context | Decide whether D5.1 is spec-only, spec plus stubs/tests, or executable prototype. | Mark implementation claims as T5.2 backlog, not D5.1 delivery. |
+| D2.6 requirement baseline | D2.6 Sec. 6-8; D2.6 analysis | Confirm baseline requirements, essential/deferred status per use case, and reconcile 47 statements versus 35/10/1 consensus counts. | Keep registry provisional and ask CU/Cardiff for clarification. |
+| Ontology identifiers and JSON-LD | D2.5; D2.6 ontology foundation | Confirm mandatory class/property subset, ID/IRI conventions, JSON-LD context expectations, and mapping owner. | Use local IDs plus optional `iri: null`; defer full KG/rule execution. |
+| KPI subset and evidence ledger | D2.3; D2.7; WP4/WP5 meeting | Confirm KPI subset, formulas, units, baselines, thresholds, denominator/exposure, owner, and verification method. | Show KPI outputs as proxy/unvalidated; no AF claim. |
+| Data-role confusion | D2.7; Mini-GA data inventory; MoM/context | Classify each data item as `input`, `computed_output`, or `parameter`. | Do not request computed outputs or calibration parameters from cities as raw data. |
+| WP3 triage handoff | Grant Agreement; D2.2/D2.4; WP3 timing | Confirm response-action schema, technical priority scale, acceptability/equity fields, mitigation, and timing. | Keep `ResponseAction`/`TriageRecommendation` as placeholders. |
+| WP4 method handoff | Grant Agreement; WP4/WP5 meeting; MoM/context | Confirm inputs, outputs, parameters, runtime mode, control zones, retraining assumptions, KPI mappings. | Use `AdapterContract` with manual/mock fallback. |
+| CUSP/Optimize AI dependency | WP5 MoM/context; Mini-GA pack | Confirm NDA impact, I/O package, auth/deployment model, latency, and fallback. | Keep as external dependency with placeholder adapter. |
+| Pilot data and permissions | WP6/pilot context; D2.4; MoM/context | Confirm study areas, data owners, redaction/privacy limits, validation targets, degraded-mode rules. | Use synthetic/proxy fixtures only. |
+| UI roles and governance | D2.6 UR/GR; DMO expectations; MoM/context | Confirm roles, permissions, dashboards, warnings, exports, guided/expert workflows. | Define minimal `RolePermission`; defer split-governance workflows. |
+| Near-real-time expectations | D2.6 FR-06/NFR-02; data inventory | Confirm deployment mode and latency target by source/use case. | Label as batch/planning mode; do not add durable queue as default. |
 
 ## 6. Day 2 Session 5: SUMA Function Mapping
 

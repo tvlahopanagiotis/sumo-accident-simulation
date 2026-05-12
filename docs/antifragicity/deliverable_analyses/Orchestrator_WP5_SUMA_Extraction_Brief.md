@@ -1,5 +1,6 @@
 # Orchestrator WP5/SUMA Extraction Brief v0.3
 
+Status: internal meta-brief for reviewing and updating the AntifragiCity source analyses.
 Purpose: common extraction and revision rules for turning AntifragiCity sources into practical WP5/SUMA inputs for D5.1, T5.2, and Mini-GA preparation.
 
 ## 1. WP5/SUMA Lens
@@ -29,6 +30,19 @@ Every source finding must be classified before it is promoted into D5.1/T5.2.
 | `deferred` | Useful but not first-version work. | Roadmap/backlog with owner and trigger. |
 
 Do not promote a methodology/evidence item to API unless a selected use case, partner module, UI/report, simulator adapter, validation workflow, or D5.1 acceptance criterion needs to call, persist, or exchange it.
+
+## 2.1 Evidence And Claim Discipline
+
+Every analysis and synthesis document must keep the following distinction visible:
+
+| Claim type | Allowed basis | Required label |
+|---|---|---|
+| Source-derived | Grant Agreement, D2.1-D2.7, MoM/context, Mini-GA agenda/pack. | Cite source section/page/date when available. |
+| Internal Rhoe recommendation | Engineering interpretation from source material and current SUMA codebase. | Mark as recommendation, default, or proposed staging. |
+| Example fixture | Synthetic or pilot-associated example used to test schemas. | Mark as illustrative, proxy, synthetic, or pilot-to-confirm. |
+| Implementation commitment | Confirmed by owner/interface/status/due date/fallback. | Mark as implemented, D5.1 contract, T5.2 target, dependency, or deferred. |
+
+If a statement cannot be traced to one of these categories, do not keep it as a factual claim. Rephrase it as a Mini-GA question or delete it.
 
 ## 3. Standard Analysis Structure
 

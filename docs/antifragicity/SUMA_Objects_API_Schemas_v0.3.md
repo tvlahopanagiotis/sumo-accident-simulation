@@ -19,6 +19,23 @@ Not every scientific concept becomes a software object. Promote a concept only w
 | `governance` | Owner, due date, permission, risk, acceptance status. |
 | `deferred` | Roadmap item with owner/trigger, not D5.1 commitment. |
 
+## 1.1 Source-To-Object Traceability
+
+Objects and endpoints in this catalogue are candidates only when they trace to a source or a confirmed meeting decision.
+
+| Source basis | Object/API family driven | Required caveat |
+|---|---|---|
+| Grant Agreement | `ComponentManifest`, `AdapterContract`, D5.1/T5.2 staging, role/audit assumptions. | Contractual scope does not prove partner interfaces are ready. |
+| D2.1 | `DisruptionEvent`, taxonomy/crosswalk endpoints, scenario event attachment. | Event severity/source mappings stay provisional until pilot/WP6 validation. |
+| D2.2/D2.4 | `AcceptabilityConstraint`, `EquityImpact`, `PriorityObjective`, `RecommendationExplanation`, `MonitoringPlan`. | Social evidence gates recommendations; it is not an automated universal score. |
+| D2.3 | `SystemState`, `KpiVector`, `TargetPerformance`, `SRIResult`, `AFValidationRecord`. | Calculation examples are not validated AF claims without baselines/windows/owners. |
+| D2.5 | `OntologyMetadata`, `ResourceReference`, JSON-LD context, semantic-lift jobs. | Full KG/reasoning is deferred until CU confirms artefacts and use cases. |
+| D2.6 | `RequirementDefinition`, `AcceptanceCriterion`, `VerificationEvidence`, `RequirementGate`, requirements endpoints. | Consensus status is not implementation readiness. |
+| D2.7 | `KpiDefinition`, `KpiSelection`, `KpiObservation`, `KpiEvidenceLedger`, thresholds/baselines. | KPI rows need formula, unit, denominator, owner, baseline/threshold, and verification. |
+| MoM/context/Mini-GA | `TraceabilityChain`, `DecisionRiskLog`, `ControlZone`, adapter/pilot configuration rows. | Promote only after owner, status, due date, and fallback are recorded. |
+
+Any object without a source basis should be removed, relabelled as an internal proposal, or converted into a Mini-GA question.
+
 ## 2. Technology Stack
 
 | Layer | Recommended stack |
@@ -56,7 +73,7 @@ The `/api/v1` contract should live beside the current GUI/operator API. Do not r
 |---|---|---|
 | `core_d5_1` | Needed for D5.1 API spec and initial tests. | `RequirementDefinition`, `AcceptanceCriterion`, `DisruptionEvent`, `Scenario`, `SimulationJob`, `SimulationRun`, `KpiDefinition`, `KpiObservation`, `PilotConfig`, `DataInventoryItem`, `AdapterContract` |
 | `prototype_stub` | Define schema now; implementation may be mock/placeholder. | `ResponseAction`, `AcceptabilityConstraint`, `EquityImpact`, `TraceabilityChain`, `ControlZone`, `PriorityObjective`, `DataSourceContract` |
-| `integration_d5_2` | Needed mainly for implementation/integration. | `SimulatorAdapter`, `ComponentManifest`, `SemanticLiftJob`, `SystemState`, `KpiVector`, `TargetPerformance`, `SRIResult` |
+| `integration_t5_2` | Needed mainly for implementation/integration. | `SimulatorAdapter`, `ComponentManifest`, `SemanticLiftJob`, `SystemState`, `KpiVector`, `TargetPerformance`, `SRIResult` |
 | `ui_d5_3` | Needed mainly for role-based UI/dashboard/export. | `RolePermission`, `DashboardPayload`, `ReportExport`, `RecommendationExplanation` |
 | `validation_wp6_wp10` | Needed for pilot validation and feedback. | `VerificationEvidence`, `RequirementGate`, `EvaluationSession`, `StakeholderInput`, `LearningArtifact`, `AFValidationRecord` |
 | `deferred` | Useful but not first-version commitment. | automated acceptability scoring, full KG reasoning, live vendor-simulator integrations |

@@ -47,6 +47,19 @@ Every source finding must be classified before it becomes development work.
 
 Do not promote methodology/evidence into API unless a selected use case, partner module, UI/report, simulator adapter, validation workflow, or D5.1 acceptance criterion needs to call, persist, or exchange it.
 
+## 3.1 Evidence Discipline For Developers
+
+Codex and Rhoe developers should treat this document as a source-guided development context, not as an independent authority. Before converting a statement into code, schema, endpoint, or test, classify it as one of:
+
+| Claim type | Examples | Development action |
+|---|---|---|
+| Source-derived | D2.6 FR-05, D2.5 class subset, D2.7 KPI registry, Grant Agreement WP5 scope. | Implement/specify with source reference and status. |
+| Internal recommendation | SUMO-first adapter staging, file/SQLite-first persistence, `/api/v1` beside existing GUI API. | Use as default unless contradicted by partner decision or code reality. |
+| Illustrative fixture | AHEPA emergency-access example, Larissa proxy flood example, Odesa redacted/offline example. | Keep test/demo labels: `illustrative`, `synthetic`, `proxy`, or `pilot_to_confirm`. |
+| Confirmed commitment | Mini-GA or partner-confirmed owner/interface/due-date/fallback. | Promote to T5.2 backlog or implementation work. |
+
+If the basis is unclear, do not implement it as fact. Add it to `DecisionRiskLog`, `RequirementGate`, or the Mini-GA question bank.
+
 ## 4. Authoritative Working Documents
 
 Use these files as the current v0.3 working set:
@@ -192,7 +205,7 @@ The current GUI API must remain mounted and working.
 |---|---|
 | `core_d5_1` | `RequirementDefinition`, `AcceptanceCriterion`, `DisruptionEvent`, `Scenario`, `SimulationJob`, `SimulationRun`, `KpiDefinition`, `KpiObservation`, `PilotConfig`, `DataInventoryItem`, `AdapterContract`. |
 | `prototype_stub` | `ResponseAction`, `AcceptabilityConstraint`, `EquityImpact`, `TraceabilityChain`, `ControlZone`, `PriorityObjective`, `DataSourceContract`. |
-| `integration_d5_2` | `SimulatorAdapter`, `ComponentManifest`, `SemanticLiftJob`, `SystemState`, `KpiVector`, `TargetPerformance`, `SRIResult`. |
+| `integration_t5_2` | `SimulatorAdapter`, `ComponentManifest`, `SemanticLiftJob`, `SystemState`, `KpiVector`, `TargetPerformance`, `SRIResult`. |
 | `ui_d5_3` | `RolePermission`, `DashboardPayload`, `ReportExport`, `RecommendationExplanation`. |
 | `validation_wp6_wp10` | `VerificationEvidence`, `RequirementGate`, `EvaluationSession`, `StakeholderInput`, `LearningArtifact`, `AFValidationRecord`. |
 | `deferred` | Automated acceptability scoring, full KG reasoning, live vendor-simulator integrations. |

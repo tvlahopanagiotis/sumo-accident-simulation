@@ -5,6 +5,26 @@ Date context: 12 May 2026
 
 This index exists so the SUMA web app documentation page has one clear entry point for the current AntifragiCity WP5/SUMA working documents. The backend already lists all `.md` files under `docs/` through `/api/docs`; placing this file under `docs/antifragicity/` is sufficient for it to appear in the documentation view.
 
+## Reading Flow
+
+Use the documents in this order when preparing D5.1, T5.2, or Mini-GA material:
+
+1. Start with `AntifragiCity_Documentation_Index.md` to identify the current working set and avoid obsolete drafts.
+2. Read `SUMA_Codex_Development_Instructions_v0.3.md` for the internal interpretation of SUMA scope, D5.1/T5.2 separation, and development rules.
+3. Use `Rhoe_MiniGA_Thessaloniki_Working_Guide_v0.3.md` for meeting facilitation, partner questions, and pain points to close.
+4. Use `SUMA_Objects_API_Schemas_v0.3.md` when converting confirmed decisions into objects, endpoints, schemas, examples, and tests.
+5. Use `deliverable_analyses/*.md` as the evidence layer. If a synthesis document makes a claim, it should be traceable to one of these source-specific analyses or explicitly marked as an internal Rhoe recommendation.
+
+## Evidence Discipline
+
+The v0.3 documents distinguish three levels of material:
+
+| Level | Meaning | How to use |
+|---|---|---|
+| Source evidence | Grant Agreement, D2.1-D2.7, MoM/context files, Mini-GA agenda/pack. | Can justify D5.1 text if cited through a deliverable/context analysis. |
+| Internal interpretation | Rhoe/Codex translation from source evidence into D5.1/T5.2 objects, endpoints, tests, and backlog. | Use internally; keep caveats, owners, and fallback status. |
+| Meeting decision | Mini-GA or partner-confirmed owner/interface/validation row. | Promote to implementation scope only after owner, status, due date, and fallback are recorded. |
+
 ## Start Here
 
 | Document | Use |
