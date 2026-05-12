@@ -56,6 +56,7 @@ Use these files as the current v0.3 working set:
 | `docs/antifragicity/SUMA_Codex_Development_Instructions_v0.3.md` | Master developer/researcher context. |
 | `docs/antifragicity/Rhoe_MiniGA_Thessaloniki_Working_Guide_v0.3.md` | Rhoe meeting guide and partner question bank. |
 | `docs/antifragicity/SUMA_Objects_API_Schemas_v0.3.md` | Technical object/API/schema catalogue. |
+| `docs/antifragicity/deliverable_analyses/D2.6_Requirement_Elicitation_WP5_SUMA_Analysis.md` | Requirements baseline, acceptance criteria, verification methods, and traceability rules. |
 | `docs/antifragicity/deliverable_analyses/*.md` | Source-specific D5.1/T5.2/Mini-GA input briefs. |
 | `docs/antifragicity/SUMA_Codex_Development_Instructions_v0.1.md` | Historical initial context. |
 | `docs/antifragicity/SUMA_Codex_Development_Instructions_v0.2.md` | Historical expanded context. |
@@ -68,6 +69,7 @@ For internal planning, D5.1 should be considered acceptable if it includes:
 
 - `/api/v1` OpenAPI specification or equivalent schema snapshot.
 - JSON Schema/Pydantic models for `core_d5_1` objects.
+- D2.6 requirement registry covering FR/DR/IR/UR/NFR/GR IDs, source Delphi IDs, consensus status, priority, verification method, and acceptance criterion.
 - JSON-LD-compatible semantic metadata and an ontology context path.
 - Request/response examples for core endpoint families.
 - Error model and validation response model.
@@ -95,6 +97,7 @@ Use this table format whenever a feature is discussed.
 | Item | D5.1 status | T5.2 status | Owner | Interface | Verification | Due date | Fallback |
 |---|---|---|---|---|---|---|---|
 | Ontology JSON-LD context | specify and provide example | implement static endpoint and mapping registry | CU/Rhoe | `/api/v1/ontology/context.jsonld` | schema/example inspection | June 2026 | JSON metadata without full JSON-LD |
+| D2.6 requirement registry | specify FR/DR/IR/UR/NFR/GR baseline, consensus, acceptance criteria | implement registry, gates, evidence capture | CU/Rhoe | `/api/v1/requirements` | schema/API tests and inspection | June 2026 | static markdown/JSON matrix |
 | SUMO reference flow | specify scenario/job/run/KPI contract | implement using current runner and job facade | Rhoe | `/api/v1/simulation-jobs` | fixture run and API example | July 2026 | mock run payload |
 | ETH WP4 control module | adapter contract | external dependency until I/O confirmed | ETH/Rhoe | `AdapterContract` | interface inspection | before D5.1 freeze | manual import/mock output |
 | CUSP | adapter placeholder | external dependency until NDA/I-O/auth confirmed | CU/Optimize AI | `AdapterContract` | interface inspection | before D5.1 freeze | placeholder only |
@@ -105,7 +108,7 @@ T5.2 should implement the D5.1 contract in stages:
 
 | Stage | Development target |
 |---|---|
-| Contract baseline | `/api/v1` routers, schemas, examples, validation errors, static registries. |
+| Contract baseline | `/api/v1` routers, schemas, examples, validation errors, requirements registry, static registries. |
 | SUMO reference flow | `Scenario -> SimulationJob -> current runner -> SimulationRun -> KpiObservation`. |
 | Adapter registry | `AdapterContract`, `ComponentManifest`, `SimulatorAdapter`, `SUMOAdapter`, external placeholders. |
 | Persistence | File-first artifacts plus SQLite metadata ledger; PostGIS only if spatial/concurrent needs justify it. |
@@ -168,7 +171,8 @@ Add new modules incrementally rather than rewriting existing code.
 | `suma.jobs` | Abstract job lifecycle over current `JobManager`; durable backend later. |
 | `suma.adapters` | `SimulatorAdapter`, `SUMOAdapter`, placeholder external adapters. |
 | `suma.ontology` | Ontology class registry, JSON-LD context, ID/IRI resolver, mapping status. |
-| `suma.validation` | Schema rules, data-role rules, AF gates, recommendation gates. |
+| `suma.requirements` | D2.6 requirement registry, acceptance criteria, verification evidence, requirement gates. |
+| `suma.validation` | Schema rules, data-role rules, requirement gates, AF gates, recommendation gates. |
 | `suma.kpis` | KPI registry, selection, observations, derived calculations. |
 | `suma.methods` | D2.3 calculators and WP3/WP4 adapter wrappers. |
 
@@ -186,11 +190,11 @@ The current GUI API must remain mounted and working.
 
 | Stage | Objects |
 |---|---|
-| `core_d5_1` | `DisruptionEvent`, `Scenario`, `SimulationJob`, `SimulationRun`, `KpiDefinition`, `KpiObservation`, `PilotConfig`, `DataInventoryItem`, `AdapterContract`. |
+| `core_d5_1` | `RequirementDefinition`, `AcceptanceCriterion`, `DisruptionEvent`, `Scenario`, `SimulationJob`, `SimulationRun`, `KpiDefinition`, `KpiObservation`, `PilotConfig`, `DataInventoryItem`, `AdapterContract`. |
 | `prototype_stub` | `ResponseAction`, `AcceptabilityConstraint`, `EquityImpact`, `TraceabilityChain`, `ControlZone`, `PriorityObjective`, `DataSourceContract`. |
 | `integration_d5_2` | `SimulatorAdapter`, `ComponentManifest`, `SemanticLiftJob`, `SystemState`, `KpiVector`, `TargetPerformance`, `SRIResult`. |
 | `ui_d5_3` | `RolePermission`, `DashboardPayload`, `ReportExport`, `RecommendationExplanation`. |
-| `validation_wp6_wp10` | `EvaluationSession`, `StakeholderInput`, `LearningArtifact`, `AFValidationRecord`. |
+| `validation_wp6_wp10` | `VerificationEvidence`, `RequirementGate`, `EvaluationSession`, `StakeholderInput`, `LearningArtifact`, `AFValidationRecord`. |
 | `deferred` | Automated acceptability scoring, full KG reasoning, live vendor-simulator integrations. |
 
 ## 11. Source-Specific Development Rules
@@ -358,7 +362,45 @@ ResourceReference:
   redaction_status: none
 ```
 
-### 11.7 D2.7 KPI Framework
+### 11.7 D2.6 Requirement Elicitation
+
+Use D2.6 as the authoritative baseline for SUMA requirements, traceability, and acceptance criteria. It consolidates 47 Delphi-derived statements into FR/DR/IR/UR/NFR/GR requirements and adds verification methods. D2.6 consensus indicates importance/agreement, not automatic feasibility.
+
+Development rule: every D2.6 requirement promoted into D5.1 must carry `requirement_id`, source Delphi IDs, priority, consensus status, D5.1 status, T5.2 status, owner, verification method, acceptance criterion, and fallback. Moderate/low consensus items can still be important, but they need explicit gates and caveats.
+
+Example: API-first requirement trace.
+
+```yaml
+RequirementDefinition:
+  requirement_id: FR-05
+  category: FR
+  title: API-first capability for external tooling
+  priority: must
+  source_delphi_ids:
+    - DEL-R47
+    - DEL-R30
+  consensus_status: high_with_split_governance_caveat
+  d5_1_status: contract
+  t5_2_status: not_started
+  owner: Rhoe
+  fallback: documented_mock_endpoint_examples
+
+AcceptanceCriterion:
+  criterion_id: ac_fr_05_api_schema
+  requirement_id: FR-05
+  verification_method: api_test
+  given: documented SUMA endpoint payloads
+  when: valid and invalid requests are submitted
+  then: responses conform to OpenAPI and validation errors are explicit
+  evidence_required:
+    - openapi_snapshot
+    - schema_validation_report
+    - request_response_examples
+```
+
+Do not collapse D2.6 requirements into generic roadmap text. Use them as testable contracts.
+
+### 11.8 D2.7 KPI Framework
 
 Use D2.7 as KPI registry and selection logic. Do not implement all 209 KPIs in D5.1. Protect AF-critical network/system KPIs through `af_required_override`, even if they are not in the practitioner top 22.
 
@@ -385,7 +427,7 @@ KpiObservation:
   validation_status: unvalidated
 ```
 
-### 11.8 WP5/WP4 Context And Mini-GA Files
+### 11.9 WP5/WP4 Context And Mini-GA Files
 
 Use context/MoM files to clarify boundaries, adapter contracts, control zones, CUSP readiness, and Mini-GA facilitation. Use Mini-GA files cautiously as preparation material.
 
@@ -408,7 +450,7 @@ AdapterContract:
   owner: ETH
 ```
 
-## 11.9 SUMO Reference Flow From Current Code
+## 11.10 SUMO Reference Flow From Current Code
 
 Treat the current SUMO runner as the T5.2 reference implementation path, not as the whole D5.1 API.
 
@@ -436,7 +478,7 @@ Storage strategy:
 | `simulation_summary.json` | Candidate summary payload for `SimulationRun`. |
 | `gui_job.log` | Job log reference, not scientific evidence. |
 
-## 11.10 Four Pilot Example Modes
+## 11.11 Four Pilot Example Modes
 
 | Pilot | Example mode | D5.1 role | T5.2 role |
 |---|---|---|---|
@@ -452,6 +494,7 @@ The D5.1 API should use `/api/v1` for partner-facing contracts and keep current 
 | Family | Core endpoints |
 |---|---|
 | System/spec | `GET /api/health`, `GET /api/v1/openapi.json`, `GET /api/v1/component-manifest` |
+| Requirements/traceability | `GET /api/v1/requirements`, `GET /api/v1/requirements/{id}`, `GET /api/v1/requirements/{id}/trace`, `GET /api/v1/acceptance-criteria`, `POST /api/v1/verification-evidence` |
 | Events/taxonomy | `POST /api/v1/disruption-events`, `POST /api/v1/disruption-events/validate`, `GET /api/v1/taxonomies/*` |
 | Pilots/data | `GET/POST /api/v1/pilot-configurations`, `GET/POST /api/v1/data-inventory-items`, `GET /api/v1/data-readiness` |
 | Scenarios | `POST /api/v1/scenarios`, `GET /api/v1/scenarios/{id}`, `POST /api/v1/scenarios/{id}/validate` |
@@ -545,8 +588,8 @@ Illustrative AHEPA hospital-access scenario:
 | Before Mini-GA | Use v0.3 guide/schema to prepare tables and partner questions. |
 | Mini-GA Day 1 | Capture use cases, requirements, ontology/data, KPIs, living lab/stakeholder context. |
 | Mini-GA Day 2 | Convert into functions, architecture, adapter contracts, triage/action rows, UI roles, backlog owners. |
-| Immediately after Mini-GA | Consolidate confirmed rows into D5.1 outline, examples, and backlog. |
-| June 2026 | Implement `/api/v1` schema/stub baseline and static registries. |
+| Immediately after Mini-GA | Consolidate confirmed rows into D5.1 outline, requirement registry, acceptance criteria, examples, and backlog. |
+| June 2026 | Implement `/api/v1` schema/stub baseline, D2.6 requirements registry, and static registries. |
 | July 2026 | Implement SUMO reference flow and KPI observation export. |
 | August 2026 | Freeze D5.1 API specification, examples, tests, and known limitations. |
 | September-October 2026 | Advance T5.2 integration, pilot fixtures, adapter contracts, and RP1 validation evidence. |
@@ -582,6 +625,7 @@ When updating docs:
 These must be resolved before D5.1 freeze or clearly marked as dependencies:
 
 - Exact D5.1 acceptance level: spec only, spec plus stubs/tests, or executable prototype.
+- D2.6 requirement registry finalisation, including reconciliation of the reported 47 Delphi statements with the extracted 35/10/1 consensus counts.
 - Mandatory first-prototype ontology class/property subset.
 - IRI/local-ID and JSON-LD expectations.
 - Mini-GA-confirmed use cases per pilot.

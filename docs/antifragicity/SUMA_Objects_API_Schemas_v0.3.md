@@ -44,6 +44,7 @@ The `/api/v1` contract should live beside the current GUI/operator API. Do not r
 | `suma.jobs` | Abstract job lifecycle; current local job manager first, durable queue later. |
 | `suma.adapters` | `SimulatorAdapter`, `SUMOAdapter`, and placeholder external adapters. |
 | `suma.ontology` | Class registry, JSON-LD context, ID/IRI resolution, semantic mapping status. |
+| `suma.requirements` | D2.6 requirement registry, acceptance criteria, traceability, verification evidence, requirement gates. |
 | `suma.validation` | Schema validation, data-role rules, AF claim gates, deployability checks. |
 | `suma.kpis` | KPI registry, selection, observation storage, derived calculations. |
 | `suma.methods` | D2.3 calculation modules and WP4/WP3 adapter wrappers. |
@@ -53,11 +54,11 @@ The `/api/v1` contract should live beside the current GUI/operator API. Do not r
 
 | Stage | Meaning | Objects |
 |---|---|---|
-| `core_d5_1` | Needed for D5.1 API spec and initial tests. | `DisruptionEvent`, `Scenario`, `SimulationJob`, `SimulationRun`, `KpiDefinition`, `KpiObservation`, `PilotConfig`, `DataInventoryItem`, `AdapterContract` |
+| `core_d5_1` | Needed for D5.1 API spec and initial tests. | `RequirementDefinition`, `AcceptanceCriterion`, `DisruptionEvent`, `Scenario`, `SimulationJob`, `SimulationRun`, `KpiDefinition`, `KpiObservation`, `PilotConfig`, `DataInventoryItem`, `AdapterContract` |
 | `prototype_stub` | Define schema now; implementation may be mock/placeholder. | `ResponseAction`, `AcceptabilityConstraint`, `EquityImpact`, `TraceabilityChain`, `ControlZone`, `PriorityObjective`, `DataSourceContract` |
 | `integration_d5_2` | Needed mainly for implementation/integration. | `SimulatorAdapter`, `ComponentManifest`, `SemanticLiftJob`, `SystemState`, `KpiVector`, `TargetPerformance`, `SRIResult` |
 | `ui_d5_3` | Needed mainly for role-based UI/dashboard/export. | `RolePermission`, `DashboardPayload`, `ReportExport`, `RecommendationExplanation` |
-| `validation_wp6_wp10` | Needed for pilot validation and feedback. | `EvaluationSession`, `StakeholderInput`, `LearningArtifact`, `AFValidationRecord` |
+| `validation_wp6_wp10` | Needed for pilot validation and feedback. | `VerificationEvidence`, `RequirementGate`, `EvaluationSession`, `StakeholderInput`, `LearningArtifact`, `AFValidationRecord` |
 | `deferred` | Useful but not first-version commitment. | automated acceptability scoring, full KG reasoning, live vendor-simulator integrations |
 
 In this catalogue, `core` means "must be specified in D5.1 and should have examples/tests." It does not automatically mean fully implemented before T5.2. Implementation status must remain explicit on each endpoint or module.
@@ -426,6 +427,54 @@ DataInventoryItem:
 These records are needed because D5.1 must specify interfaces and ownership, while T5.2 implements or integrates them.
 
 ```yaml
+RequirementDefinition:
+  requirement_id: string
+  category: FR | DR | IR | UR | NFR | GR
+  title: string
+  statement: string
+  rationale: string
+  priority: must | should | could | deferred
+  source_delphi_ids: string[]
+  consensus_status: high | moderate | low | engineering | unknown
+  source_reference: string
+  d5_1_status: contract | stub | dependency | deferred
+  t5_2_status: not_started | implemented | blocked | deferred | external_dependency
+  owner: string | null
+  due_date: date | null
+  fallback: string | null
+
+AcceptanceCriterion:
+  criterion_id: string
+  requirement_id: string
+  verification_method: test | api_test | demo | inspection | stakeholder_review | performance_test
+  given: string
+  when: string
+  then: string
+  evidence_required: string[]
+  target_value: string | null
+  degraded_mode_allowed: boolean
+  acceptance_status: draft | agreed | passed | failed | deferred
+
+VerificationEvidence:
+  evidence_id: string
+  requirement_id: string
+  criterion_id: string
+  evidence_type: api_response | schema_validation | run_log | ui_screenshot | export_file | review_minutes | performance_report
+  artifact_ref: string
+  produced_at: datetime
+  produced_by: string | null
+  result: pass | fail | partial | not_run
+  caveats: string[]
+
+RequirementGate:
+  gate_id: string
+  requirement_id: string
+  gate_type: owner_confirmed | data_available | interface_confirmed | privacy_checked | latency_target_defined | validation_method_agreed
+  status: open | satisfied | blocked | deferred
+  owner: string | null
+  due_date: date | null
+  if_unresolved_then: stub | proxy | exclude_from_demo | defer_to_backlog
+
 RequirementTrace:
   requirement_id: string
   source: grant_agreement | d2_6 | miniga | partner_decision
@@ -527,7 +576,53 @@ AuditRecord:
   provenance_refs: string[]
 ```
 
-## 7. D2.3 Equations And Modules
+## 7. D2.6 Requirements Registry And Acceptance Gates
+
+D2.6 makes requirements first-class SUMA contracts. D5.1 should not only describe API endpoints; it should show which requirement each endpoint, object, module, UI role, and test supports.
+
+Baseline D2.6 groups:
+
+| Group | D5.1 object/API implications | T5.2 implementation implications |
+|---|---|---|
+| FR-01 to FR-05 | Event, scenario, KPI/AF, intervention, and API-first contracts. | SUMO-first workflow plus external API examples. |
+| FR-06/FR-07 | Runtime mode, latency target, learning artefact schemas. | Implement only with confirmed feeds/feedback workflows. |
+| DR-01/DR-02 | Data inventory, source diversity, provenance, uncertainty, quality flags. | Data readiness and output warnings. |
+| IR-01/IR-02 | Adapter contracts, simulator registry, component manifest, versioning. | SUMO connector first; external tools staged. |
+| UR-01/UR-02 | Role permissions, dashboard payloads, comparison/export semantics. | Role-based UI workflows and dashboards. |
+| NFR-01 to NFR-03 | Documentation, performance target, change/feedback tracking. | Docs page evidence, latency tests, agile feedback records. |
+| GR-01 to GR-04 | Privacy, minimisation, audit, transparency, stakeholder input governance. | RBAC, retention, audit logs, governed input workflows. |
+
+Example requirement contract:
+
+```yaml
+RequirementDefinition:
+  requirement_id: DR-02
+  category: DR
+  title: Data quality metadata
+  priority: must
+  source_delphi_ids:
+    - DEL-R22
+    - DEL-R20
+  consensus_status: moderate_used_as_core_due_to_trust_requirement
+  d5_1_status: contract
+  t5_2_status: not_started
+  owner: Rhoe/CU to confirm
+  fallback: expose missing quality metadata as warning
+
+AcceptanceCriterion:
+  criterion_id: ac_dr_02_quality_flags
+  requirement_id: DR-02
+  verification_method: test
+  given: ingested dataset with complete and missing provenance fields
+  when: SUMA returns scenario outputs
+  then: provenance, timestamp, source limitations, and missing-quality warnings are included
+  evidence_required:
+    - stored_metadata_record
+    - api_output_payload
+    - ui_warning_screenshot
+```
+
+## 8. D2.3 Equations And Modules
 
 D5.1 should expose these as illustrative calculation contracts, not hard-coded approved equations and not validated operational claims. Each formula, weight, window, source reliability value, and threshold must carry `parameter_status: default | assumed | partner_confirmed | pilot_calibrated | missing`.
 
@@ -602,7 +697,7 @@ KpiObservation:
   validation_status: unvalidated
 ```
 
-## 8. D2.7 KPI Selection And Quality Formulas
+## 9. D2.7 KPI Selection And Quality Formulas
 
 These are SUMA operational formulas for selection/data-readiness support, not D2.7-validated scientific claims.
 
@@ -621,7 +716,7 @@ data_quality = 0.4*completeness + 0.4*accuracy + 0.2*timeliness
 
 Weights must be configurable and labelled as `default`, `assumed`, or `pilot_calibrated`.
 
-## 9. API Families
+## 10. API Families
 
 Status terms in the tables below mean:
 
@@ -632,7 +727,7 @@ Status terms in the tables below mean:
 | `T5.2 implementation` | Actual working implementation/integration target. |
 | `deferred` | Documented roadmap item, not current commitment. |
 
-### 9.1 System And Specification
+### 10.1 System And Specification
 
 | Endpoint | Method | Status | Purpose |
 |---|---|---|---|
@@ -640,7 +735,19 @@ Status terms in the tables below mean:
 | `/api/v1/openapi.json` | `GET` | D5.1 contract | Machine-readable D5.1 contract. |
 | `/api/v1/component-manifest` | `GET` | D5.1 contract | KER/module owner, licence, interface, maturity. |
 
-### 9.2 Events And Taxonomy
+### 10.2 Requirements And Traceability
+
+| Endpoint | Method | Status | Purpose |
+|---|---|---|---|
+| `/api/v1/requirements` | `GET` | D5.1 contract | Return D2.6 baseline requirement registry. |
+| `/api/v1/requirements/{id}` | `GET` | D5.1 contract | Return one requirement with priority, consensus, owner, and status. |
+| `/api/v1/requirements/{id}/trace` | `GET` | D5.1 contract | Return linked objects, endpoints, tests, UI roles, and evidence. |
+| `/api/v1/requirements/{id}/gates` | `POST` | D5.1 stub | Record owner/data/interface/privacy/performance gates. |
+| `/api/v1/acceptance-criteria` | `GET` | D5.1 contract | Return D2.6 verification methods and acceptance criteria. |
+| `/api/v1/verification-evidence` | `POST` | D5.1 stub, T5.2 implementation | Register test/demo/review evidence for a requirement. |
+| `/api/v1/traceability-chains` | `GET` | D5.1 contract | Query use-case-to-requirement-to-object-to-endpoint chains. |
+
+### 10.3 Events And Taxonomy
 
 | Endpoint | Method | Status | Purpose |
 |---|---|---|---|
@@ -650,7 +757,7 @@ Status terms in the tables below mean:
 | `/api/v1/taxonomies/crosswalks` | `GET` | core | Return source-category mappings. |
 | `/api/v1/scenarios/{id}/events` | `POST` | D5.1 contract, T5.2 implementation | Attach events/stressors to a scenario. |
 
-### 9.3 Pilots And Data Readiness
+### 10.4 Pilots And Data Readiness
 
 | Endpoint | Method | Status | Purpose |
 |---|---|---|---|
@@ -661,7 +768,7 @@ Status terms in the tables below mean:
 | `/api/v1/priority-objectives` | `POST` | D5.1 stub | Define pilot/use-case objective priorities. |
 | `/api/v1/data-source-contracts` | `GET` | D5.1 contract | Expose source access/privacy/acceptability status. |
 
-### 9.4 Scenarios, Jobs, Runs, And Adapters
+### 10.5 Scenarios, Jobs, Runs, And Adapters
 
 | Endpoint | Method | Status | Purpose |
 |---|---|---|---|
@@ -675,7 +782,7 @@ Status terms in the tables below mean:
 | `/api/v1/simulator-adapters` | `GET/POST` | T5.2 implementation | Registry/capabilities. |
 | `/api/v1/adapter-contracts` | `GET/POST` | core/internal | Register external module contracts. |
 
-### 9.5 KPI And Antifragility
+### 10.6 KPI And Antifragility
 
 | Endpoint | Method | Status | Purpose |
 |---|---|---|---|
@@ -690,7 +797,7 @@ Status terms in the tables below mean:
 | `/api/v1/af-validations` | `POST` | staged | Batch AF validation workflow. |
 | `/api/v1/sri/calculate` | `POST` | staged | Advisory SRI calculation. |
 
-### 9.6 Response, Governance, And Acceptability
+### 10.7 Response, Governance, And Acceptability
 
 | Endpoint | Method | Status | Purpose |
 |---|---|---|---|
@@ -702,7 +809,7 @@ Status terms in the tables below mean:
 | `/api/v1/monitoring-plans` | `POST` | D5.1 stub | Define post-action monitoring/reporting requirements. |
 | `/api/v1/evaluation-sessions` | `POST` | validation/stub | WP6 feedback. |
 
-### 9.7 Ontology
+### 10.8 Ontology
 
 | Endpoint | Method | Status | Purpose |
 |---|---|---|---|
@@ -712,27 +819,31 @@ Status terms in the tables below mean:
 | `/api/v1/resources/{id}` | `GET` | prototype | Resolve local IDs/IRIs. |
 | `/api/v1/semantic-lift-jobs` | `POST` | D5.1 stub, T5.2 implementation | Register semantic mapping jobs. |
 
-## 10. Validation Rules
+## 11. Validation Rules
 
-### 10.1 Data Role Rule
+### 11.1 Data Role Rule
 
 - `input`: can be requested from partners/cities.
 - `computed_output`: should be produced by SUMA, WP3, WP4, or simulator methods.
 - `parameter`: requires method/calibration owner and should not be requested as raw city data unless explicitly available.
 
-### 10.2 Recommendation Rule
+### 11.2 Recommendation Rule
 
 A response action cannot be labelled deployment-ready unless it has technical priority, owner, validation/assumption status, acceptability status or explicit `not_assessed`, equity status or explicit `not_assessed`, mitigation status where needed, and public rationale where user-facing.
 
-### 10.3 AF Claim Rule
+### 11.3 AF Claim Rule
 
 An antifragility output cannot be labelled validated unless it has baseline state, disturbance definition, post-event/intervention observation window, method version, KPI coverage tier, confidence/uncertainty, causal/attribution note, equity non-worsening status, and validation owner.
 
-## 11. Implementation Phases
+### 11.4 Requirement Traceability Rule
+
+Every D5.1 endpoint family and core object should link to at least one D2.6 `RequirementDefinition` or an explicit non-D2.6 source such as Grant Agreement, Mini-GA decision, or partner interface dependency. A requirement cannot be marked `passed` unless its `AcceptanceCriterion` has corresponding `VerificationEvidence` or a documented deferral/fallback.
+
+## 12. Implementation Phases
 
 | Phase | Work |
 |---|---|
-| D5.1 contract baseline | Add `/api/v1` schemas, examples, OpenAPI, error model, static registries, and mock/stub endpoints. |
+| D5.1 contract baseline | Add `/api/v1` schemas, examples, OpenAPI, error model, D2.6 requirement registry, static registries, and mock/stub endpoints. |
 | D5.1 SUMO reference flow | Map `Scenario -> SimulationJob -> current runner -> SimulationRun -> KpiObservation`. |
 | T5.2 integration | Introduce `SimulatorAdapter`, `AdapterContract`, `ComponentManifest`, SUMO adapter, and external placeholders. |
 | T5.2 persistence hardening | SQLite ledger first; optional Redis/Celery and PostGIS profile later. |

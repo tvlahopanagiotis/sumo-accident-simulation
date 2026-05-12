@@ -56,6 +56,7 @@ Use these labels while taking notes and closing sessions.
 | D2.3 Equilibrium/AF | State vector, KPI vector, `Deff`, SRI, AF validation gates and maturity labels. | KPI normalizer, disturbance mapper, AF validation batch, feasible-set validator. | Confirm indicators, weights, baseline/recovery windows, constraints. |
 | D2.4 Initial Analysis | Emergency priority, equity mitigation, explanation/reporting, trusted data sources. | Priority objective manager, equity burden checker, data-source profiler. | Confirm protected corridors, zones, mitigation rules, channels, report owners. |
 | D2.5 Ontology | DTO-to-ontology mapping, IDs/IRIs, JSON-LD compatibility, named graphs, KPI observation split. | JSON-LD context, semantic mapping registry, optional semantic-lift jobs. | Confirm first class subset, IRI rules, mandatory properties, mapping owners. |
+| D2.6 Requirement Elicitation | FR/DR/IR/UR/NFR/GR baseline, Delphi consensus, traceability, acceptance criteria, verification methods. | Requirement registry, acceptance tests, evidence records, requirement gates, backlog priorities. | Confirm essential/deferred requirements per use case, owner, verification method, and realistic RP1 scope. |
 | D2.7 KPI Framework | KPI registry, selection, observation, thresholds, baselines, data roles. | KPI observation store, derived KPI calculator, threshold/baseline manager. | Confirm KPI subset, formulas, owners, data roles, thresholds, validation. |
 | WP5/WP4 MoM/context | Adapter boundaries, CUSP readiness, control zones, retraining, scenario generation modes. | Adapter registry, control-zone model, role permissions, traceability ledger. | Force owner/fallback for WP4/CUSP/DMO/WP3 interfaces. |
 | Mini-GA pack | Seed requirements, use cases, KPI register, pilot briefings, data inventory. | Convert only confirmed rows into fixtures/contracts. | Use cautiously; promote only rows with owner/status/due date. |
@@ -67,7 +68,7 @@ Rhoe should listen for the items that Day 2 needs.
 | Day 1 session | What Rhoe must capture |
 |---|---|
 | Use cases | use case ID, pilot, trigger, actor, decision question, expected SUMA value, retained/refined/deferred status |
-| Requirements | essential vs deferred requirements, acceptance criterion, verification method, owner |
+| Requirements | D2.6 requirement ID, essential vs deferred status, acceptance criterion, verification method, owner |
 | Ontology/data | ontology class, object/property, data role, source, owner, mapping status, missing fields |
 | KPIs | KPI ID, unit, layer, formula, baseline/threshold status, calculation mode, owner |
 | Living lab/stakeholders | user role, vulnerable group, validation context, communication channel, feedback owner |
@@ -87,6 +88,22 @@ Do not let Day 1 produce a generic data wish list. A data item matters only if i
 | Day 2, Session 7: triage/acceptability | Link actions to technical priority, acceptability, equity, mitigation, communication owner. | `ResponseAction` rows. |
 | UI charrette | Convert roles into permissions, warnings, exports, guided/expert flows. | Role/API payload matrix. |
 | Closeout | Confirm owner, status, due date, fallback. | Decision/risk log. |
+
+## 5.2 D2.6 Requirement Triage Rule
+
+D2.6 is now the baseline requirement source. Use its FR/DR/IR/UR/NFR/GR IDs as the meeting language, but do not treat every D2.6 item as an immediately executable T5.2 feature. Each retained use case should produce a compact requirement triage table.
+
+| Requirement group | Use in Mini-GA | Rhoe position |
+|---|---|---|
+| FR-01 to FR-05 | Core D5.1 API/function scope. | Specify in D5.1; implement SUMO-first subset in T5.2. |
+| FR-06/FR-07 | Near-real-time and learning loop. | Keep as staged commitments with latency/feed/feedback owners. |
+| DR-01/DR-02 | Data diversity and data quality/provenance. | Required for data-readiness and output trust; do not request computed outputs as raw data. |
+| IR-01/IR-02 | Simulator integration and modular architecture. | SUMO is executable first; Vissim/Aimsun/VISUM/WP4/CUSP need adapter contracts until confirmed. |
+| UR-01/UR-02 | Role workflows and dashboards. | Minimum role model required; split-governance workflow needs clarification because DEL-R30 had low consensus. |
+| NFR-01 to NFR-03 | Documentation, performance, maintainability. | Use docs page, API examples, performance targets, and feedback logs as acceptance evidence. |
+| GR-01 to GR-04 | Privacy, audit, transparency, stakeholder input. | Must be visible in schemas and UI warnings; full enforcement can be staged but not ignored. |
+
+Required close-out columns: `requirement_id`, `use_case`, `essential/deferred`, `owner`, `verification_method`, `acceptance_evidence`, `D5.1 implication`, `T5.2 implication`, `fallback`.
 
 ## 6. Day 2 Session 5: SUMA Function Mapping
 
@@ -187,7 +204,7 @@ Ask DMO to identify which `/api/v1` payloads each role needs and whether workflo
 | Partner | Questions |
 |---|---|
 | Rhoe | Is D5.1 `spec only`, `spec + stubs/tests`, or `prototype`? Which endpoint core, auth model, error model, schema versioning, and SUMO demo are in scope? |
-| Cardiff/WP2 | Which requirements, ontology classes, KPI definitions, and `data_role` labels are authoritative after Mini-GA? Who owns Layer 3 KPI definitions and ARP target conflict? |
+| Cardiff/WP2 | Is D2.6 the accepted SUMA requirement baseline after Mini-GA? Can the 47-statement count be reconciled with the extracted 35/10/1 consensus counts? Which requirements, ontology classes, KPI definitions, and `data_role` labels are authoritative? Who owns Layer 3 KPI definitions and ARP target conflict? |
 | CU/Optimize AI/CUSP | What I/O package can SUMA rely on? What is blocked by NDA? What auth/deployment model, data formats, latency, and fallback status apply? |
 | ETH/WP4 | What are control-strategy inputs, outputs, parameters, runtime mode, control-zone boundaries, retraining assumptions, and D2.7 KPI mappings? |
 | AUTH | What Living Lab feeds, SUMO/VISUM handoffs, signal-priority capabilities, hospital-access corridors, and permissions are available? |
@@ -214,6 +231,7 @@ Ask DMO to identify which `/api/v1` payloads each role needs and whether workflo
 | Table | Required columns |
 |---|---|
 | `UseCaseContract` | use case ID, pilot, trigger, actor, decision question, retained/refined/deferred, expected SUMA value, owner |
+| `RequirementDefinition / AcceptanceCriterion` | requirement ID, priority, consensus status, essential/deferred status, verification method, acceptance evidence, owner, fallback |
 | `TraceabilityChain` | use case, requirement, ontology class, data object, `data_role`, KPI, function, endpoint/service, module, UI role, owner, fallback |
 | `PilotConfig / ControlZone` | study area, network/OD ref, protected asset, corridor, control-zone refs, boundary stability, retraining flag, permissions, validation target, degraded mode |
 | `DataReadiness` | variable, `input/computed_output/parameter`, priority, availability, owner, proxy, spatial/temporal scale, privacy, `acquire/proxy/defer/drop` |
@@ -233,6 +251,7 @@ Ask DMO to identify which `/api/v1` payloads each role needs and whether workflo
 | Acceptability | Evidence and gates first; no automated universal acceptability score. |
 | CUSP | `external_dependency` until NDA, I/O, auth, deployment, and fallback are resolved. |
 | KPI | No KPI claim without formula, unit, dataset, denominator, baseline/target, owner, and verification method. |
+| Requirements | D2.6 requirements are the baseline, but each retained item still needs owner, verification method, acceptance evidence, and fallback. |
 
 Partner-facing wording: describe these as "confirmation gates" rather than objections. For example, say "This can be included in the SUMA contract once the interface and validation owner are confirmed."
 
@@ -258,11 +277,11 @@ This timeline separates D5.1 specification work from T5.2 implementation/integra
 | Period | Main objective | Concrete work |
 |---|---|---|
 | 18-19 May Mini-GA | Convert consortium knowledge into owner-assigned rows. | Use case, requirement, ontology/data, KPI, function, architecture, triage, UI, decision/risk tables. |
-| Late May 2026 | Consolidate Mini-GA outputs. | Produce confirmed `UseCaseContract`, `TraceabilityChain`, `KpiEvidenceLedger`, `AdapterContract`, and `PilotConfig` rows. |
+| Late May 2026 | Consolidate Mini-GA outputs. | Produce confirmed `UseCaseContract`, `RequirementDefinition`, `AcceptanceCriterion`, `TraceabilityChain`, `KpiEvidenceLedger`, `AdapterContract`, and `PilotConfig` rows. |
 | Early June 2026 | Start with ontology and identifiers. | Confirm D2.5 first class/property subset, define ID/IRI conventions, draft `/api/v1/ontology/context.jsonld`, add JSON/JSON-LD examples. |
 | Mid June 2026 | Freeze D5.1 domain schemas. | Finalize `DisruptionEvent`, `Scenario`, `KpiDefinition`, `KpiObservation`, `PilotConfig`, `AdapterContract`, `DataInventoryItem`, and validation/error envelopes. |
 | Late June 2026 | Build D5.1 examples and fixtures. | Add AHEPA emergency-access fixture, Larissa degraded/proxy flood fixture, Bratislava external-model adapter fixture, Odesa redacted/offline fixture. |
-| July 2026 | Specify and stub `/api/v1`. | OpenAPI snapshot, schema examples, mock/stub endpoints, adapter-contract registry, KPI registry, documentation examples. |
+| July 2026 | Specify and stub `/api/v1`. | OpenAPI snapshot, schema examples, mock/stub endpoints, requirements registry, adapter-contract registry, KPI registry, documentation examples. |
 | August 2026 | D5.1 freeze. | API specification, example payloads, known limitations, initial schema tests, risk-to-test matrix, D5.1 narrative. |
 | September 2026 | T5.2 implementation sprint. | SUMO reference flow, local job facade, KPI observation export, file/SQLite metadata ledger, pilot configuration loading. |
 | October 2026 | RP1 consolidation and T5.2 roadmap. | Validate what can be shown, document dependencies, update backlog for WP3/WP4/CUSP/DMO adapters, prepare RP1 evidence package. |
@@ -273,6 +292,7 @@ By 15:00 on 19 May 2026, Rhoe should have:
 
 - retained/refined/deferred use cases per pilot,
 - essential/deferred SUMA requirements per use case,
+- owner-assigned D2.6 acceptance criteria and verification methods for essential requirements,
 - first ontology/data/KPI/function/API/module/UI traceability rows,
 - adapter contract rows for WP4, CUSP, AUTH, LISER, DMO, and simulator interfaces where relevant,
 - pilot configuration asks and owners,
